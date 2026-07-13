@@ -1,5 +1,62 @@
 # bun
 
+## An Ordering is one of:
+    A Less.
+    An Equal.
+    A Greater.
+
+## To native split (s: Text, sep: Text) -> Seq of Text
+## To native parseInt (s: Text) -> Int
+## To native exitWith (code: Int) -> Unit
+## To native eputs (s: Text) -> Unit
+
+## To numericCore (part: Text) -> Int:
+    Let beforePre be item 1 of split(part, "-").
+    Let beforeBuild be item 1 of split(beforePre, "+").
+    Return parseInt(beforeBuild).
+
+## To nthNumber (v: Text, n: Int) -> Int:
+    Let parts be split(v, ".").
+    If length of parts is greater than or equal to n:
+        Return numericCore(item n of parts).
+    Return 0.
+
+## To major (v: Text) -> Int:
+    Return nthNumber(v, 1).
+
+## To minor (v: Text) -> Int:
+    Return nthNumber(v, 2).
+
+## To patch (v: Text) -> Int:
+    Return nthNumber(v, 3).
+
+## To cmpInt (a: Int, b: Int) -> Ordering:
+    If a is less than b:
+        Return a new Less.
+    If a is greater than b:
+        Return a new Greater.
+    Return a new Equal.
+
+## To compareVersions (a: Text, b: Text) -> Ordering:
+    Let majorA be major(a).
+    Let majorB be major(b).
+    If majorA is not equal to majorB:
+        Return cmpInt(majorA, majorB).
+    Let minorA be minor(a).
+    Let minorB be minor(b).
+    If minorA is not equal to minorB:
+        Return cmpInt(minorA, minorB).
+    Return cmpInt(patch(a), patch(b)).
+
+## To orderingToInt (o: Ordering) -> Int:
+    Inspect o:
+        When Less:
+            Return -1.
+        When Greater:
+            Return 1.
+        Otherwise:
+            Return 0.
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -17,9 +74,6 @@
             Return true.
     Return false.
 
-## To native exitWith (code: Int) -> Unit
-## To native eputs (s: Text) -> Unit
-
 ## Main
 Let arguments be args().
 Let cmd be secondArg(arguments).
@@ -29,6 +83,10 @@ Otherwise If cmd is equal to "-v":
     Show "1.4.0".
 Otherwise If cmd is equal to "--revision":
     Show "1.4.0-canary.1+43ee03834".
+Otherwise If cmd is equal to "__semver-compare":
+    Let versionA be item 3 of arguments.
+    Let versionB be item 4 of arguments.
+    Show orderingToInt(compareVersions(versionA, versionB)).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

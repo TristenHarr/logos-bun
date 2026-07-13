@@ -214,10 +214,86 @@ merges them, so your duplicated config section passes without a peep.
 
 ---
 
-_Live count: 19 (⭐×6 BUN [semver + 5 TOML], 6 toolchain [**2 FIXED**], 7 ours). bun's JSON
-parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML parser: 5 bugs (\U
-escape, multiline-ws, inf/nan, no-dates, duplicate-table) — materially spec-incomplete. Fuzz
-lanes: fuzz/semver/, fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out).
-**BUG-17 (no exit-code) + BUG-18 (no stderr) FIXED** (toolchain 592ec80: exitWith+eputs; CLI
-port unblocked, now byte-exact on unknown-cmd). Remaining toolchain gaps: sort (blocks the
-semver port), atomics (blocks install)._
+### BUG-20 · TOOLCHAIN · 2026-07-13 · gap (FIXED)
+**What:** LOGOS had **no string-splitting builtin** — only `parseInt`/`parseFloat`/`chr` and
+char indexing existed, so no parser could turn `"1.2.3"` into its parts. Every real component
+port (semver, url, ini, path) is a parser and dead-in-the-water without `split`. **Where:**
+`logicaffeine_system` had no `text::split`; `map_native_function` had no mapping. **Found by:**
+starting the semver port (P2.1) — the first line of `parseVersion` needed it. **Status:**
+**FIXED** (toolchain b9f9928): `split(s, sep) -> Seq of Text` (LogosSeq, Rust `str::split`
+semantics — empty sep → whole string, trailing sep → trailing empty piece); verified end-to-end
+parsing a version string. **Tweet:** Porting a parser to a language with no `split()` is a
+speedrun into a wall. Added it to LOGOS as a native builtin — `split("1.2.3", ".")` → the pieces
+— and the semver port could finally start. (n/a — our toolchain, not a bun bug.)
+
+### BUG-21 · TOOLCHAIN · 2026-07-13 · gap (FIXED)
+**What:** LOGOS **rejected `Less`/`Greater` (and any comparative/superlative word) as an enum
+variant / identifier name.** The lexer eagerly maps them to comparison-operator tokens
+(`Less` → `Comparative("Little")`, discarding the surface form), so the discovery pass silently
+skipped them (unregistered variant) and `expect_identifier` errored on `a new Less` / `When Less`
+with "I expected a name here". This blocked the natural `Ordering` enum — `Less`/`Equal`/`Greater`,
+the three-way result every `compare()`, sort, and JS `<`/`>` returns. Violates the project's
+identifier-freedom mandate (no keyword should block an identifier position). **Where:**
+`analysis/discovery.rs::consume_noun_or_proper` + `parser/mod.rs::expect_identifier`. **Found by:**
+the semver port — writing `Ordering` with the idiomatic Rust variant names. **Status:** **FIXED**
+(toolchain 6e36198): freed `Comparative`/`Superlative` at both identifier surfaces, keyed on the
+raw lexeme ("Less", not the lemma) so declaration/constructor/pattern agree; NL comparative
+parsing (`is less than`) untouched. Locked by `e2e_enum_comparison_word_variants`; 173
+enum/inspect/degree tests green. **Tweet:** Tried to name an enum variant `Less` in LOGOS and got
+"I expected a name here" — the word was reserved for `<`. Fixed it: comparison words are now free
+to be identifiers too, so `Ordering` = `Less | Equal | Greater` just works. (n/a — our toolchain.)
+
+---
+
+### BUG-22 · TOOLCHAIN · 2026-07-13 · gap (FIXED)
+**What:** LOGOS parsed the strict worded inequalities (`is greater than` → `>`, `is less than` →
+`<`) and the terse `is at least`/`is at most`, but **not the natural inclusive phrasing** `is
+greater than or equal to` / `is less than or equal to`. `greater than` consumed only through
+`than`, so the trailing `or equal to` was left for the right-operand parse to choke on
+(`ExpectedExpression`). **Where:** `parser/mod.rs::parse_condition`. **Found by:** the semver
+port — `if length of parts is greater than or equal to n`. **Status:** **FIXED** (toolchain
+9763a91): an optional `or equal to` tail after `than` promotes `Gt→GtEq` / `Lt→LtEq`; bare
+`than` stays strict; a real trailing boolean `or` (after the operand) still parses. Locked by
+`e2e_worded_{greater,less}_than_or_equal_to`. **Tweet:** LOGOS knew "is greater than" and "is at
+least" but tripped on the phrasing everyone actually writes — "is greater than or equal to."
+Fixed: the full English `>=`/`<=` now parse, strict-vs-inclusive kept exact. (n/a — our toolchain.)
+
+### BUG-23 · TOOLCHAIN · 2026-07-13 · gap (FIXED)
+**What:** LOGOS recognized bare `is not X` (`!=`) and `is equal to X` (`==`) but **not their
+composition** `is not equal to X`, nor the negated inequalities `is not greater/less than X`.
+`is not equal to b` parsed `is not` → `!=` then choked on `equal to b` (`ExpectedKeyword ":"`).
+**Where:** `parser/mod.rs::parse_condition` (the `not` branch). **Found by:** the semver port —
+`if majorA is not equal to majorB`. **Status:** **FIXED** (toolchain e425b28): `not` now composes
+with the following inequality — `not equal to`→`!=`, `not greater than [or equal to]`→`<=`/`<`,
+`not less than [or equal to]`→`>=`/`>`; bare `is not X` unchanged. Locked by
+`e2e_worded_not_{equal_to,greater_than,less_than}`. **Tweet:** "is not equal to" — the most
+natural way to say `!=` — didn't parse in LOGOS (only the terse "is not"). Fixed, and the whole
+negated-inequality family came with it: "not greater than" = `<=`, and so on. (n/a — our toolchain.)
+
+### BUG-24 · TOOLCHAIN · 2026-07-13 · gap (OPEN)
+**What:** **Cross-module FUNCTION calls don't resolve.** A `[Link](file:./mod.lg)` import shares
+the module's *types* (`Module::Type` constructors work, per the multimodule canary), but calling
+a function defined in an imported module fails both ways: `Module::fn(...)` → codegen "cannot find
+type Module", and unprefixed `fn(...)` → "cannot find function". So a leaf util written as its own
+`.lg` module can't be called from `main.lg`. **Where:** module loader / codegen namespace wiring
+(`logicaffeine_compile` loader + discovery). **Found by:** the semver port — tried `src/semver.lg`
++ `Semver::compareVersions`. **Workaround:** inlined semver into `src/main.lg` (self-contained,
+tested, differential-verified). **Status:** open — the toolchain fix (splice imported-module
+functions into the callable namespace, or wire `Module::fn` codegen) is the next module-system
+increment; also note BUG-11 (link-less / multi-line prose abstracts parsed as code) recurred and
+still forces canary-shaped or title-only headers. **Tweet:** (n/a — our toolchain; blocks clean
+module separation, worked around by inlining.)
+
+---
+
+_Live count: 24 (⭐×6 BUN [semver + 5 TOML], 11 toolchain [**6 FIXED**, 1 open + BUG-11 recurring],
+7 ours). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML
+parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table) — materially
+spec-incomplete. Fuzz lanes: fuzz/semver/, fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/
+(ruled out). **P2.1 SEMVER CORE PORTED + GREEN:** `compareVersions` (Ordering + split-parse +
+numeric triple) in `src/main.lg`, exercised via `bun __semver-compare`, differential-verified vs
+node-semver — **3224 pairs across 4 seeds, 0 diffs** (red/p2/semver-compare.test.mjs), incl. the
+lexicographic traps 1.2.10>1.2.9 and 0.10.1>0.9.17. Toolchain fixes this session: exitWith/eputs
+(592ec80), split (b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded
+negations (e425b28). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER, not
+core), atomics (install), BUG-11 preamble robustness._
