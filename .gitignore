@@ -7,3 +7,5 @@
 node_modules/
 .logos-native/
 *.log
+.ratchet-break
+.merge-freeze

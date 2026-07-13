@@ -1,0 +1,6 @@
+(pass) math > adds numbers
+(fail) io > reads file
+bundled 12 modules in <time>
+compiled total
+done in <time>
+2 pass, 0 fail

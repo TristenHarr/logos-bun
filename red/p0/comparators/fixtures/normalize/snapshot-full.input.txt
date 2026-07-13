@@ -1,0 +1,8 @@
+
+oops! something crashed. Bun v1.3.14 (Linux x64)
+    at makeRequest (/home/tristen/logos-bun/src/net.js:40:12)
+    at /tmp/scratch-XYZ/run.js:7:3
+(pass) suite > works [2.50ms]
+loaded from C:\Users\ci\project\index.ts
+home file /home/tristen/.bunrc
+tmp artifact /tmp/out.js

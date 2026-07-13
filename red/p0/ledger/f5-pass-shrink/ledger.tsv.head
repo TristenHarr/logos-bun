@@ -1,0 +1,4 @@
+# f5 baseline
+PASS	C	src/toy.lg::kept	dddddddddddddddddddddddddddddddddddddddd	1	kept
+PASS	C	src/toy.lg::dropped	eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee	1	will be dropped
+#CHAIN 0751b680992842cf6082eedb2705cae1f2bd754ac5f41944f7446e260f5d0458

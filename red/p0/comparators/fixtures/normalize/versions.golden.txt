@@ -1,0 +1,6 @@
+<bun-version>
+oops! something crashed. Bun v<bun-version>
+error boundary: Bun v<bun-version>
+running <version> (<revision>)
+built from revision <revision>
+plain <bun-version> in a sentence

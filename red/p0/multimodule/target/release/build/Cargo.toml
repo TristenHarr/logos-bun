@@ -1,0 +1,16 @@
+[package]
+name = "multimodule-toy"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+logicaffeine-data = { path = "./crates/logicaffeine_data" }
+logicaffeine-system = { path = "./crates/logicaffeine_system", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+panic = "abort"
+strip = true

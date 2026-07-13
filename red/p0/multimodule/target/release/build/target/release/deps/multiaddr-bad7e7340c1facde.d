@@ -1,0 +1,11 @@
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/multiaddr-bad7e7340c1facde.d: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/errors.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/onion_addr.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/protocol.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/from_url.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libmultiaddr-bad7e7340c1facde.rlib: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/errors.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/onion_addr.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/protocol.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/from_url.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libmultiaddr-bad7e7340c1facde.rmeta: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/errors.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/onion_addr.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/protocol.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/from_url.rs
+
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/lib.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/errors.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/onion_addr.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/protocol.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/multiaddr-0.18.2/src/from_url.rs:

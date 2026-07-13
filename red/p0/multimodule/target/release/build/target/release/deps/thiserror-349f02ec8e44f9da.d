@@ -1,0 +1,14 @@
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/thiserror-349f02ec8e44f9da.d: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/thiserror-d5d9d3876a4de6b3/out/private.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libthiserror-349f02ec8e44f9da.rlib: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/thiserror-d5d9d3876a4de6b3/out/private.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libthiserror-349f02ec8e44f9da.rmeta: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/thiserror-d5d9d3876a4de6b3/out/private.rs
+
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/thiserror-d5d9d3876a4de6b3/out/private.rs:
+
+# env-dep:OUT_DIR=/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/thiserror-d5d9d3876a4de6b3/out

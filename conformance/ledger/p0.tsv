@@ -1,0 +1,7 @@
+# conformance/ledger/p0.tsv — P0 walking-skeleton frontier (seeded W1.1)
+# The PASS set starts empty and only grows via scripts/promote.mjs (CLAUDE.md R1).
+NOTIMPL	C	src/main.lg::version_flag	-	-	--version dispatch stub; promote once proven
+FAIL	C	src/main.lg::help_flag	-	-	frontier: --help text not yet ported
+BLOCKED(P7)	A	test/js/bun/http/serve.test.ts	-	-	needs the HTTP engine
+DIVERGE(telemetry no-op)	C	src/analytics/report.lg::phone_home	-	-	we never phone home (§1.3)
+#CHAIN 11b0c8f384e63221f32b2831646c6ed4caf5cf72968f7eebf957cc3b041f6b38

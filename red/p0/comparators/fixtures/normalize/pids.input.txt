@@ -1,0 +1,5 @@
+Started subprocess with pid 48213
+[pid 48213] listening on port 3000
+worker (pid=91744) exited with code 0
+panic: reached unreachable code (pid: 48213)
+process 48213 terminated after handling 42 requests

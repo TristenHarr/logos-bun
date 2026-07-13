@@ -6,3 +6,11 @@ red/p0/binary-name.test.mjs	needs subprocess spawn (G2) + largo test (G13)	W2.9
 red/p0/oracle-pin.test.mjs	needs subprocess spawn (G2) + sha256 digest kernel	W2.9
 red/p0/pins.test.mjs	needs subprocess spawn (G2) for submodule HEAD reads	W2.9
 red/p0/multimodule.test.mjs	needs subprocess spawn (G2) to drive build.sh	W2.9
+red/p0/workflow/workflow-ops.test.mjs	needs subprocess spawn (G2) to drive commit/loop/ops-lint + tmp git fixtures	W2.9
+red/p0/comparators/comparators.test.mjs	needs subprocess spawn (G2) + sha256 kernel + tree-walk to port normalize/treehash/diffcli to .lg	W2.9
+red/p0/ledger/f1-confirmed-freeze.test.mjs	needs subprocess spawn (G2) to drive ratchet.mjs + verdict injection	W2.9
+red/p0/ledger/f2-unconfirmed-quarantine.test.mjs	needs subprocess spawn (G2) to drive ratchet.mjs demotion + lint	W2.9
+red/p0/ledger/f3-chain-broken.test.mjs	needs subprocess spawn (G2) + sha256 chain recompute in ledger-lint	W2.9
+red/p0/ledger/f4-expired-quarantine.test.mjs	needs subprocess spawn (G2) to drive ledger-lint expiry (L3)	W2.9
+red/p0/ledger/f5-pass-shrink.test.mjs	needs subprocess spawn (G2) to drive ledger-lint monotonicity (L2)	W2.9
+red/p0/ledger/f6-promote-refuses.test.mjs	needs subprocess spawn (G2) to drive promote.mjs 5/5-across-2-ts gate	W2.9

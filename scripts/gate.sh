@@ -65,6 +65,27 @@ l7() {
   [[ $ok == 1 ]] && pass L7
 }
 
+# ── ledger gate helper: lint one *.tsv, fail the given gate if its tag appears ──
+_ledger_gate() {
+  local gate="$1" tag="$2" ok=1
+  shopt -s nullglob
+  local ledgers=("$ROOT"/conformance/ledger/*.tsv)
+  shopt -u nullglob
+  [[ ${#ledgers[@]} -eq 0 ]] && { pass "$gate"; return; }
+  for lg in "${ledgers[@]}"; do
+    if ! out="$(node "$ROOT/scripts/lints/ledger-lint.mjs" "$lg" 2>&1)"; then
+      if grep -qE "$tag" <<<"$out"; then fail "$gate" "$out"; ok=0; fi
+    fi
+  done
+  [[ $ok == 1 ]] && pass "$gate"
+}
+# L1: ledger hash-chain validity · L2: PASS-set monotonicity vs HEAD · L3: expiry.
+# All three are fast (chain+lint over EXISTING committed ledgers, no test replay) so they
+# belong in --quick. ratchet.mjs/promote.mjs (replay + PASS writer) run only at --full/--wave.
+l1() { _ledger_gate L1 'L1 chain'; }
+l2() { _ledger_gate L2 'L2 (monotonicity|provenance)'; }
+l3() { _ledger_gate L3 'L3 expiry'; }
+
 # ── L16-seed: every .mjs test is allowlisted (full shrink-ratchet lands W1) ──
 l16_seed() {
   local ok=1
@@ -74,6 +95,16 @@ l16_seed() {
       || { fail L16 "unallowlisted node test shim: $rel (write it in LOGOS — CLAUDE.md R3)"; ok=0; }
   done < <(find "$ROOT/red" "$ROOT/conformance" -name '*.test.mjs' -type f 2>/dev/null)
   [[ $ok == 1 ]] && pass L16
+}
+
+# ── L8: no destructive/wholesale git verbs anywhere (CLAUDE.md R4) ───────────────
+l8() {
+  local out
+  if out="$(node "$ROOT/scripts/lints/workflow-ops-lint.mjs" --root "$ROOT" 2>&1)"; then
+    pass L8
+  else
+    fail L8 "forbidden git verb(s) found:\n$out"
+  fi
 }
 
 # ── RED batteries ─────────────────────────────────────────────────────────────
@@ -89,7 +120,7 @@ battery() {
   [[ $ok == 1 ]] && pass "RED:$dir"
 }
 
-l15; l6; l7; l16_seed
+l15; l6; l7; l8; l1; l2; l3; l16_seed
 case "$MODE" in
   --quick) ;;                      # lints only (pre-commit speed)
   --full|--wave) battery red/p0 ;;

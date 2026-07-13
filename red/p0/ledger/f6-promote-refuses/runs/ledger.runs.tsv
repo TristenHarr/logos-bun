@@ -1,0 +1,17 @@
+# f6 runs
+2026-07-10T00:00:00Z	src/toy.lg::four_of_five	pass	7
+2026-07-10T00:00:00Z	src/toy.lg::four_of_five	pass	7
+2026-07-11T00:00:00Z	src/toy.lg::four_of_five	pass	7
+2026-07-11T00:00:00Z	src/toy.lg::four_of_five	pass	7
+2026-07-11T00:00:00Z	src/toy.lg::four_of_five	fail	7
+2026-07-12T00:00:00Z	src/toy.lg::five_one_ts	pass	9
+2026-07-12T00:00:00Z	src/toy.lg::five_one_ts	pass	9
+2026-07-12T00:00:00Z	src/toy.lg::five_one_ts	pass	9
+2026-07-12T00:00:00Z	src/toy.lg::five_one_ts	pass	9
+2026-07-12T00:00:00Z	src/toy.lg::five_one_ts	pass	9
+2026-07-09T00:00:00Z	src/toy.lg::good	pass	11
+2026-07-09T00:00:00Z	src/toy.lg::good	pass	11
+2026-07-09T00:00:00Z	src/toy.lg::good	pass	11
+2026-07-10T00:00:00Z	src/toy.lg::good	pass	11
+2026-07-10T00:00:00Z	src/toy.lg::good	pass	11
+#CHAIN b35158cde69afd1e2499074a247a25fd35f959c47fc9b455d7e0747c99829f9c

@@ -1,0 +1,7 @@
+oops! something crashed. Bun v<bun-version>
+    at makeRequest (file:NN:NN)
+    at <tmp>/scratch-XYZ/run.js:7:3
+(pass) suite > works
+loaded from C:/Users/ci/project/index.ts
+home file <home>/.bunrc
+tmp artifact <tmp>/out.js

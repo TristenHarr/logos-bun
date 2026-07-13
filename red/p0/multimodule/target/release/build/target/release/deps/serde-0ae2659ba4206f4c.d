@@ -1,0 +1,14 @@
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/serde-0ae2659ba4206f4c.d: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/serde-1aaa5644fe3b09e2/out/private.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libserde-0ae2659ba4206f4c.rlib: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/serde-1aaa5644fe3b09e2/out/private.rs
+
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/deps/libserde-0ae2659ba4206f4c.rmeta: /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/serde-1aaa5644fe3b09e2/out/private.rs
+
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/tristen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/serde-1aaa5644fe3b09e2/out/private.rs:
+
+# env-dep:OUT_DIR=/home/tristen/logos-bun/red/p0/multimodule/target/release/build/target/release/build/serde-1aaa5644fe3b09e2/out

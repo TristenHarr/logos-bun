@@ -1,0 +1,5 @@
+Writing bundle to /tmp/bun-install-abc123/dist/index.js
+Cache stored at /home/tristen/.bun/install/cache/pkg
+Reading config from /home/tristen/logos-bun/bunfig.toml
+Resolved 4 packages into /tmp/scratch-XYZ/node_modules
+done

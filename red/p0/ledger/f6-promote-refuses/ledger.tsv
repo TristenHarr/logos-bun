@@ -1,0 +1,5 @@
+# f6 candidates
+FAIL	C	src/toy.lg::four_of_five	-	-	candidate 4/5
+FAIL	C	src/toy.lg::five_one_ts	-	-	candidate 5/5 single ts
+FAIL	C	src/toy.lg::good	-	-	positive control 5/5 across 2 ts
+#CHAIN 63cf68867cd80e7ff36ed60eb8f172439040fb071f05468038c6de3f113f0c55

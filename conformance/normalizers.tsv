@@ -1,0 +1,29 @@
+# normalizers.tsv — the per-command normalizer allowlist for diffcli (§6.4).
+#
+# THE #1 REVIEWER ATTACK SURFACE: a normalizer that hides a real divergence. This file is
+# the entire defense. diffcli applies NO normalization except the named list a matching row
+# here grants — there is no implicit "clean it up" pass. Every row is:
+#
+#     command-glob  <TAB>  comma,sep,normalizer,names  <TAB>  justification
+#
+# Rules the W1.6 gate audit enforces (and reviewers check by eye):
+#   * The names column draws ONLY from conformance/normalize.ts `registry` keys
+#     (tempPaths, cwd, pids, timings, durations, versions). Unknown name => diffcli throws.
+#   * BYTE-EXACT wherever deterministic: a command with stable output gets NO normalizers
+#     (empty names column is illegal — write the literal `-` to say "byte-exact, none").
+#   * Every row needs a justification naming the SPECIFIC nondeterminism it cancels. "misc"
+#     / "cleanup" / "flaky" are not justifications.
+#   * command-glob is matched most-specific-first; the first match wins; `*` is the floor.
+#   * This file lives under the W1.1 ledger hash chain: adding a normalizer to silence a
+#     newly-red diff is a chained, visible, attributable event — never a quiet edit.
+#
+# command-glob	normalizers	justification
+--version	-	version output is byte-exact deterministic; NO normalizer may touch the digits
+--help	versions	help footer embeds the running Bun version; nothing else varies
+--revision	-	revision string is the pinned build id, byte-exact deterministic
+install*	tempPaths,timings,durations	install prints the abs cache/target dir + resolve/link wall-times
+add*	tempPaths,timings,durations	same surface as install (writes into node_modules under a temp root)
+test*	tempPaths,timings,durations	test reporter prints per-test [Nms] + file paths; counts stay byte-exact
+run*	cwd,pids	run echoes the script's cwd-relative path + subprocess pids; output bytes exact
+build*	tempPaths,durations	bundler prints abs out-dir + "bundled N modules in <time>"
+*	-	FLOOR: unknown commands are byte-exact by default; add a scoped row, never widen this

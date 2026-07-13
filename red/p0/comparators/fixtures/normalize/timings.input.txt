@@ -1,0 +1,7 @@
+(pass) math > adds numbers [1.23ms]
+(fail) io > reads file [0.07 ms]
+bundled 12 modules in 4.51ms
+compiled [15ms]
+[0.5s] total
+done in 1200ms
+2 pass, 0 fail [3.14 s]

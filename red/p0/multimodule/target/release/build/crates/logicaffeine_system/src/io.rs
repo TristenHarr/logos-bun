@@ -1,0 +1,385 @@
+//! I/O Operations for LOGOS Programs
+//!
+//! Provides input/output primitives for LOGOS programs including:
+//!
+//! - [`show`]: Natural formatting output (primitives without quotes, collections with brackets)
+//! - `print`, `println`, `eprintln`: Standard output functions
+//! - [`read_line`]: Read a line from stdin
+//!
+//! The [`Showable`] trait enables custom types to integrate with the `show` verb.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use logicaffeine_system::io::{show, println, read_line};
+//!
+//! // Natural formatting with show
+//! show(&42);           // Prints: 42
+//! show(&"hello");      // Prints: hello (no quotes)
+//! show(&vec![1, 2, 3]); // Prints: [1, 2, 3]
+//!
+//! // Standard output
+//! println("Enter your name:");
+//! let name = read_line();
+//! println(format!("Hello, {}!", name));
+//! ```
+
+use std::fmt::{self, Display};
+
+/// Custom trait for LOGOS Show verb - provides clean, natural output.
+/// Primitives display without quotes, collections display with brackets.
+pub trait Showable {
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result;
+}
+
+// Blanket impl for references: &T is Showable if T is Showable
+impl<T: Showable + ?Sized> Showable for &T {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (**self).format_show(f)
+    }
+}
+
+// Primitives: use Display formatting
+impl Showable for i32 {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for i64 {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for u64 {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for usize {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for f64 {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Exact rationals show as `n/d` (or a bare integer when whole) — `Display` already
+// reduces, so `Let x: Rational be 7 / 2; Show x` prints `7/2`.
+/// The exact compiled integer (i64 fast path, BigInt spill) prints as the
+/// plain number — indistinguishable from an `i64` `Show`.
+impl Showable for logicaffeine_data::LogosInt {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for logicaffeine_data::LogosRational {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Exact base-10 decimals (money) show with their scale faithful — `Display` prints
+// `19.99`/`20.00`, so `Show decimal("19.99")` prints `19.99`, never a lossy float.
+impl Showable for logicaffeine_data::LogosDecimal {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Exact complex numbers show as `3+4i` / `i` / `-2i` — `Display` already formats them.
+impl Showable for logicaffeine_data::LogosComplex {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// ℤ/nℤ elements show as `3 (mod 7)`.
+impl Showable for logicaffeine_data::LogosModular {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Physical quantities show as magnitude + unit (`42/127 ft`, `20 °C`) — `Display` formats them.
+impl Showable for logicaffeine_data::LogosQuantity {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for logicaffeine_data::LogosMoney {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for logicaffeine_data::LogosUuid {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for bool {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for u8 {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for char {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for String {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Showable for &str {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Sequences: bracket notation with recursive formatting
+impl<T: Showable> Showable for Vec<T> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, item) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            item.format_show(f)?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl<T: Showable> Showable for logicaffeine_data::LogosSeq<T> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let inner = self.borrow();
+        write!(f, "[")?;
+        for (i, item) in inner.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            item.format_show(f)?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl<K: Showable + Eq + std::hash::Hash, V: Showable> Showable for logicaffeine_data::LogosMap<K, V> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let inner = self.borrow();
+        write!(f, "{{")?;
+        for (i, (k, v)) in inner.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            k.format_show(f)?;
+            write!(f, ": ")?;
+            v.format_show(f)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+// A Set shows as `{e0, e1, …}` in INSERTION order — matching the
+// tree-walker's Vec-backed set display and the direct-WASM linear set
+// (the LOGOS `Set` alias is an insertion-ordered IndexSet).
+impl<T: Showable, S: std::hash::BuildHasher> Showable for indexmap::IndexSet<T, S> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, v) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            v.format_show(f)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+// Slices: same as Vec
+impl<T: Showable> Showable for [T] {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, item) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            item.format_show(f)?;
+        }
+        write!(f, "]")
+    }
+}
+
+// Note: &[T] is covered by the blanket `impl<T: Showable + ?Sized> Showable for &T`
+// since `[T]: Showable`.
+
+// Option type: shows "nothing" or the value
+impl<T: Showable> Showable for Option<T> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Some(v) => v.format_show(f),
+            None => write!(f, "nothing"),
+        }
+    }
+}
+
+// CRDT types: show the value
+impl Showable for logicaffeine_data::crdt::GCounter {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value())
+    }
+}
+
+impl Showable for logicaffeine_data::crdt::PNCounter {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value())
+    }
+}
+
+// LWWRegister: show the current value
+impl<T: Showable> Showable for logicaffeine_data::crdt::LWWRegister<T> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.get().format_show(f)
+    }
+}
+
+// MVRegister: show single value or conflict notation
+impl<T: Showable + Clone + PartialEq> Showable for logicaffeine_data::crdt::MVRegister<T> {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let values = self.values();
+        if values.len() == 1 {
+            values[0].format_show(f)
+        } else if values.is_empty() {
+            write!(f, "nothing")
+        } else {
+            // Multiple concurrent values - show as conflict
+            write!(f, "conflict[")?;
+            for (i, val) in values.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                val.format_show(f)?;
+            }
+            write!(f, "]")
+        }
+    }
+}
+
+// Dynamic Value type for tuples
+impl Showable for logicaffeine_data::Value {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+// Temporal types: Duration with human-readable formatting
+impl Showable for std::time::Duration {
+    #[inline(always)]
+    fn format_show(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let nanos = self.as_nanos();
+        if nanos >= 3_600_000_000_000 {
+            // Hours
+            write!(f, "{}h", nanos / 3_600_000_000_000)
+        } else if nanos >= 60_000_000_000 {
+            // Minutes
+            write!(f, "{}min", nanos / 60_000_000_000)
+        } else if nanos >= 1_000_000_000 {
+            // Seconds
+            write!(f, "{}s", nanos / 1_000_000_000)
+        } else if nanos >= 1_000_000 {
+            // Milliseconds
+            write!(f, "{}ms", nanos / 1_000_000)
+        } else if nanos >= 1_000 {
+            // Microseconds
+            write!(f, "{}μs", nanos / 1_000)
+        } else {
+            // Nanoseconds
+            write!(f, "{}ns", nanos)
+        }
+    }
+}
+
+/// The Show verb - prints value with natural formatting
+/// Takes a reference to avoid moving the value.
+#[inline(always)]
+pub fn show<T: Showable>(value: &T) {
+    struct Wrapper<'a, T>(&'a T);
+    impl<T: Showable> Display for Wrapper<'_, T> {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            self.0.format_show(f)
+        }
+    }
+    println!("{}", Wrapper(value));
+}
+
+pub fn read_line() -> String {
+    let mut buffer = String::new();
+    std::io::stdin().read_line(&mut buffer).unwrap_or(0);
+    buffer.trim().to_string()
+}
+
+#[inline(always)]
+pub fn print<T: Display>(x: T) {
+    print!("{}", x);
+}
+
+#[inline(always)]
+pub fn eprintln<T: Display>(x: T) {
+    eprintln!("{}", x);
+}
+
+#[inline(always)]
+pub fn println<T: Display>(x: T) {
+    println!("{}", x);
+}

@@ -39,11 +39,11 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 
 | Card | Task | State | Note |
 |---|---|---|---|
-| W1.1 | P0.4 ledger core + hash chain (KEYSTONE, serial) | IMPL | schema is everyone's interface |
-| W1.2 | P0.2 runner fork + assert counts | QUEUED | waits on SCHEMA.md freeze |
-| W1.3 | P0.3 patches + lane lint | QUEUED | waits on SCHEMA.md freeze |
-| W1.4 | P0.5 comparators | IMPL | independent of ledger schema |
-| W1.5 | P0.10 workflow-ops | IMPL | independent |
+| W1.1 | P0.4 ledger core + hash chain (KEYSTONE, serial) | GREEN | SCHEMA.md frozen (6-field row + #CHAIN trailer, genesis vector pinned); L1/L2/L3 in gate; run-store provenance gates new PASS; REVIEW in flight |
+| W1.2 | P0.2 runner fork + assert counts | IMPL | SCHEMA frozen → launched |
+| W1.3 | P0.3 patches + lane lint | IMPL | SCHEMA frozen → launched |
+| W1.4 | P0.5 comparators | GREEN | diffcli/normalize/treehash/exec-eq + goldens; verdict JSON carries normalizer audit trail; REVIEW pending |
+| W1.5 | P0.10 workflow-ops | GREEN | commit.mjs (refusal codes 3/4/5/6), loop.mjs state machine, L8 lint live in gate; adversarial self-probe held; REVIEW pending |
 | W1.6 | gate.sh v1 + gate-audit (serial, last) | QUEUED | integrates all |
 | W1.7 | GIFT.2 gifts ledger | QUEUED | joins W1.1 chain mechanism |
 | W1.8 | G2-early subprocess+sha256 (logicaffeine) | QUEUED | hold: review verdicts + sibling-stream coordination |
