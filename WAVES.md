@@ -64,6 +64,35 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | QUEUED | 1-based idx, WTF-16, value-vs-ref, depth |
 | W2.9 | shim→.lg migration | **BLOCKED** | on G13 (sibling `## Test` stream) |
 
+## ⚠️⚠️ ORACLE-LANGUAGE FINDING (PORT.1+PORT.2, 2026-07-13) — USER DECISION PENDING
+
+vendor/bun @ bun-v1.3.14 (my pin) is **ZIG** (1290 .zig, 0 .rs) — the PRE-rewrite release.
+The Rust rewrite (§0 thesis "Rust→LOGOS") is logicaffeine/bun @ 43ee038 = v1.4.0-dev, **1516
+.rs, UNRELEASED** (only bun-v1.3.x tags exist, all Zig). My oracle choice (1.3.14 release
+binary) was made before knowing 1.3.14 is Zig. CONSEQUENCES: conformance (Lane A/B/C, the
+test-suite hijack — the CORE) works with EITHER (source+binary+tests are self-consistent at
+1.3.14; PROVEN by the Lane-A smoke). But: PORT docs are Zig→LOGOS (both agents self-corrected
++ grounded in real .zig); §8 shims would link Zig-via-C-ABI not Rust-path-dep (Wave 4); §1.1's
+"Rust toolkit 80K LOC" describes 1.4.0 not the pin. DECISION: stay Zig-1.3.14 (released,
+consistent, proven, zero setup — but "Zig→LOGOS" not the stated thesis) VS re-pin to
+Rust-1.4.0-43ee038 (matches thesis+§1.1+easy Rust shims — but must BUILD bun from source,
+bootstrapped by the 1.3.14 binary we already have; heavy first build incl. WebKit). PORT docs
+are DONE but Zig-grounded → if Rust chosen, they redo. Asked user 2026-07-13.
+
+## ⚠️ TOOLCHAIN CHURN — logos-bun product builds BLOCKED (2026-07-13 05:57)
+
+The sibling's **`cargo-mutants --in-place`** is running on the live logicaffeine tree — it
+SPLICES mutants into source files, tests, reverts. So `scripts/build.sh` (which uses
+LOGOS_WORKSPACE=live logicaffeine) is UNRELIABLE right now: a build may catch a spliced mutant
+or a mid-revert state → the multimodule canary reds intermittently. **All logos-bun product-code
+work (Wave 3 P1 skeleton, PORT.3 semver trial, Wave 4+) is BLOCKED until the sibling's
+cargo-mutants + G13 reach a stable compiling checkpoint.** Node-based harness work (PORT docs,
+reviews, W2.4) is UNAFFECTED. Options to unblock product code: (a) wait for mutants to finish;
+(b) USER pauses the sibling; (c) build against pinned vendor/logicaffeine — but that lacks the
+namespaced-types fix, so the canary would parse-fail instead → needs the logicaffeine commit +
+pin bump FIRST. Recommended: do toolchain-independent work now; resume product code when the
+tree is stable + the namespaced-types fix is committed + pin bumped.
+
 ## Coordination hazards (active)
 
 - **gate.sh is a hot multi-writer file.** W1.1-fixer (B1 `_ledger_gate` rewrite + env-scrub +
