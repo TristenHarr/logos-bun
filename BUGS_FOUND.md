@@ -199,8 +199,10 @@ language needs before it can host a serious tool.
 
 ---
 
-_Live count: 18 (⭐×5 BUN, 6 toolchain, 7 ours). 5 real bun bugs (semver + 4 TOML) from
-differential fuzz; 6 toolchain gaps (namespaced-types, sort, atomics, abstract-parse, +now
-exit-codes + stderr) — the boring primitives the rebuild needs, surfaced by actually attempting
-it. The CLI port (P1) is now toolchain-blocked on exit-codes + stderr, like the semver port is
-blocked on sort. Fuzz lanes: fuzz/semver/, fuzz/toml/._
+_Live count: 18 (⭐×5 BUN, 6 toolchain [**2 now FIXED**], 7 ours). 5 real bun bugs (semver + 4
+TOML) from differential fuzz. **BUG-17 (no exit-code) + BUG-18 (no stderr) FIXED** — toolchain
+592ec80 added `exitWith(code)` + `eputs(stderr)` native builtins (verified: a .lg separates
+stdout/stderr and exits with a chosen code). The CLI port (P1) is UNBLOCKED on exit-codes +
+stderr. Remaining toolchain gaps: sort (blocks semver port), atomics (blocks install),
+namespaced-types (fixed in clone), abstract-parse (worked around). Fuzz lanes: fuzz/semver/,
+fuzz/toml/._
