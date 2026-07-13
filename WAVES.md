@@ -60,8 +60,8 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | W2.4 | P0.6 oracle artifact cache (sha-addressed) | QUEUED | formalize vendor-artifacts/ |
 | W2.5 | P0.11 mutation scaffold (Stryker now; cargo-mutants→W4) | QUEUED | gate-manifest: shims/ needs mutants cfg |
 | W2.8 | GIFT.3 gift review-gate wiring | GREEN (isolated) | preflight.mjs (mechanized vs [USER]-emitted split, never fakes user steps), reuses W1.7 via appendGiftRows (refuse-before-write), L18 distinct readiness check + empty-guard; classify seeds ledger. Fixed W2.5's broken gate-audit control; floor 20→21. REVIEW pending |
-| PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | QUEUED | adversarial doc-review before freeze |
-| PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | QUEUED | 1-based idx, WTF-16, value-vs-ref, depth |
+| PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | IMPL (Rust re-ground) | done-as-Zig then re-dispatched vs Rust source; doc-review round owed before freeze |
+| PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | GREEN (Rust-grounded) | 17 traps cited to real Rust file:lines; Rust-specific: TRAP-17 `?`-operator, recursion=stack-probe (25k→200k test), div/0 uncatchable both modes; most-dangerous=TRAP-14 recursion DoS. doc-review owed |
 | W2.9 | shim→.lg migration | **BLOCKED** | on G13 (sibling `## Test` stream) |
 
 ## ⚠️⚠️ ORACLE-LANGUAGE FINDING (PORT.1+PORT.2, 2026-07-13) — USER DECISION PENDING
