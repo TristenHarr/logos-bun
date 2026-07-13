@@ -1,0 +1,38 @@
+{
+  "$schema": "gate-manifest/v1",
+  "doc": "L9 — the guarded-artifact ratchet (ratchet-before-code). Maps a guarded artifact path to the guard mechanism that must exist BEFORE that artifact may land. A guarded path present in the working tree WITHOUT its registered guard present is a gate failure (gate.sh l9). This is the general form of CLAUDE.md R1 (the ratchet is law) and R7 (never shim a missing mechanism): you may not add a guarded artifact before the check that keeps it honest. Each guard passes TRIVIALLY while its guarded path does not yet exist — the point is that the instant the guarded path appears, its guard must too. `match` is a repo-relative path: a trailing `/` matches the directory OR anything under it; a `*` SEGMENT matches any single immediate child (fuzz/*/ = any immediate child dir of fuzz/); otherwise an exact path (a file like bench/LEDGER.json). `present` is the set of repo-relative paths that ALL must exist for the guard to count as present. `owner` names the card that lands the guard. `check` names the gate.sh lint that enforces the artifact's ongoing honesty.",
+  "guards": [
+    {
+      "id": "engine-seam-grep-lock",
+      "match": "bun-engine/",
+      "owner": "W8 (M0.3)",
+      "check": "grep-lock (M0.3)",
+      "requires": "the C-ABI delegation seam grep-lock. The bun-engine/ hybrid working copy (the JSC-hosted engine, §4.1/§5) may only exist once the boundary between LOGOS and the engine is pinned by a grep-lock, so the seam can never silently widen.",
+      "present": ["scripts/lints/engine-seam-lock.mjs"]
+    },
+    {
+      "id": "fuzz-regression-bank",
+      "match": "fuzz/*/",
+      "owner": "W2.1 (P0.7)",
+      "check": "L13",
+      "requires": "the fuzz-driver replay bank (gate.sh L13). A fuzz corpus for any component may only exist once the driver that replays its banked minimized seeds every gate run is present (§6.3 fuzz-replay / §8), so a fixed crash can never silently un-fix.",
+      "present": ["conformance/fuzz-driver.mjs"]
+    },
+    {
+      "id": "bench-3sigma-verify",
+      "match": "bench/LEDGER.json",
+      "owner": "W2.2 (P0.8)",
+      "check": "L12",
+      "requires": "the 3σ regression verify (gate.sh L12). A committed bench lock (a pinned metric baseline) may only exist once the verifier that re-checks each suite's integrity seal against fresh measurement is present (§9.1 / L12), so a locked bench number is a live ratchet, not a stale claim.",
+      "present": ["bench/verify.mjs"]
+    },
+    {
+      "id": "oracle-shim-mutants",
+      "match": "conformance/oracle/shims/",
+      "owner": "W4 (P0.11)",
+      "check": "cargo-mutants (P0.11)",
+      "requires": "the cargo-mutants configuration. A hand-written oracle shim (a stand-in for a not-yet-ported bun subsystem in the differential oracle path) may only exist once its mutation-testing config is present, so every shim's assertions are mutation-verified to actually constrain behavior (§6.3 / cargo-mutants, W4).",
+      "present": ["conformance/oracle/shims/mutants.toml"]
+    }
+  ]
+}

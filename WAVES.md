@@ -13,7 +13,7 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 |---|---|---|
 | 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | **GREEN** (gate --wave 0, 2026-07-13T03:20Z) |
 | 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2 (G2-early/G13/W1.6 gate-audit deferred → W2) | **✅ LOCKED** (2026-07-13T04:56Z) — Lane-A end-to-end chain PROVEN; all seams compose; assert-sink blocker fixed (parseAssertSink, verified nonzero); gate --full green. Enforcement layer live: L1-L8/L15-L17 + freeze. Artifacts: work/loops/W1-integration/ + W1.1/ |
-| 2 | Harness completion: P0.7, P0.8, P0.9, P0.6, P0.11, PORT.1/2, GIFT.3, **W2.9 shim→.lg migration (L16)** | QUEUED |
+| 2 | Harness completion: W1.6 gate-audit (meta-lock), P0.7 fuzz-driver, P0.8 bench 3σ, P0.9 drift-canary, P0.6 oracle-cache, P0.11 mutation, PORT.1/2, GIFT.3 | **IN PROGRESS**; W2.9 shim→.lg BLOCKED on G13/sibling |
 | 3 | First product: G9 TOML (upstream), P1.1–P1.4, PORT.3 trial | QUEUED |
 | 4 | P2 leaf fan-out; cargo-mutants; G11 opens | QUEUED |
 | 5 | P3 batch (G1+G12,G2,G3,G4+G5,G7,G10) + registry snapshot + P4 core | QUEUED |
@@ -48,6 +48,21 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | W1.7 | GIFT.2 gifts ledger | GREEN (isolated) | upstream-gifts.md/.tsv + gifts-lint (l17) + 3 templates grounded in real vendor/bun SECURITY.md/PR-template/CLAUDE.md; reused chain helper; security embargo scans ALL rows + pins y/n flag; 5 RED drivers ablation-verified. REVIEW pending. Foreign reds = W1.1 fixer + W1.2/W1.3 shims |
 | W1.8 | G2-early subprocess+sha256 (logicaffeine) | QUEUED | hold: review verdicts + sibling-stream coordination |
 | W1.9 | G13 largo test (logicaffeine) | QUEUED | **COORDINATE FIRST**: sibling stream has in-progress `BlockType::Test` in the tree — someone may already be building the test framework |
+
+## Wave 2 tasks
+
+| Card | Task | State | Note |
+|---|---|---|---|
+| W1.6 | gate-audit meta-lock + gate-manifest (L9) + --wave mode | IMPL | owns gate-manifest.json; VIOLATIONS_CAUGHT floor |
+| W2.1 | P0.7 fuzz-driver + ddmin + regression bank (L13) | GREEN (isolated) | conformance/fuzz-driver.mjs + ddmin (proven terminating) + content-addressed bank + deterministic --replay; full loop proven (detect→minimize→bank→replay-red→fix→replay-green); l13 empty-guard. W1.6 gate-manifest fuzz guard satisfied. REVIEW pending |
+| W2.2 | P0.8 bench runner + 3σ ratchet (L12), 4 metrics | GREEN (isolated) | bench/lib+run+verify+LEDGER.json; confirm-before-freeze + conservative win-lock proven; anti-deadlock (noise blip ≠ freeze) proven; chainDigest integrity seal; build-time baseline 115.9s. l12 wired. gate-manifest entry for W1.6: bench/LEDGER.json→"3σ verify (l12) wired". REVIEW pending |
+| W2.3 | P0.9 drift-canary vs upstream HEAD | QUEUED | non-blocking lane; re-baseline ritual |
+| W2.4 | P0.6 oracle artifact cache (sha-addressed) | QUEUED | formalize vendor-artifacts/ |
+| W2.5 | P0.11 mutation scaffold (Stryker now; cargo-mutants→W4) | QUEUED | gate-manifest: shims/ needs mutants cfg |
+| W2.8 | GIFT.3 gift review-gate wiring | QUEUED | pre-push lints; bun bd test steps = [USER] |
+| PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | QUEUED | adversarial doc-review before freeze |
+| PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | QUEUED | 1-based idx, WTF-16, value-vs-ref, depth |
+| W2.9 | shim→.lg migration | **BLOCKED** | on G13 (sibling `## Test` stream) |
 
 ## Coordination hazards (active)
 

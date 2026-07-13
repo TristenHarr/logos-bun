@@ -33,3 +33,7 @@ red/p0/lanes/lanes.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (g
 red/p0/lanes/worktree-patches.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (git worktree + patch series apply) + behavioral eval of the patched bunExe() against the pristine vendor/bun	W2.9
 red/p0/lanes/assert-counter.test.mjs	needs subprocess spawn (G2) to run the patched harness under the oracle bun binary and read the BUN_ASSERT_COUNT_FILE sidecar	W2.9
 red/p0/lanes/lint-lanes.test.mjs	needs subprocess spawn (G2) to drive lint-lanes.mjs --report/--gate over the in-process-API fixture set	W2.9
+red/p0/fuzz/fuzz-driver.test.mjs	needs subprocess spawn (G2) to drive fuzz-driver.mjs --run-seeds/--replay + tmp fuzz-root fixtures (probe/shim stubs)	W2.9
+red/p0/bench/ratchet-math.test.mjs	injects synthetic 3-run medians to drive the §9.1 ratchet math in bench/lib.mjs (confirm-before-freeze, conservative win-lock, integrity seal); ports to .lg once the arithmetic kernels exist	W2.9
+red/p0/bench/ledger-verify.test.mjs	needs subprocess spawn (G2) to drive bench/verify.mjs (L12) over the committed LEDGER.json + a loosening-edit scratch copy	W2.9
+red/p0/gate-audit/gate-audit.test.mjs	THE META-LOCK: needs subprocess spawn (G2) to drive the REAL scripts/gate.sh + every lint/commit.mjs it wraps over planted-violation fixtures in isolated skeleton/temp trees (asserts each rule reds); the VIOLATIONS_CAUGHT floor lives here	W2.9

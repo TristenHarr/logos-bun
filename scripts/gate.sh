@@ -200,6 +200,70 @@ l17() {
   fi
 }
 
+# ── L9: gate-manifest — the guarded artifact ratchet (ratchet-before-code) ────────
+# scripts/gate-manifest.json maps a guarded artifact PATH to the guard that must exist before
+# that path may (STOP rule R7 generalized). A guarded path present in the working tree WITHOUT
+# its registered guard present is a gate failure: the artifact landed before the mechanism that
+# keeps it honest. This is the general form of R7's "never shim toolchain functionality" and of
+# the ratchet law itself — you may not add bun-engine/ before its seam grep-lock, a fuzz corpus
+# before its replay bank, a bench lock before its 3σ verify, or a mutation-oracle shim dir before
+# its mutants config. The check passes TRIVIALLY (like l17's empty-ledger guard) while the
+# guarded dirs don't exist yet — the POINT is that the instant one appears, its guard must too.
+# Local + fast (a JSON parse + a handful of path existence checks, no test replay) → --quick.
+# The check is a node one-liner (robust JSON parse) embedded here so gate-manifest.json is the
+# ONLY new artifact — no sidecar lint. `match` grammar: a trailing `/` matches the dir or anything
+# under it; a `*` SEGMENT matches any single immediate child; otherwise an exact path. A guard
+# "fires" when a matching path exists; when fired, EVERY path in its `present` array must exist.
+# Structural errors (bad JSON, missing/empty fields, dup ids) fail too — a manifest that can't be
+# evaluated is not a pass (B1). Exit 1 = violation, exit 0 = clean.
+l9() {
+  local manifest="$ROOT/scripts/gate-manifest.json"
+  if [[ ! -f "$manifest" ]]; then fail L9 "scripts/gate-manifest.json missing"; return; fi
+  local out
+  if out="$(GM_ROOT="$ROOT" GM_FILE="$manifest" node --input-type=module -e '
+    import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+    import { join, resolve } from "node:path";
+    const root = process.env.GM_ROOT, file = process.env.GM_FILE;
+    let doc;
+    try { doc = JSON.parse(readFileSync(file, "utf8")); }
+    catch (e) { console.error("manifest is not valid JSON: " + e.message); process.exit(1); }
+    if (!doc || !Array.isArray(doc.guards)) { console.error("manifest missing a `guards` array"); process.exit(1); }
+    const matchExists = (pattern) => {
+      const trailingSlash = pattern.endsWith("/");
+      const segs = pattern.replace(/\/+$/, "").split("/").filter(Boolean);
+      let level = [root];
+      for (const seg of segs) {
+        const next = [];
+        for (const base of level) {
+          if (seg === "*") { let es; try { es = readdirSync(base); } catch { continue; } for (const e of es) next.push(join(base, e)); }
+          else { const p = join(base, seg); if (existsSync(p)) next.push(p); }
+        }
+        level = next; if (!level.length) return false;
+      }
+      if (!trailingSlash) return level.length > 0;
+      return level.some((p) => { try { return statSync(p).isDirectory(); } catch { return false; } });
+    };
+    const errors = []; const seen = new Set(); let fired = 0;
+    for (const g of doc.guards) {
+      if (!g || typeof g !== "object") { errors.push("a guard entry is not an object"); continue; }
+      for (const k of ["id", "match", "requires"]) if (typeof g[k] !== "string" || !g[k].length) errors.push(`guard ${JSON.stringify(g.id ?? "?")}: field ${k} must be a non-empty string`);
+      if (!Array.isArray(g.present) || !g.present.length || !g.present.every((p) => typeof p === "string" && p.length)) errors.push(`guard ${JSON.stringify(g.id ?? "?")}: field present must be a non-empty array of path strings`);
+      if (typeof g.id === "string") { if (seen.has(g.id)) errors.push(`duplicate guard id ${JSON.stringify(g.id)}`); seen.add(g.id); }
+      if (errors.length) continue;
+      if (!matchExists(g.match)) continue;
+      fired++;
+      const missing = g.present.filter((p) => !existsSync(resolve(root, p)));
+      if (missing.length) errors.push(`guarded artifact "${g.match}" exists but its guard "${g.id}" is MISSING: ${missing.map((m) => "`" + m + "`").join(", ")} not present. ${g.requires} (ratchet-before-code — owner: ${g.owner ?? "?"})`);
+    }
+    if (errors.length) { for (const e of errors) console.error("FAIL L9: " + e); console.error(`L9 gate-manifest: ${errors.length} violation(s) — a guarded artifact landed before its guard (CLAUDE.md R1/R7)`); process.exit(1); }
+    console.log(`PASS L9 gate-manifest (${doc.guards.length} guard(s), ${fired} fired)`);
+  ' 2>&1)"; then
+    pass L9
+  else
+    fail L9 "$out"   # B1: red on ANY nonzero exit — a manifest that can't be evaluated is not a pass
+  fi
+}
+
 # ── L16-seed: every .mjs test is allowlisted (full shrink-ratchet lands W1) ──
 l16_seed() {
   local ok=1
@@ -221,6 +285,37 @@ l8() {
   fi
 }
 
+# ── L13: fuzz regression replay (§8; W2.1) ────────────────────────────────────────
+# Every banked witness under fuzz/<c>/corpus/regressions/ is a permanent differential repro; on
+# each gate run fuzz-driver.mjs --replay-all re-runs them all and REDS if any still diverges (a
+# resurrected bug). The bank is append-only (a fuzz/*/ gate-manifest guard). GUARD: no fuzz/<c>/
+# regression dirs exist yet, so --replay-all exits 0 trivially over an empty fuzz tree (l17-style
+# empty guard). Local + fast (re-runs banked seeds only, no generation) → both --quick and --full.
+l13() {
+  local out
+  if out="$(node "$ROOT/conformance/fuzz-driver.mjs" --replay-all 2>&1)"; then
+    pass L13
+  else
+    fail L13 "fuzz regression replay reproduced a banked bug:\n$out"
+  fi
+}
+
+# ── L12: the never-slower bench ratchet (§9.1; W2.2) ──────────────────────────────
+# bench/verify.mjs recomputes every locked suite's integrity seal in bench/LEDGER.json — a
+# hand-edit that LOOSENS a locked_ratio (raises it so a slower run passes) without re-sealing
+# goes stale and reds here — and validates the four metric kinds (wall-clock/peak-rss/binary-
+# size/build-time). GUARD: an empty suite set (no locks yet) verifies trivially (l17-style), so
+# the gate never blocks the honest "no benchmarks locked yet" bootstrap state. Local + fast
+# (chain recompute over the committed ledger, no hyperfine run) → both --quick and --full.
+l12() {
+  local out
+  if out="$(node "$ROOT/bench/verify.mjs" --ledger "$ROOT/bench/LEDGER.json" 2>&1)"; then
+    pass L12
+  else
+    fail L12 "bench ratchet lock broken (a loosening edit or bad metric):\n$out"
+  fi
+}
+
 # ── RED batteries ─────────────────────────────────────────────────────────────
 battery() {
   local dir="$1" ok=1
@@ -234,10 +329,37 @@ battery() {
   [[ $ok == 1 ]] && pass "RED:$dir"
 }
 
-l15; l6; l7; l8; l_freeze; l1; l4; l5; l17; l16_seed
+l15; l6; l7; l8; l_freeze; l1; l4; l5; l17; l9; l16_seed; l13; l12
+
+# ── wave-N exit criteria (CLAUDE.md R6 / §6.3) ─────────────────────────────────
+# `--wave N` = `--full` + wave-N exit criteria. The WAVE-LEVEL exit conditions (which cards are
+# GREEN, the WAVES.md table transition) are the ORCHESTRATOR's ledger, not a shell test — so this
+# gate stays HONEST about what it can mechanically verify: it runs the full lint+RED battery, then
+# if a per-wave criteria script exists at conformance/wave-criteria/wave-N.sh it runs it (a
+# nonzero exit reds the gate), and if none exists it says so plainly rather than pretending to
+# have checked a wave gate it cannot. The gate-audit meta-lock (red/p0/gate-audit/**) is part of
+# the --full battery, so it re-runs at EVERY wave exit forever (a gate that stops catching a
+# planted violation is itself the regression this wave-mode is here to freeze on).
+wave_criteria() {
+  local n="$1"
+  if [[ -z "$n" ]]; then fail WAVE "--wave requires a wave number: gate.sh --wave N"; return; fi
+  local crit="$ROOT/conformance/wave-criteria/wave-$n.sh"
+  if [[ -f "$crit" ]]; then
+    local out
+    if out="$(bash "$crit" "$ROOT" 2>&1)"; then
+      pass "WAVE:$n"
+    else
+      fail "WAVE:$n" "wave-$n exit criteria failed:\n$out"
+    fi
+  else
+    say "GATE note [WAVE:$n]: no conformance/wave-criteria/wave-$n.sh — wave-level exit is the orchestrator's ledger (WAVES.md); mechanical checks (lints + RED battery incl. gate-audit) ran above"
+  fi
+}
+
 case "$MODE" in
   --quick) ;;                      # lints only (pre-commit speed)
-  --full|--wave) battery red/p0 ;;
+  --full) battery red/p0 ;;
+  --wave) battery red/p0; wave_criteria "$WAVE" ;;
   *) say "usage: gate.sh [--quick|--full|--wave N]"; exit 2 ;;
 esac
 

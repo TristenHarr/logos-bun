@@ -1,0 +1,17 @@
+{
+  "schema": "bench-ledger/v1",
+  "note": "The never-slower ratchet (BAKE_A_BUN 9.1). Each suite: locked_ratio (ratio=ours/oracle, only ever DECREASES), a rolling sigma_window (per-suite noise, floor 5%), a metric kind, and an integrity seal (chainDigest over the sealed fields; a loosening hand-edit goes stale and L12 catches it). FOUR metric kinds ratcheted identically: wall-clock, peak-rss, binary-size, build-time.",
+  "suites": [
+    {
+      "suite": "build/logos-bun",
+      "metric": "build-time",
+      "locked_ratio": 1,
+      "sigma_window": [
+        0.05
+      ],
+      "baseline_seconds": 115.9,
+      "note": "W0.D release build of logos-bun (largo build); the G11 evidence stream, tracked from now.",
+      "integrity": "a1922680d8a218db78d37ec34831037c6681d95d100798ce5aff071d8d30255d"
+    }
+  ]
+}
