@@ -11,8 +11,8 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 
 | Wave | Content | Status |
 |---|---|---|
-| 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | IN PROGRESS |
-| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2, gate-audit + **G2-early, G13 largo-test (tests-in-LOGOS)** | QUEUED |
+| 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | **GREEN** (gate --wave 0, 2026-07-13T03:20Z) |
+| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2, gate-audit + **G2-early, G13 largo-test (tests-in-LOGOS)** | IN PROGRESS |
 | 2 | Harness completion: P0.7, P0.8, P0.9, P0.6, P0.11, PORT.1/2, GIFT.3, **W2.9 shim→.lg migration (L16)** | QUEUED |
 | 3 | First product: G9 TOML (upstream), P1.1–P1.4, PORT.3 trial | QUEUED |
 | 4 | P2 leaf fan-out; cargo-mutants; G11 opens | QUEUED |
@@ -33,7 +33,21 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | W0.B | oracle acquisition (fetch-oracle.sh, SPEC_PIN fill) | GREEN | sha256 9fd36f87…ad74, version `1.3.14`, 1731 test files at tag |
 | W0.C | constitution (CLAUDE.md, pins, WAVES.md, BAKE_A_BUN.md copy) | GREEN | 10 L15 anchors |
 | W0.D | P0.1 walking binary (Largo.toml, main.lg, build.sh, gate.sh v0) | GREEN | binary-name PASS; `bun --version` byte-exact vs oracle; build 115.9s (G11 datum) |
-| W0.E | multi-module smoke (permanent toolchain canary) | RED→BLOCKED | **canary FOUND a real toolchain gap on first fire**: `Alias::Type` unutterable (no `::` lexing; discovery interns `Geometry::Point` but surface can't reference it). G-task card `work/cards/W0.E-G-namespaced-types.md`; Opus implementer running in logicaffeine (TDD, RED-first) |
+| W0.E | multi-module smoke (permanent toolchain canary) | GREEN | canary found + drove the `Alias::Type` fix upstream (lexer glue + rust_type_ident codegen sanitizer; 8/8 new tests, 23/23 neighbors, 268/268 language crate). 2 adversarial reviewers in flight; **pin-bump ritual pending**: `[USER]` commits logicaffeine after review verdicts, then TOOLCHAIN_PIN + vendor/logicaffeine bump + canary re-run |
+
+## Wave 1 tasks
+
+| Card | Task | State | Note |
+|---|---|---|---|
+| W1.1 | P0.4 ledger core + hash chain (KEYSTONE, serial) | IMPL | schema is everyone's interface |
+| W1.2 | P0.2 runner fork + assert counts | QUEUED | waits on SCHEMA.md freeze |
+| W1.3 | P0.3 patches + lane lint | QUEUED | waits on SCHEMA.md freeze |
+| W1.4 | P0.5 comparators | IMPL | independent of ledger schema |
+| W1.5 | P0.10 workflow-ops | IMPL | independent |
+| W1.6 | gate.sh v1 + gate-audit (serial, last) | QUEUED | integrates all |
+| W1.7 | GIFT.2 gifts ledger | QUEUED | joins W1.1 chain mechanism |
+| W1.8 | G2-early subprocess+sha256 (logicaffeine) | QUEUED | hold: review verdicts + sibling-stream coordination |
+| W1.9 | G13 largo test (logicaffeine) | QUEUED | **COORDINATE FIRST**: sibling stream has in-progress `BlockType::Test` in the tree — someone may already be building the test framework |
 
 ## Findings log
 
