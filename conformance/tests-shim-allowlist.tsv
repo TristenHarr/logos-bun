@@ -27,6 +27,7 @@ red/p0/gifts/g3-valid-lifecycle.test.mjs	needs subprocess spawn (G2) to drive gi
 red/p0/gifts/g4-chain-broken.test.mjs	needs subprocess spawn (G2) to drive gifts-lint chain recompute over a tampered fixture	W2.9
 red/p0/gifts/g5-missing-classification.test.mjs	needs subprocess spawn (G2) to drive gifts-lint over a missing-classification fixture	W2.9
 red/p0/runner/runner.test.mjs	needs subprocess spawn (G2) to drive conformance/runner.mjs over the toy pass/fail/skip suite + the runner→promote handshake	W2.9
+red/p0/runner/assert-sink-parse.test.mjs	needs the runner's parseAssertSink over the bun-patch `<file>\tcount` + toy bare-number sink formats (ports to .lg with the runner battery)	W2.9
 red/p0/runner/l5-assert-parity.test.mjs	needs subprocess spawn (G2) to drive assert-parity-lint.mjs (L5) over chained ledger+run-store fixtures	W2.9
 red/p0/lanes/lanes.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (git worktree + patch apply) + lint-lanes.mjs over the oracle bun binary and pristine vendor/bun	W2.9
 red/p0/lanes/worktree-patches.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (git worktree + patch series apply) + behavioral eval of the patched bunExe() against the pristine vendor/bun	W2.9

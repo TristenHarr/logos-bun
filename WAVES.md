@@ -12,7 +12,7 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | Wave | Content | Status |
 |---|---|---|
 | 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | **GREEN** (gate --wave 0, 2026-07-13T03:20Z) |
-| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2 (G2-early/G13/W1.6 gate-audit deferred → W2) | **GREEN** (gate --full, 2026-07-13T04:32Z) — cross-integration review pending before LOCK |
+| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2 (G2-early/G13/W1.6 gate-audit deferred → W2) | **✅ LOCKED** (2026-07-13T04:56Z) — Lane-A end-to-end chain PROVEN; all seams compose; assert-sink blocker fixed (parseAssertSink, verified nonzero); gate --full green. Enforcement layer live: L1-L8/L15-L17 + freeze. Artifacts: work/loops/W1-integration/ + W1.1/ |
 | 2 | Harness completion: P0.7, P0.8, P0.9, P0.6, P0.11, PORT.1/2, GIFT.3, **W2.9 shim→.lg migration (L16)** | QUEUED |
 | 3 | First product: G9 TOML (upstream), P1.1–P1.4, PORT.3 trial | QUEUED |
 | 4 | P2 leaf fan-out; cargo-mutants; G11 opens | QUEUED |
@@ -57,9 +57,14 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
   at Wave-1 close**: verify L1–L17 all present, the main check sequence calls every l-fn, and
   the fixer's B1 `_ledger_gate` (fail-on-nonzero-exit) survived. Do NOT mark Wave 1 GREEN
   without re-reading gate.sh end to end.
-- **Sibling `## Test`-block stream in logicaffeine** (BlockType::Test / Stmt::TestDef, breaks
-  teach_lock.rs + jones_fidelity_lock): W1.9 (G13 largo test) MUST reconcile with it before
-  launching. The namespaced-types fix also shares lexer.rs with it — flag at user commit.
+- **Sibling `## Test`-block stream in logicaffeine BLOCKS G13** (recon 2026-07-13): the sibling
+  built the test LANGUAGE SURFACE (Stmt::TestDef/Expect/ExpectFail/ExpectOutput/Require AST +
+  parse, whole pipeline) but NOT execution — interpreter TestDef is a no-op, no TestResult type.
+  G13's own work (interpreter test execution + result sink) IS the sibling's territory →
+  **G13 cannot launch in parallel** (STOP rule). Readiness signal = teach_lock + jones_fidelity
+  green in logicaffeine. **tests-in-LOGOS (W2.9 shim→.lg migration) is gated on this.** USER
+  coordination point: sequence the two streams; confirm if sibling scope includes `largo test`.
+  The namespaced-types fix (W0.E-G) also shares lexer.rs with the sibling — flag at user commit.
 
 ## Durable spec-pin facts (empirically verified at bun-v1.3.14; the doc's numbers were stale)
 

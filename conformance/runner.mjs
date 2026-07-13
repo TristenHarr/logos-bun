@@ -111,6 +111,25 @@ function combinedPath(execPath) {
   return process.env.PATH ? `${dir}:${process.env.PATH}` : dir;
 }
 
+// ── the executed-assertion sink parser ($BUN_ASSERT_COUNT_FILE) ───────────────────────────────
+// Two writers feed the same sink. The real bun counter (0002-assert-counter.patch) APPENDS one
+// `<file>\t<count>\n` line per test file — a run over several files leaves several lines whose
+// executed total is their SUM. The toy sidecar (red/p0/runner/toy/assert-counter.mjs) writes a
+// BARE number. Both are the TRAILING tab-separated field of a line, so: for each non-empty line
+// take its last tab field as the count. A non-integer/negative trailing field contributes 0 for
+// THAT line (never NaN-poisons the sum). An absent/empty sink is 0 (a file that ran no asserts).
+export function parseAssertSink(raw) {
+  let total = 0;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    const fields = trimmed.split("\t");
+    const n = Number.parseInt(fields[fields.length - 1].trim(), 10);
+    if (Number.isFinite(n) && n > 0) total += n;
+  }
+  return total;
+}
+
 // ── result classification (ported from the vendor parseTestStdout, trimmed to counts) ────────
 // bun's runner emits per-test lines: ✓ pass · ✗ fail · » skip · ✎ todo. The toy counter's
 // report() prints the same glyphs, so verdict + count come from one run.
@@ -166,9 +185,7 @@ function runOne(execPath, absPath, opts) {
   const stdout = (res.stdout || "") + (res.stderr || "");
   let executed = 0;
   try {
-    const raw = readFileSync(sink, "utf8").trim();
-    executed = Number.parseInt(raw, 10);
-    if (!Number.isFinite(executed) || executed < 0) executed = 0;
+    executed = parseAssertSink(readFileSync(sink, "utf8"));
   } catch { executed = 0; }
   try { rmSync(sinkDir, { recursive: true, force: true }); } catch { /* best effort */ }
 
