@@ -1,12 +1,26 @@
 # bun
 
-## To wantsVersion (xs: Seq of Text) -> Bool:
-    Repeat for x in xs:
-        If x is equal to "--version":
-            Return true.
+## To secondArg (xs: Seq of Text) -> Text:
+    If length of xs is greater than 1:
+        Return item 2 of xs.
+    Return "".
+
+## To isSubcommand (cmd: Text) -> Bool:
+    Let subcommands be ["install", "i", "add", "remove", "rm", "update", "upgrade", "outdated", "link", "unlink", "pm", "patch", "publish", "audit", "why", "info", "run", "test", "build", "x", "create", "init", "repl", "exec", "completions", "discord", "upgrade", "add"].
+    If subcommands contains cmd:
+        Return true.
     Return false.
 
 ## Main
 Let arguments be args().
-If wantsVersion(arguments):
+Let cmd be secondArg(arguments).
+If cmd is equal to "--version":
     Show "1.4.0".
+Otherwise If cmd is equal to "-v":
+    Show "1.4.0".
+Otherwise If cmd is equal to "--revision":
+    Show "1.4.0-canary.1+43ee03834".
+Otherwise If isSubcommand(cmd):
+    Show "error: this command is not implemented yet in logos-bun".
+Otherwise:
+    Show "Bun is a fast JavaScript runtime, package manager, bundler, and test runner. (1.4.0-canary.1+43ee03834)".
