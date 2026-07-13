@@ -13,7 +13,7 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 |---|---|---|
 | 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | **GREEN** (gate --wave 0, 2026-07-13T03:20Z) |
 | 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2 (G2-early/G13/W1.6 gate-audit deferred → W2) | **✅ LOCKED** (2026-07-13T04:56Z) — Lane-A end-to-end chain PROVEN; all seams compose; assert-sink blocker fixed (parseAssertSink, verified nonzero); gate --full green. Enforcement layer live: L1-L8/L15-L17 + freeze. Artifacts: work/loops/W1-integration/ + W1.1/ |
-| 2 | Harness completion: W1.6 gate-audit (meta-lock), P0.7 fuzz-driver, P0.8 bench 3σ, P0.9 drift-canary, P0.6 oracle-cache, P0.11 mutation, PORT.1/2, GIFT.3 | **IN PROGRESS**; W2.9 shim→.lg BLOCKED on G13/sibling |
+| 2 | Harness completion | **6/8 COMMITTED** (fcc9ffa+ede1bb5): W1.6 gate-audit, W2.1 fuzz, W2.2 bench, W2.3 drift, W2.5 mutation, W2.8 GIFT.3 — all green, gate 17 checks. REMAINING: W2.4 oracle-cache (low-value), PORT.1/2 (Wave-4 prep, not urgent), review-pairs on the 6 (owed per §2.5, non-blocking — gate+meta-lock enforce). W2.9 shim→.lg BLOCKED on sibling G13 |
 | 3 | First product: G9 TOML (upstream), P1.1–P1.4, PORT.3 trial | QUEUED |
 | 4 | P2 leaf fan-out; cargo-mutants; G11 opens | QUEUED |
 | 5 | P3 batch (G1+G12,G2,G3,G4+G5,G7,G10) + registry snapshot + P4 core | QUEUED |
