@@ -35,7 +35,22 @@ Bug ledger = `logos-bun/BUGS_FOUND.md` (tweetable). Remaining [USER] gates = REM
   (2) a `.lg` module's abstract must contain markdown links or be ABSENT (link-less prose
   breaks the parse); (3) `args()` includes the binary path as item 1 (Rust convention).
 - A6 close Wave 2 — deferred (review-pairs on the 6 harness cards + W2.4); non-blocking.
-- **Phase B — Wave 3 IN PROGRESS**: P1.1 dispatch (32 command tags) — implementer running.
+- **Phase B — Wave 3 IN PROGRESS**: P1.1 first slice DONE (commit d66efac) — src/main.lg
+  dispatches via ## To helpers; `--version`/`-v`/`--revision` BYTE-EXACT vs the Rust oracle
+  (red/p1/cli-surface.test.mjs locks it), 24 subcommands → NOTIMPL, no-args → help banner.
+  P1.1 CONTINUATION: full 32-tag exhaustive mapping (from Arguments.rs), byte-exact --help,
+  exact exit codes, stderr+exit-code for NOTIMPL. Then P1.2 env registry, P1.3 bunfig, P1.4.
+
+## ⚠️ INFRA CONSTRAINT — agent stream watchdog (2026-07-13)
+The §2.5 fan-out agents keep getting KILLED by a 600s no-output stream watchdog when they spend
+long uninterrupted stretches reading big files / thinking / waiting on builds (namespaced-types
+stalled after finishing its code; two P1.1 attempts stalled during exploration having written
+nothing). MITIGATION that works: the ORCHESTRATOR (not watchdog-limited) does the heavy
+exploration + spec-extraction + build/verify, handing agents tight pre-digested tasks OR driving
+increments directly (P1.1 slice was orchestrator-driven). Implication: the "massive parallel
+Opus fan-out" is throttled — progress is orchestrator-paced. Options for the user: a different
+agent runner without the watchdog, or accept orchestrator-driven increments. cargo-mutants
+sibling churn has ENDED (box idle) → builds are fast (~13s) again.
 
 ## Wave table
 
