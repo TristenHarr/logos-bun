@@ -177,8 +177,30 @@ year as a number and trips over the dash. Any config with a timestamp is unparse
 
 ---
 
-_Live count: 16 (⭐×5 BUN [semver + 4 TOML: \U escape, multiline-ws, inf/nan, NO dates], 4
-toolchain, 7 ours). FIVE real bun bugs, all from differential-fuzzing against spec-conformant
-references — the campaign method delivering. Fuzz lanes: fuzz/semver/, fuzz/toml/. bun's TOML
-parser in particular is spec-incomplete (dates missing, special floats + \U escape + multiline
-continuation all wrong). (stringWidth/glob ruled out — no authoritative reference.)_
+### BUG-17 · TOOLCHAIN · 2026-07-13 · gap
+**What:** LOGOS has no user-facing way to set the process exit code — no `Exit`/`exit(code)`
+statement or builtin in the language surface (the only `process::exit` is internal, for the
+resident-server loop). Every `.lg` program exits 0. **Where:** logicaffeine language surface
+(no Exit token/stmt/builtin). **Found by:** attempting to make the logos-bun CLI match bun's
+exit codes (bun: 0 success, 1 script-not-found, etc.). **Status:** open → G-task (CLI I/O
+primitives); blocks P1 exit-code conformance. **Tweet:** To rebuild Bun's CLI in our language
+we need to... set the exit code. `exit(1)`. Our language can't do that yet — every program
+exits 0. Rebuilding a real command-line tool keeps surfacing the boring-but-essential
+primitives you never think about until you're missing one.
+
+### BUG-18 · TOOLCHAIN · 2026-07-13 · gap
+**What:** LOGOS has no stderr output — `Show` writes stdout, and there's no stderr/eprint
+builtin. bun (like every CLI) writes errors to stderr; a faithful port can't. **Where:**
+logicaffeine builtins/language surface. **Found by:** the same CLI-conformance attempt (bun's
+`error: Script not found "x"` goes to stderr). **Status:** open → same G-task. **Tweet:** Second
+missing CLI primitive found rebuilding Bun: our language can only print to stdout. Every real
+program sends errors to stderr so they don't corrupt piped output. Another "obvious" thing a
+language needs before it can host a serious tool.
+
+---
+
+_Live count: 18 (⭐×5 BUN, 6 toolchain, 7 ours). 5 real bun bugs (semver + 4 TOML) from
+differential fuzz; 6 toolchain gaps (namespaced-types, sort, atomics, abstract-parse, +now
+exit-codes + stderr) — the boring primitives the rebuild needs, surfaced by actually attempting
+it. The CLI port (P1) is now toolchain-blocked on exit-codes + stderr, like the semver port is
+blocked on sort. Fuzz lanes: fuzz/semver/, fuzz/toml/._
