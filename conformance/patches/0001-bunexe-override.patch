@@ -16,15 +16,14 @@
 #   advisory. A re-baseline that reshapes this function makes the patch fail to apply,
 #   which scripts/worktree.mjs turns into a LOUD nonzero (the re-baseline tripwire).
 #
-# PROVENANCE: authored by an AI agent (Claude, logos-bun W1.3) against vendor/bun at tag
-#   bun-v1.3.14 (SHA 0d9b296af33f2b851fcbf4df3e9ec89751734ba4). Runtime-only: applied to
+# PROVENANCE: authored by an AI agent (Claude, logos-bun W1.3) against vendor/bun at commit
+#   43ee03834ca77f9f218cc998a0df7fb8b301ff53 (v1.4.0-canary.1, the Rust rewrite). Runtime-only: applied to
 #   a scratch worktree under work/worktrees/, never to vendor/bun itself (CLAUDE.md R5).
 #   Never sent upstream (a conformance-host override, not a bun change).
 diff --git a/test/harness.ts b/test/harness.ts
-index 98ca67455d..26016255a7 100644
 --- a/test/harness.ts
 +++ b/test/harness.ts
-@@ -104,6 +104,8 @@ if (isDebug) {
+@@ -118,6 +118,8 @@ if (isDebug) {
  }
  
  export function bunExe() {

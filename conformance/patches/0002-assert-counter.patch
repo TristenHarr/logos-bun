@@ -17,8 +17,9 @@
 #   `expect(x)` flows through is the MATCHER-OBJECT PROTOTYPE: `expect(x)` returns an object
 #   whose prototype carries `toBe`, `toContain`, `not`, ... as writable methods. Wrapping
 #   those prototype methods counts every EXECUTED matcher call, in-process, for direct
-#   imports. Verified against the oracle: a file with 4 matcher calls yields count 4,
-#   byte-matching bun's own "4 expect() calls".
+#   imports. Verified against the Rust 1.4.0 oracle (43ee038): the same 86 writable matcher
+#   methods hang off the prototype, and a file with 2 matcher calls yields count 2,
+#   byte-matching bun's own "2 expect() calls".
 #
 #   Boundary: this counts executed MATCHER invocations (`expect(x).toBe(y)` = 1), which
 #   equals bun's expect()-call count for the universal one-matcher-per-expect idiom. A bare
@@ -31,17 +32,24 @@
 #   file path is `Bun.main` (the test file for this process). The whole block is gated on
 #   BUN_ASSERT_COUNT_FILE — an unset env is byte-for-byte the stock harness (zero overhead).
 #
-# APPLIES ON TOP OF 0001 (disjoint regions: imports + a pre-BREAKING_CHANGES block here vs.
-#   the bunExe() body in 0001). Series order is enforced by scripts/worktree.mjs.
+# APPLIES ON TOP OF 0001 (disjoint regions: imports + a pre-BREAKING_CHANGES block here at
+#   harness.ts line ~8-17 vs. the bunExe() body in 0001 at line ~118). Series order is
+#   enforced by scripts/worktree.mjs.
 #
-# PROVENANCE: AI-authored (Claude, logos-bun W1.3) against vendor/bun @ bun-v1.3.14. Runtime
+# ANCHORING: content-anchored on the import block at the pin (numeric/bun/bun:jsc/bun:test/
+#   child_process/fs-promises/node:fs/node:os/path, immediately followed by
+#   `export const BREAKING_CHANGES_BUN_1_2 = false;`). The Rust rewrite reordered the imports
+#   (`import * as numeric` moved to FIRST) relative to the pre-rewrite Zig harness; these
+#   hunks are re-anchored on the actual 43ee038 layout. NOT line-number anchored.
+#
+# PROVENANCE: AI-authored (Claude, logos-bun W1.3; re-anchored against the Rust rewrite) at
+#   vendor/bun @ commit 43ee03834ca77f9f218cc998a0df7fb8b301ff53 (v1.4.0-canary.1). Runtime
 #   scratch-worktree only; vendor/bun never dirtied. Not for upstream.
 diff --git a/test/harness.ts b/test/harness.ts
-index 98ca67455d..65fd0573be 100644
 --- a/test/harness.ts
 +++ b/test/harness.ts
-@@ -7,14 +7,51 @@
- 
+@@ -8,13 +8,50 @@
+ import * as numeric from "_util/numeric.ts";
  import { gc as bunGC, sleepSync, spawnSync, unsafe, which, write } from "bun";
  import { heapStats } from "bun:jsc";
 -import { beforeAll, describe, expect } from "bun:test";
@@ -52,8 +60,7 @@ index 98ca67455d..65fd0573be 100644
 +import fs, { appendFileSync, closeSync, openSync, rmSync } from "node:fs";
  import os from "node:os";
  import { dirname, isAbsolute, join } from "path";
- import * as numeric from "_util/numeric.ts";
- 
+
 +// [logos-bun conformance] Executed-assertion counter. When BUN_ASSERT_COUNT_FILE is set,
 +// count every matcher invocation in this test process and append `<file>\t<count>` at the
 +// end of the file's run (afterAll fires once per file). This is the seam W1.2's runner reads
@@ -92,5 +99,5 @@ index 98ca67455d..65fd0573be 100644
 +}
 +
  export const BREAKING_CHANGES_BUN_1_2 = false;
- 
+
  export const isMacOS = process.platform === "darwin";

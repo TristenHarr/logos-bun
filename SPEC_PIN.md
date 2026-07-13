@@ -6,19 +6,20 @@ claims are relative to exactly this pin.
 | Field | Value |
 |---|---|
 | Upstream | https://github.com/oven-sh/bun |
-| Tag | `bun-v1.3.14` |
-| Tag commit SHA | `0d9b296af33f2b851fcbf4df3e9ec89751734ba4` |
-| Oracle binary | official release asset `bun-linux-x64.zip` (AVX2 baseline not required — box has AVX2) |
-| Binary sha256 | `9fd36f87e4b90b07632b987a2e4ec81ca15a62c81bf983190cea6d715be2ad74` |
-| `bun --version` output | `1.3.14` |
-| Test-file count at tag | `1731` (glob `test/**/*.test.{ts,tsx,js,jsx,mjs,cjs,mts}`, counted mechanically at the tag) |
+| Tag | `43ee038` (v1.4.0-canary.1 — **the Rust rewrite**; a dev commit, not a release tag) |
+| Tag commit SHA | `43ee03834ca77f9f218cc998a0df7fb8b301ff53` |
+| Oracle binary | **built from source** (release profile) via `scripts/bootstrap/build-oracle-rust.sh`, bootstrapped by the 1.3.14 binary; WebKit prebuilt. Revision `1.4.0-canary.1+43ee03834` |
+| Binary sha256 | `c3a199d737aa19a53f9d32bdaae7b0598ede4c222b6fcba18886f27a9ef63a79` |
+| `bun --version` output | `1.4.0` |
+| Test-file count at tag | `1881` (glob `test/**/*.test.{ts,tsx,js,jsx,mjs,cjs,mts}`, counted mechanically at the commit) |
 
 Notes:
-- The dev checkout at `/home/tristen/logicaffeine/bun` (43ee038, 1.4.0-dev) is
-  **non-normative** — reference reading only.
+- **This is the RUST rewrite** (1516 .rs, matching BAKE_A_BUN §1.1) — the thesis is Rust→LOGOS.
+  The pre-rewrite Zig release `bun-v1.3.14` (0d9b296) is now non-normative; it served only as
+  the bootstrap binary to build this one.
 - The oracle binary lives at `vendor-artifacts/oracle-bun/bun` (gitignored; sha256 above is
-  the integrity anchor, verified by gate check L6 on every run; `scripts/bootstrap/
-  fetch-oracle.sh` re-materializes it).
+  the integrity anchor, verified by gate check L6 on every run; rebuild via
+  `scripts/bootstrap/build-oracle-rust.sh` — needs clang-21/lld-21/ninja/ccache).
 
 ## Re-baseline ritual (§6.3 drift-canary feeds this)
 
