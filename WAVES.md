@@ -41,6 +41,16 @@ Bug ledger = `logos-bun/BUGS_FOUND.md` (tweetable). Remaining [USER] gates = REM
   P1.1 CONTINUATION: full 32-tag exhaustive mapping (from Arguments.rs), byte-exact --help,
   exact exit codes, stderr+exit-code for NOTIMPL. Then P1.2 env registry, P1.3 bunfig, P1.4.
 
+## ⭐ FIRST BUN BUG FOUND (2026-07-13, BUG-12) — differential fuzz
+`Bun.semver.satisfies` drops a trailing exact-version conjunct in a compound AND range:
+`satisfies("2.0.0", ">1.0.0 3.0.0")` = true (should be false — only 3.0.0 satisfies it). Root
+cause: SemverRange.rs two-comparator {left,right} model. Found by fuzzing Bun.semver vs
+node-semver (10k pairs → 80 disagreements, all this one bug). Banked: fuzz/semver/ (gen+diff+
+regression). Filed to conformance/upstream-gifts.tsv; NOT security → public/tweetable; upstream
+filing USER-driven. `Bun.semver.order` fuzzed clean (4k pairs, 0 disagreements). NEXT bun-bug
+hunts: Bun.Glob, Bun.TOML, Bun.stringWidth, the JSON/JSONC parser, url/path — each vs a
+reference oracle. This is the Wave-4 differential-fuzz methodology, started early.
+
 ## ⚠️ INFRA CONSTRAINT — agent stream watchdog (2026-07-13)
 The §2.5 fan-out agents keep getting KILLED by a 600s no-output stream watchdog when they spend
 long uninterrupted stretches reading big files / thinking / waiting on builds (namespaced-types
