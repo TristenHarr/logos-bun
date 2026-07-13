@@ -120,7 +120,29 @@ compiler bug in our own language the moment we built the first real file of the 
 plain-English description paragraph at the top of a file silently corrupted parsing of the code
 *below* it. The docs literally can't hurt the code — except here they could. 🙃
 
+### BUG-12 · BUN · 2026-07-13 · correctness  ⭐ FIRST BUN BUG
+**What:** Bun's `semver.satisfies` silently DROPS a trailing exact-version comparator in a
+space-separated (AND) range that begins with an inequality. `Bun.semver.satisfies("2.0.0",
+">1.0.0 3.0.0")` returns **true** — and so does every version >1.0.0 (1.5.0, 2.9.9, 4.0.0, …).
+The range `>1.0.0 3.0.0` means ">1.0.0 AND =3.0.0", whose intersection is exactly {3.0.0}; only
+3.0.0 should satisfy it. Bun evaluates only the leading `>1.0.0` and ignores the `3.0.0`.
+Controls: exact-version-*first* (`3.0.0 >1.0.0`) evaluates correctly, so it's specifically the
+*trailing* exact conjunct that's lost; `>1.0.0 <5.0.0 3.0.0` also drops the `3.0.0`.
+**Where:** bun `src/semver/SemverRange.rs` — a range is modeled as a two-comparator `{left,right}`
+pair, which can't represent "inequality AND exact" and drops the exact. Reproduced on the
+from-source-built Rust bun 1.4.0-canary.1+43ee03834. **Found by:** differential fuzzing bun's
+`Bun.semver` vs node-semver (the reference implementation) — 10k structure-aware pairs, 80
+valid-input disagreements, all one root cause. **Impact:** real — a package.json range like
+`>=1.0.0 2.3.4` (floor + pin) would let bun accept ANY version ≥1.0.0, a dependency-resolution
+correctness hole. **Status:** open → gift pipeline (conformance/upstream-gifts.tsv G-1); NOT
+security (public/tweetable); upstream duplicate-search + filing are USER-driven (§9.4 inv 11/20).
+**Tweet:** First real Bun bug found while rewriting it in our language 🎯 — its semver thinks
+version 2.0.0 satisfies the range ">1.0.0 3.0.0". That range means "greater than 1.0.0 AND
+exactly 3.0.0" — only 3.0.0 should match. Bun silently ignores the "3.0.0" and matches
+everything above 1.0.0. Differential testing against a reference impl catches what single-impl
+fuzzing can't.
+
 ---
 
-_Live count: 11 seeded (3 open toolchain items). BUN-category bugs begin at Wave 4, when we first
-differential-fuzz our LOGOS ports against Bun's real Rust crates head-to-head._
+_Live count: 12 (⭐ 1 BUN, 4 toolchain, 7 ours). Found by running our port head-to-head against
+real Bun — the differential-fuzz gold starts here. Fuzz lane: fuzz/semver/._
