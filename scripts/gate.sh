@@ -27,6 +27,25 @@ say()  { printf '%s\n' "$*"; }
 fail() { say "GATE FAIL [$1]: $2"; FAILS=$((FAILS + 1)); }
 pass() { say "GATE pass [$1]"; }
 
+# ── the drift lane is NOT a ratchet ledger (W2.3 / §6.3) ──────────────────────────
+# conformance/ledger/drift.tsv lives in the ledger dir but is the NON-BLOCKING drift lane, not a
+# ratchet ledger — it has a `DRIFT ⇥ path ⇥ note` shape, no #CHAIN, and NEVER gates a merge. The
+# ledger lints (L1/L2/L3, L4, L5) must skip it, or the drift lane would red the gate — exactly
+# the failure the non-gating contract forbids. One helper owns that fact so every lint agrees.
+NONRATCHET_LEDGERS="drift.tsv"
+is_ratchet_ledger() {  # basename → 0 if a real ratchet ledger, 1 if a non-ratchet lane
+  local base; base="$(basename "$1")"
+  for n in $NONRATCHET_LEDGERS; do [[ "$base" == "$n" ]] && return 1; done
+  return 0
+}
+# print the ratchet-ledger tsvs under a dir (drift.tsv excluded), nullglob-safe.
+ratchet_ledgers() {
+  local dir="$1" f
+  shopt -s nullglob
+  for f in "$dir"/*.tsv; do is_ratchet_ledger "$f" && printf '%s\n' "$f"; done
+  shopt -u nullglob
+}
+
 # ── L15: CLAUDE.md rule anchors ────────────────────────────────────────────────
 l15() {
   local ok=1
@@ -94,14 +113,13 @@ l7() {
 # LEDGER_LINT_BASELINE so its monotonicity is still checked (review-1 FINDING 2 / M2).
 _ledger_gate() {
   local ok=1 out
-  shopt -s nullglob
-  local ledgers=("$LEDGER_DIR"/*.tsv)
-  shopt -u nullglob
+  local ledgers=(); mapfile -t ledgers < <(ratchet_ledgers "$LEDGER_DIR")
   # baseline ledgers present at HEAD but vanished from the working tree (rename/delete).
   local vanished=()
   if [[ "$LEDGER_DIR" == "$ROOT/conformance/ledger" ]]; then
     while IFS= read -r name; do
       [[ -z "$name" ]] && continue
+      is_ratchet_ledger "$name" || continue   # the drift lane is not a ratchet ledger (W2.3)
       [[ -f "$LEDGER_DIR/$name" ]] || vanished+=("$name")
     done < <(git -C "$ROOT" ls-tree --name-only HEAD conformance/ledger/ 2>/dev/null \
              | sed -n 's#^conformance/ledger/\(.*\.tsv\)$#\1#p')
@@ -147,9 +165,7 @@ l_freeze() {
 # EXISTING committed ledgers' referenced files, no test replay) → belongs in --quick.
 l4() {
   local ok=1
-  shopt -s nullglob
-  local ledgers=("$ROOT"/conformance/ledger/*.tsv)
-  shopt -u nullglob
+  local ledgers=(); mapfile -t ledgers < <(ratchet_ledgers "$ROOT/conformance/ledger")
   [[ ${#ledgers[@]} -eq 0 ]] && { pass L4; return; }
   for lg in "${ledgers[@]}"; do
     if ! out="$(node "$ROOT/conformance/lint-lanes.mjs" --ledger "$lg" --root "$ROOT" 2>&1)"; then
@@ -169,9 +185,7 @@ l4() {
 # reusing ledger-lint's parseLedger/priorState/chainDigest → belongs in --quick like L1/L2/L3.
 l5() {
   local ok=1
-  shopt -s nullglob
-  local ledgers=("$ROOT"/conformance/ledger/*.tsv)
-  shopt -u nullglob
+  local ledgers=(); mapfile -t ledgers < <(ratchet_ledgers "$ROOT/conformance/ledger")
   [[ ${#ledgers[@]} -eq 0 ]] && { pass L5; return; }
   for lg in "${ledgers[@]}"; do
     if ! out="$(node "$ROOT/scripts/lints/assert-parity-lint.mjs" "$lg" 2>&1)"; then
@@ -197,6 +211,23 @@ l17() {
     pass L17
   else
     fail L17 "$out"
+  fi
+}
+
+# ── L18: the gift PRE-PUSH review-gate (§9.4 invariants 4-9,13,14,17,18; GIFT.3) ─────
+# Where L17 lints the gift ledger's STRUCTURE, L18 checks each prepared CANDIDATE gift is PR-ready:
+# preflight.mjs validates the test (bun format/folder, a REAL regression N, non-flaky) + the PR body
+# (headings, provenance, ≤3-line comments) + the open-PR cap + the security embargo, and EMITS the
+# [USER] steps it must never fake (USE_SYSTEM_BUN/bun bd test/rust:check-all/license). GUARD: no
+# candidate gifts yet ⇒ --check-all over an empty/absent conformance/gifts/ passes TRIVIALLY (the
+# l17-style empty guard), so the gate never blocks the honest "no gifts yet" state (GIFT.4 open).
+# Local + fast (a JSON parse + source lints over the candidate tree, no bun build) → --quick.
+l18() {
+  local out
+  if out="$(node "$ROOT/scripts/gift/preflight.mjs" --check-all --candidates "$ROOT/conformance/gifts" 2>&1)"; then
+    pass L18
+  else
+    fail L18 "$out"   # B1: red on ANY nonzero exit — a candidate that isn't PR-ready is not a pass
   fi
 }
 
@@ -316,6 +347,44 @@ l12() {
   fi
 }
 
+# ── L14: the mutation-score floor read (§8: eat our own dog food; W2.5) ────────────
+# scripts/mutation.mjs --check does a CHEAP read of conformance/mutation-floor.json and reds if any
+# target's last-recorded killed/total dips below its floor (a surviving mutant the suite failed to
+# kill), if a floor was LOWERED below its committed HEAD value (the ratchet only rises), or if the
+# score is malformed (killed>total, total==0). It NEVER runs Stryker — a full mutation pass is
+# minutes, so the slow measurement is `mutation.mjs --run` (the sole writer) at loop boundaries.
+# GUARD: no score file / zero targets → --check passes trivially (l17-style), so the gate never
+# blocks the honest "no mutation run recorded yet" bootstrap state. Local + fast (a JSON read + a
+# handful of comparisons, no Stryker) → both --quick and --full.
+l14() {
+  local out
+  if out="$(node "$ROOT/scripts/mutation.mjs" --check 2>&1)"; then
+    pass L14
+  else
+    fail L14 "mutation floor breach (a surviving mutant or a loosened floor):\n$out"
+  fi
+}
+
+# ── drift note: the NON-BLOCKING drift lane, PRINT-ONLY (§6.3; W2.3) ──────────────
+# The drift lane shows where upstream bun is moving before a pin bump. It NEVER gates a merge —
+# so this is a NOTE, never a fail(): it only prints the count of DRIFT rows currently banked in
+# conformance/ledger/drift.tsv (regenerated out-of-band by `drift-canary.mjs --write` against a
+# newer-upstream manifest). A nonzero drift count is informational, not a red. It never touches
+# FAILS. (Live upstream fetch is unavailable in this env, so the count reflects the last --write.)
+drift_note() {
+  local dt="$ROOT/conformance/ledger/drift.tsv"
+  if [[ ! -f "$dt" ]]; then
+    say "GATE note [DRIFT]: no conformance/ledger/drift.tsv yet (run drift-canary.mjs --write)"
+    return
+  fi
+  # grep -c ALWAYS prints the count on stdout (and exits 1 on zero matches under pipefail); keep
+  # its stdout, default to 0 only if it printed nothing (unreadable file). No `|| echo` — that
+  # would double-count the "0" grep already emitted.
+  local n; n="$(grep -cE '^DRIFT\b' "$dt" 2>/dev/null)" || true
+  [[ -n "$n" ]] || n=0
+  say "GATE note [DRIFT]: $n upstream-new test file(s) not yet ledger-covered (non-gating, §6.3)"
+}
+
 # ── RED batteries ─────────────────────────────────────────────────────────────
 battery() {
   local dir="$1" ok=1
@@ -329,7 +398,7 @@ battery() {
   [[ $ok == 1 ]] && pass "RED:$dir"
 }
 
-l15; l6; l7; l8; l_freeze; l1; l4; l5; l17; l9; l16_seed; l13; l12
+l15; l6; l7; l8; l_freeze; l1; l4; l5; l17; l18; l9; l16_seed; l13; l12; l14; drift_note
 
 # ── wave-N exit criteria (CLAUDE.md R6 / §6.3) ─────────────────────────────────
 # `--wave N` = `--full` + wave-N exit criteria. The WAVE-LEVEL exit conditions (which cards are

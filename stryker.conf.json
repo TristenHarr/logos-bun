@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "W2.5 / P0.11 — Stryker mutation testing over the node harness surface (§8: eat our own dog food). Stryker injects mutants (=== -> !==, +/-, boundary flips, return-value voids, …) into the files under `mutate` and reports how many the red/p0 suite KILLS. The score feeds conformance/mutation-floor.json via `scripts/mutation.mjs --run`; the gate (L14) only reads that recorded score (a full run is minutes, the gate must stay fast). Test runner = the `command` runner: it runs the relevant red/p0 drivers directly (our tests are plain node .mjs files, not a jest/mocha suite). Narrow `mutate` set = the comparators/lints/runner/fuzz-driver/bench the harness's correctness rides on; widen as .lg ports land.",
+  "packageManager": "npm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "node red/p0/mutation/treehash-contract.test.mjs"
+  },
+  "commandRunner_comment": "The kill command must be ORACLE-FREE: Stryker sandboxes only the harness surface (vendor-artifacts/ is ignored), so the diffcli/exec-equivalence tests that spawn the oracle-bun binary cannot run inside the sandbox. treehash-contract.test.mjs pins treehash's full behavior with NO external binary, so it is the correct kill harness for the treehash target. When a target's contract needs the oracle, mutate it under a command that stubs the oracle or run it out-of-sandbox.",
+  "coverageAnalysis": "off",
+  "ignorePatterns_comment": "Stryker sandboxes the whole tree; keep the giant read-only reality (vendor/ submodules, the Rust target/, node_modules, .git, worktrees) out of the copy — vendor/bun even ships broken-symlink test fixtures that break the copy. Only the harness surface + its RED drivers need to reach the sandbox.",
+  "ignorePatterns": [
+    "vendor/**",
+    "vendor-artifacts/**",
+    "target/**",
+    "node_modules/**",
+    ".git/**",
+    ".stryker-tmp/**",
+    "work/worktrees/**",
+    "reports/**",
+    "red/p0/multimodule/target/**"
+  ],
+  "mutate": [
+    "conformance/oracle/treehash.mjs"
+  ],
+  "reporters": ["json", "clear-text"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "timeoutMS": 60000,
+  "concurrency": 2,
+  "mutate_full_surface_comment": [
+    "conformance/oracle/treehash.mjs",
+    "conformance/oracle/diffcli.mjs",
+    "conformance/normalize.ts",
+    "conformance/runner.mjs",
+    "conformance/fuzz-driver.mjs",
+    "conformance/lint-lanes.mjs",
+    "scripts/lints/ledger-lint.mjs",
+    "scripts/lints/assert-parity-lint.mjs",
+    "scripts/lints/gifts-lint.mjs",
+    "scripts/lints/workflow-ops-lint.mjs",
+    "bench/lib.mjs"
+  ]
+}

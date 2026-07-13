@@ -1,0 +1,6 @@
+# upstream.manifest — "newer upstream" adds baz.test.ts on top of baseline. But the ledger
+# already carries a row for baz.test.ts (a proactively-triaged BLOCKED), so it is NOT drift:
+# drift = upstream-new AND ledger-uncovered. This proves ledger coverage suppresses a new file.
+test/js/bun/http/serve.test.ts
+test/cli/install/bun-install.test.ts
+test/js/bun/http/baz.test.ts

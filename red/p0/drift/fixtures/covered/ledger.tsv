@@ -1,0 +1,4 @@
+# ledger.tsv — covers every upstream file INCLUDING the newly-added baz.test.ts → zero drift.
+PASS	A	test/js/bun/http/serve.test.ts	0000000000000000000000000000000000000000	3	covered
+BLOCKED(P7)	A	test/cli/install/bun-install.test.ts	-	-	needs install engine
+BLOCKED(P7)	A	test/js/bun/http/baz.test.ts	-	-	pre-triaged before its pin bump

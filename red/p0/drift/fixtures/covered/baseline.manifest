@@ -1,0 +1,3 @@
+# baseline.manifest — the SPEC_PIN test-file set for the zero-drift fixture.
+test/js/bun/http/serve.test.ts
+test/cli/install/bun-install.test.ts

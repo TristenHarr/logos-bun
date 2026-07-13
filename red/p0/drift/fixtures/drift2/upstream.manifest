@@ -1,0 +1,8 @@
+# upstream.manifest — "newer upstream HEAD" test-file set (a fixture standing in for a live
+# fetch, which this env can't do). Contains everything at baseline PLUS two files upstream
+# added after SPEC_PIN: foo.test.ts and bar.test.ts. Neither is in the ledger → both drift.
+test/js/bun/http/serve.test.ts
+test/js/bun/spawn/spawn.test.ts
+test/cli/install/bun-install.test.ts
+test/js/bun/http/foo.test.ts
+test/js/bun/websocket/bar.test.ts

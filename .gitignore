@@ -7,6 +7,10 @@ target/
 /logs/
 node_modules/
 .logos-native/
+# Stryker mutation scaffold (W2.5): sandbox scratch + per-run reports are ephemeral. The tracked
+# artifacts are stryker.conf.json + conformance/mutation-floor.json (the recorded score) only.
+.stryker-tmp/
+reports/
 *.log
 .ratchet-break
 .merge-freeze

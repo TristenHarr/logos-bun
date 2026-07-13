@@ -1,0 +1,14 @@
+{
+  "name": "logos-bun-harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "W2.5 / P0.11 — dev tooling for the logos-bun conformance harness (mutation testing). This package.json exists ONLY to declare the Stryker devDependency that powers the §8 mutation-score ratchet; the harness itself runs on plain node, no runtime deps. Not published.",
+  "type": "module",
+  "scripts": {
+    "mutation:check": "node scripts/mutation.mjs --check",
+    "mutation:run": "node scripts/mutation.mjs --run"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^9.2.0"
+  }
+}

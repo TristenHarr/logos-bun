@@ -53,13 +53,13 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 
 | Card | Task | State | Note |
 |---|---|---|---|
-| W1.6 | gate-audit meta-lock + gate-manifest (L9) + --wave mode | IMPL | owns gate-manifest.json; VIOLATIONS_CAUGHT floor |
+| W1.6 | gate-audit meta-lock + gate-manifest (L9) + --wave mode | GREEN (isolated) | 20 planted violations each caught (floor=20); gap-hunted (specificity probes + B1 EISDIR); hermetic; --wave mode + gate-manifest.json. Committed fcc9ffa. REVIEW pending |
 | W2.1 | P0.7 fuzz-driver + ddmin + regression bank (L13) | GREEN (isolated) | conformance/fuzz-driver.mjs + ddmin (proven terminating) + content-addressed bank + deterministic --replay; full loop proven (detect→minimize→bank→replay-red→fix→replay-green); l13 empty-guard. W1.6 gate-manifest fuzz guard satisfied. REVIEW pending |
 | W2.2 | P0.8 bench runner + 3σ ratchet (L12), 4 metrics | GREEN (isolated) | bench/lib+run+verify+LEDGER.json; confirm-before-freeze + conservative win-lock proven; anti-deadlock (noise blip ≠ freeze) proven; chainDigest integrity seal; build-time baseline 115.9s. l12 wired. gate-manifest entry for W1.6: bench/LEDGER.json→"3σ verify (l12) wired". REVIEW pending |
-| W2.3 | P0.9 drift-canary vs upstream HEAD | QUEUED | non-blocking lane; re-baseline ritual |
+| W2.3 | P0.9 drift-canary vs upstream HEAD | GREEN (isolated) | drift-canary.mjs (DRIFT=upstream∖baseline∖covered), non-gating (always exit 0), drift.tsv ≠ ledger shape; verified 1731 count vs SPEC_PIN; added ratchet_ledgers helper (excludes drift.tsv from l1/l4/l5 — CONSOLIDATION CHECK). REVIEW pending |
 | W2.4 | P0.6 oracle artifact cache (sha-addressed) | QUEUED | formalize vendor-artifacts/ |
 | W2.5 | P0.11 mutation scaffold (Stryker now; cargo-mutants→W4) | QUEUED | gate-manifest: shims/ needs mutants cfg |
-| W2.8 | GIFT.3 gift review-gate wiring | QUEUED | pre-push lints; bun bd test steps = [USER] |
+| W2.8 | GIFT.3 gift review-gate wiring | GREEN (isolated) | preflight.mjs (mechanized vs [USER]-emitted split, never fakes user steps), reuses W1.7 via appendGiftRows (refuse-before-write), L18 distinct readiness check + empty-guard; classify seeds ledger. Fixed W2.5's broken gate-audit control; floor 20→21. REVIEW pending |
 | PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | QUEUED | adversarial doc-review before freeze |
 | PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | QUEUED | 1-based idx, WTF-16, value-vs-ref, depth |
 | W2.9 | shim→.lg migration | **BLOCKED** | on G13 (sibling `## Test` stream) |
@@ -72,14 +72,17 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
   at Wave-1 close**: verify L1–L17 all present, the main check sequence calls every l-fn, and
   the fixer's B1 `_ledger_gate` (fail-on-nonzero-exit) survived. Do NOT mark Wave 1 GREEN
   without re-reading gate.sh end to end.
-- **Sibling `## Test`-block stream in logicaffeine BLOCKS G13** (recon 2026-07-13): the sibling
-  built the test LANGUAGE SURFACE (Stmt::TestDef/Expect/ExpectFail/ExpectOutput/Require AST +
-  parse, whole pipeline) but NOT execution — interpreter TestDef is a no-op, no TestResult type.
-  G13's own work (interpreter test execution + result sink) IS the sibling's territory →
-  **G13 cannot launch in parallel** (STOP rule). Readiness signal = teach_lock + jones_fidelity
-  green in logicaffeine. **tests-in-LOGOS (W2.9 shim→.lg migration) is gated on this.** USER
-  coordination point: sequence the two streams; confirm if sibling scope includes `largo test`.
-  The namespaced-types fix (W0.E-G) also shares lexer.rs with the sibling — flag at user commit.
+- **Sibling session is ACTIVELY BUILDING G13** (confirmed 2026-07-13 05:25 via process+mtime
+  recon): NEW files `apps/logicaffeine_cli/src/commands/test.rs` (the `largo test` command) +
+  `crates/logicaffeine_compile/src/testrun.rs` (test execution) modified in the last hour, plus
+  a running cargo-mutants campaign (25 rustc). So G13/tests-in-LOGOS is NOT ours to build — the
+  sibling is doing it. **Do NOT build G13.** When the sibling reaches a compiling checkpoint,
+  `largo test` + testrun.rs exist → W2.9 (shim→.lg migration) unblocks. **The E0063 mid-edit
+  breaks the LIVE toolchain → multimodule canary RED under --full (TRANSIENT).** logos-bun
+  harness cards are node-based, unaffected; --quick green. Wave-2 `--wave 2` close waits on the
+  sibling toolchain compiling. Watch signal: `cargo check -p logicaffeine-cli` clean in the live
+  tree (only when no sibling build is active — rule 11). The namespaced-types fix (W0.E-G) shares
+  lexer.rs with this sibling — flag at user commit.
 
 ## Durable spec-pin facts (empirically verified at bun-v1.3.14; the doc's numbers were stale)
 

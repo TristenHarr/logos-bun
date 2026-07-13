@@ -1,0 +1,6 @@
+# baseline.manifest — the test-file set AT SPEC_PIN (bun-v1.3.14), one relpath per line.
+# Real production reads these from vendor/bun via the SPEC_PIN glob; the RED fixture pins
+# a hermetic subset so drift detection is deterministic and offline.
+test/js/bun/http/serve.test.ts
+test/js/bun/spawn/spawn.test.ts
+test/cli/install/bun-install.test.ts

@@ -1,0 +1,13 @@
+{
+  "$schema": "mutation-floor/v1",
+  "_doc": "The mutation-score ratchet (§8: a harness that can't catch mutants can't catch regressions). Each target records the LAST measured Stryker score (killed/total) over the files it mutates, plus a `floor` (killed/total minimum) that ONLY RISES. The gate (gate.sh L14) does a CHEAP read of this file and reds if any target's killed/total dips below its floor — it NEVER runs Stryker (a full pass is minutes). `scripts/mutation.mjs --run [target]` does the slow Stryker pass and is the SOLE writer of these numbers, raising a floor when the score improves. floor=0 with total=0 is the honest bootstrap 'not yet measured' state; the first `--run` replaces it with a real killed/total and a real floor.",
+  "targets": {
+    "comparators": {
+      "path": "conformance/oracle/treehash.mjs",
+      "killed": 33,
+      "total": 55,
+      "floor": 0.6,
+      "_note": "First real Stryker score (W2.5): 33/55 killed = 60% over treehash.mjs. The 22 survivors are the CLI `node treehash.mjs <dir>` entry-point block (import.meta.url guard + usage error), NOT the hashing logic — that block is unreached by the in-process treehash() import the harness uses. Widen `mutate` (stryker.conf.json mutate_full_surface_comment) as more targets get oracle-free kill harnesses; the floor only rises."
+    }
+  }
+}

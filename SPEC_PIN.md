@@ -25,8 +25,11 @@ Notes:
 1. Pick the new tag; update every field above in one commit.
 2. Bump the `vendor/bun` submodule to the new tag SHA.
 3. Re-apply `conformance/patches/` to a scratch worktree — an apply failure is a loud stop.
-4. Re-count test files mechanically; run frontier-scan over files added since the old pin;
-   triage new FAILs into phases in the ledger.
+4. Re-count test files mechanically; run frontier-scan over files added since the old pin —
+   the non-blocking drift lane (`conformance/ledger/drift.tsv`, produced by
+   `conformance/drift-canary.mjs`) is the pre-computed worklist of exactly those upstream-new,
+   ledger-uncovered files, so a bump is a planned absorption, not a surprise; triage each new
+   file into a phase in the ledger.
 5. Fetch + sha256 the new oracle binary; `oracle-pin` test green.
 6. Record the event in `conformance/incidents/` (re-baselines are incidents by convention —
    planned absorptions, not surprises).

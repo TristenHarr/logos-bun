@@ -1,0 +1,32 @@
+# conformance/oracle/shims/mutants.toml — cargo-mutants config for the differential-oracle
+# shims (§8: "cargo-mutants runs over our native kernels and the conformance tooling").
+#
+# STATUS: STUB, staged for W4. No oracle shim exists yet (conformance/oracle/shims/ holds only
+# this config), so cargo-mutants has nothing to mutate. This file exists NOW purely to satisfy
+# the L9 gate-manifest guard `oracle-shim-mutants`: the instant the first hand-written oracle
+# shim lands (a stand-in for a not-yet-ported bun subsystem in the differential path), the guard
+# fires and REQUIRES this config to be present — ratchet-before-code (CLAUDE.md R1/R7). Landing
+# the config first means the very first shim is mutation-verified from birth, never retrofitted.
+#
+# The Stryker half of the mutation ratchet (the JS harness surface: comparators/lints/runner/
+# fuzz-driver/bench) is live NOW — see stryker.conf.json + conformance/mutation-floor.json +
+# scripts/mutation.mjs + gate.sh L14. cargo-mutants is the RUST half, for the native kernels and
+# oracle shims once they exist (W4).
+#
+# At W4 this stub is filled in with real cargo-mutants directives: the shim crate(s) to examine,
+# the test command that must KILL each mutant (the shim's own `## Test` battery / oracle
+# differential), timeouts, and any justified skip regions. cargo-mutants' own score joins the
+# same floor-only-rises discipline conformance/mutation-floor.json enforces for the JS side.
+
+# ── examine set (W4: the oracle-shim crates) ──────────────────────────────────────
+# examine_globs = ["conformance/oracle/shims/**/*.rs"]
+
+# ── the test command that must catch every mutant (W4) ────────────────────────────
+# test_tool = "cargo"
+# additional_cargo_test_args = ["--offline"]
+
+# ── mutants that survive here are NOT allowed to (the point of the ratchet) ────────
+# A surviving mutant means a shim assertion doesn't actually constrain behavior — it is a real
+# gap in the differential oracle, filed the same way a Stryker survivor is (§8).
+timeout_multiplier = 3.0
+minimum_test_timeout = 60

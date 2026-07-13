@@ -1,0 +1,6 @@
+# ledger.tsv — a hermetic ledger fixture. Covers the three baseline files (so those never
+# drift); does NOT cover foo.test.ts or bar.test.ts, which upstream added. SCHEMA §2: 6 TAB
+# fields — STATUS ⇥ LANE ⇥ path[::name] ⇥ first-green-commit ⇥ asserts ⇥ note.
+PASS	A	test/js/bun/http/serve.test.ts	0000000000000000000000000000000000000000	3	covered
+FAIL	A	test/js/bun/spawn/spawn.test.ts	-	-	frontier
+BLOCKED(P7)	A	test/cli/install/bun-install.test.ts	-	-	needs install engine

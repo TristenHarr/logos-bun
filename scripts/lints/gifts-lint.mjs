@@ -15,7 +15,7 @@
 //   • a broken/stale #CHAIN trailer (tamper) — via the shared chain recompute.
 //
 // npm-world tooling per CLAUDE.md R3; its RED driver is allowlisted → W2.9.
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 // REUSE the W1.1 chain core — the SINGLE home of sha256 chaining + prior-state resolution.
@@ -210,6 +210,77 @@ export function lintGifts(path) {
   errors.push(...checkSecurityRouting(label, parsed.rows));
   errors.push(...checkSecurityStable(label, parsed.rows));
   return errors;
+}
+
+// ── the OPEN set (invariant 17 cap input) ─────────────────────────────────────
+// The "open" gifts are those with an in-flight PR upstream: ready/filed/in-review/changes-
+// requested (embargoed security findings are NOT public PRs, so they don't count against the
+// public-PR cap). Returns Map<id, currentState> for all findings, and the derived open count, so
+// preflight's rate-limit refusal reads the SAME parse the lint validates (no divergent grammar).
+export const OPEN_STATES = new Set(["ready", "filed", "in-review", "changes-requested"]);
+export function currentGiftStates(path) {
+  const label = basename(path);
+  if (!existsSync(path)) return { states: new Map(), openCount: 0, errors: [] };
+  const parsed = parseGifts(readFileSync(path, "utf8"), label);
+  const states = new Map();
+  for (const r of parsed.rows) states.set(r.id, r.state); // latest row per id wins (append order)
+  let openCount = 0;
+  for (const s of states.values()) if (OPEN_STATES.has(s)) openCount++;
+  return { states, openCount, errors: parsed.errors };
+}
+
+// ── the chain-APPEND path (invariant 15 classify + state advance) ─────────────
+// The SINGLE writer of new gift rows. A caller (e.g. scripts/gift/preflight.mjs's `classify`)
+// hands one or more rows to append; this parses the current ledger, appends them to the body,
+// re-lints the whole result (transitions/classification/security), and — only if that passes —
+// reseals via the SHARED chainDigest(prevChain, newBody). The chain is NEVER hand-written by a
+// caller: they call THIS, so a classify that would produce an illegal transition or a security
+// leak is refused BEFORE it touches the file (leave-things-better: the write can't create an
+// invalid ledger). Each `row` is {id, state, cls, sec, artifacts, note}; fields default sanely.
+// Returns { ok, errors } and, on ok, has written the resealed ledger to `path`.
+export function appendGiftRows(path, rows) {
+  const label = basename(path);
+  const errors = [];
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, errors: [`${label}: appendGiftRows requires at least one row`] };
+  // seed an empty-but-sealed ledger if the file is absent, so the first classify can bootstrap.
+  let text = existsSync(path) ? readFileSync(path, "utf8") : "#CHAIN " + chainDigest(GENESIS, "") + "\n";
+  const parsed = parseGifts(text, label);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors.map((e) => `refusing to append onto an already-invalid ledger — ${e}`) };
+
+  const line = (r) => {
+    const id = r.id, state = r.state;
+    const cls = r.cls ?? (state === "found" ? "-" : "");
+    const sec = r.sec ?? "n";
+    const artifacts = r.artifacts ?? "-";
+    const note = r.note ?? "";
+    if (/[\t\n\r]/.test(id + state + cls + sec + artifacts + note))
+      throw new Error(`${label}: a gift row field contains a TAB/newline (would corrupt the TSV): ${JSON.stringify(r)}`);
+    return [id, state, cls, sec, artifacts, note].join("\t");
+  };
+
+  let newBody;
+  try {
+    const appended = rows.map(line).join("\n") + "\n";
+    newBody = parsed.body + appended;
+  } catch (e) {
+    return { ok: false, errors: [String(e.message || e)] };
+  }
+
+  // re-lint the PROSPECTIVE ledger (body + a fresh trailer) as a whole — this is the gate that
+  // makes append refuse an illegal transition / missing classification / security-leak BEFORE write.
+  const prevChain = priorState(path).prevChain ?? GENESIS;
+  const prospective = newBody + "#CHAIN " + chainDigest(prevChain, newBody) + "\n";
+  const reparsed = parseGifts(prospective, label);
+  const lintErrors = [
+    ...reparsed.errors,
+    ...checkTransitions(label, reparsed.rows),
+    ...checkSecurityRouting(label, reparsed.rows),
+    ...checkSecurityStable(label, reparsed.rows),
+  ];
+  if (lintErrors.length) return { ok: false, errors: lintErrors };
+
+  writeFileSync(path, prospective);
+  return { ok: true, errors: [] };
 }
 
 // ── CLI ───────────────────────────────────────────────────────────────────────

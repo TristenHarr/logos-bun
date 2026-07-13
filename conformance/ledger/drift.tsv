@@ -1,0 +1,5 @@
+# conformance/ledger/drift.tsv — the NON-BLOCKING drift lane (BAKE_A_BUN §6.3; W2.3).
+# INFORMATIONAL ONLY — this file NEVER gates a merge. It lists test files a 'newer upstream'
+# added since SPEC_PIN that no conformance/ledger/*.tsv row covers yet; it is the worklist the
+# re-baseline ritual's frontier-scan (SPEC_PIN.md step 4) consumes so a pin bump is a planned
+# absorption. Regenerate with `node conformance/drift-canary.mjs --write`. Row: DRIFT ⇥ path ⇥ note.

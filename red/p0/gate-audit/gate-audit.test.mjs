@@ -41,7 +41,7 @@ const LINTS = join(ROOT, "scripts", "lints");
 // Every plant below asserts a violation is CAUGHT and increments `caught`. The floor is the
 // count of DISTINCT enforcement rules this audit proves the gate catches. Raising a plant raises
 // the floor in the same commit; a plant that stops catching drops `caught` below the floor → RED.
-const VIOLATIONS_CAUGHT_FLOOR = 20;
+const VIOLATIONS_CAUGHT_FLOOR = 21;
 
 const fails = [];
 let caught = 0;
@@ -100,6 +100,7 @@ function skeleton() {
   const dir = tmp("gaudit-skel-");
   const R = (...p) => join(dir, ...p);
   mkdirSync(R("scripts", "lints"), { recursive: true });
+  mkdirSync(R("scripts", "gift"), { recursive: true });
   mkdirSync(R("conformance", "ledger"), { recursive: true });
   mkdirSync(R("bench"), { recursive: true });
   mkdirSync(R("red", "p0"), { recursive: true });
@@ -113,10 +114,14 @@ function skeleton() {
   for (const f of ["ledger-lint.mjs", "assert-parity-lint.mjs", "gifts-lint.mjs", "workflow-ops-lint.mjs"]) {
     cpSync(join(LINTS, f), R("scripts", "lints", f));
   }
+  // L18: the gift pre-push review-gate (preflight.mjs imports the copied gifts-lint.mjs).
+  cpSync(join(ROOT, "scripts", "gift", "preflight.mjs"), R("scripts", "gift", "preflight.mjs"));
   cpSync(join(ROOT, "conformance", "lint-lanes.mjs"), R("conformance", "lint-lanes.mjs"));
   cpSync(join(ROOT, "conformance", "fuzz-driver.mjs"), R("conformance", "fuzz-driver.mjs"));
   cpSync(join(ROOT, "bench", "verify.mjs"), R("bench", "verify.mjs"));
   cpSync(join(ROOT, "bench", "lib.mjs"), R("bench", "lib.mjs"));
+  // L14: the mutation-score floor read (empty-guards to a trivial pass with no score file).
+  cpSync(join(ROOT, "scripts", "mutation.mjs"), R("scripts", "mutation.mjs"));
 
   // L15: CLAUDE.md carrying every anchor.
   const anchors = ["R1-RATCHET-IS-LAW", "R2-NEVER-MODIFY-RED", "R3-TESTS-IN-LOGOS", "R4-GIT-SPLIT",
@@ -201,6 +206,28 @@ function runSkelGate(gate) { return run("bash", [gate, "--quick"], { env: { ...p
   writeFileSync(join(dir, "red", "p0", "sneaky.test.mjs"), "// not in the allowlist\n");
   const r = runSkelGate(gate);
   record(r.code !== 0 && /GATE FAIL \[L16\]|unallowlisted/i.test(r.out), "L16 unallowlisted node test shim");
+}
+
+// P-L18: a candidate gift with a FLAKY (setTimeout) test → L18 preflight reds the gate (§9.4 inv 7).
+// The skeleton's gate.sh runs l18 over conformance/gifts/; a bad candidate there must red the whole
+// gate exactly as the empty conformance/gifts/ passed trivially in the positive control.
+{
+  const { dir, gate } = skeleton();
+  const cand = join(dir, "conformance", "gifts", "g-flaky");
+  mkdirSync(join(cand, "tree", "test", "js", "web", "url"), { recursive: true });
+  writeFileSync(join(cand, "candidate.json"), JSON.stringify({
+    id: "G-1", slug: "flaky", security: "n", classification: "theirs",
+    behavioralChange: true, isRegression: false, issueNumber: null,
+    branch: "claude/gift-flaky", testFile: "test/js/web/url/url.test.ts", prBody: "pr-body.md",
+    userSteps: { useSystemBunFails: true, bunBdTestPasses: true, rustCheckAll: true, licenseCla: true },
+  }, null, 2) + "\n");
+  writeFileSync(join(cand, "pr-body.md"),
+    "### What does this PR do?\n\nfix.\n\n### How did you verify your code works?\n\n- ok.\n\n" +
+    "### Provenance & authorship disclosure\n\n- differential fuzzing; Claude-authored; clean-room.\n");
+  writeFileSync(join(cand, "tree", "test", "js", "web", "url", "url.test.ts"),
+    "import { test, expect } from \"bun:test\";\ntest(\"x\", async () => { await new Promise(r => setTimeout(r, 10)); expect(1).toBe(1); });\n");
+  const r = runSkelGate(gate);
+  record(r.code !== 0 && /GATE FAIL \[L18\]|setTimeout|flaky|invariant 7/i.test(r.out), "L18 flaky candidate gift (setTimeout) reds the gate");
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════
