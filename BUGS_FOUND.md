@@ -199,10 +199,25 @@ language needs before it can host a serious tool.
 
 ---
 
-_Live count: 18 (⭐×5 BUN, 6 toolchain [**2 now FIXED**], 7 ours). 5 real bun bugs (semver + 4
-TOML) from differential fuzz. **BUG-17 (no exit-code) + BUG-18 (no stderr) FIXED** — toolchain
-592ec80 added `exitWith(code)` + `eputs(stderr)` native builtins (verified: a .lg separates
-stdout/stderr and exits with a chosen code). The CLI port (P1) is UNBLOCKED on exit-codes +
-stderr. Remaining toolchain gaps: sort (blocks semver port), atomics (blocks install),
-namespaced-types (fixed in clone), abstract-parse (worked around). Fuzz lanes: fuzz/semver/,
-fuzz/toml/._
+### BUG-19 · BUN · 2026-07-13 · correctness (leniency)
+**What:** Bun's TOML parser accepts a **duplicate table definition**, which TOML 1.0 forbids
+("You cannot define any table more than once. Doing so is invalid."). `Bun.TOML.parse("[t]\nx =
+1\n[t]\ny = 2")` silently merges to `{"t":{"x":1,"y":2}}` instead of erroring; @iarna (and every
+conformant parser) rejects it. **Where:** bun TOML parser (`src/parsers/toml.rs` — no
+already-defined-table check). **Found by:** TOML error-path conformance probe (spec-required
+rejections). **Impact:** a typo'd or merge-conflicted duplicate `[section]` in a config is
+silently accepted instead of flagged — masks real mistakes. Lower severity than the
+value-corruption TOML bugs (accepts-invalid vs wrong-value). **Status:** open → gift pipeline
+(G-6); public/tweetable. **Tweet:** Bun TOML bug #5: it lets you define the same `[table]`
+twice. The spec says that's a hard error (probably a copy-paste mistake!). Bun just silently
+merges them, so your duplicated config section passes without a peep.
+
+---
+
+_Live count: 19 (⭐×6 BUN [semver + 5 TOML], 6 toolchain [**2 FIXED**], 7 ours). bun's JSON
+parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML parser: 5 bugs (\U
+escape, multiline-ws, inf/nan, no-dates, duplicate-table) — materially spec-incomplete. Fuzz
+lanes: fuzz/semver/, fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out).
+**BUG-17 (no exit-code) + BUG-18 (no stderr) FIXED** (toolchain 592ec80: exitWith+eputs; CLI
+port unblocked, now byte-exact on unknown-cmd). Remaining toolchain gaps: sort (blocks the
+semver port), atomics (blocks install)._
