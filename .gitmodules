@@ -1,0 +1,6 @@
+[submodule "vendor/bun"]
+	path = vendor/bun
+	url = https://github.com/oven-sh/bun.git
+[submodule "vendor/logicaffeine"]
+	path = vendor/logicaffeine
+	url = git@github.com:Brahmastra-Labs/logicaffeine.git

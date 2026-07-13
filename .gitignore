@@ -1,0 +1,9 @@
+/target
+/vendor-artifacts/
+/work/locks/
+/work/worktrees/
+/work/diffs/
+/logs/
+node_modules/
+.logos-native/
+*.log

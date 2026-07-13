@@ -1,0 +1,5 @@
+[package]
+name = "multimodule-toy"
+version = "0.0.1"
+entry = "src/main.lg"
+description = "W0.E permanent canary: the multi-module largo build path."

@@ -1,0 +1,5 @@
+[package]
+name = "bun"
+version = "0.0.1"
+entry = "src/main.lg"
+description = "The bun toolkit and runtime, reborn in LOGOS."

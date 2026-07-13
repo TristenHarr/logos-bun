@@ -1,0 +1,8 @@
+# tests-shim-allowlist — node test shims permitted ONLY during bootstrap (CLAUDE.md R3).
+# SHRINK-ONLY after Wave 1 (gate check L16): rows may be removed (shim replaced by .lg),
+# never added. Every red/**/*.mjs MUST appear here or the gate fails.
+# path	reason	replaced-by
+red/p0/binary-name.test.mjs	needs subprocess spawn (G2) + largo test (G13)	W2.9
+red/p0/oracle-pin.test.mjs	needs subprocess spawn (G2) + sha256 digest kernel	W2.9
+red/p0/pins.test.mjs	needs subprocess spawn (G2) for submodule HEAD reads	W2.9
+red/p0/multimodule.test.mjs	needs subprocess spawn (G2) to drive build.sh	W2.9

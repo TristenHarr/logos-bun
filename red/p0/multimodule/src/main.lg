@@ -1,0 +1,8 @@
+# Toy
+
+A multi-module canary importing [Geometry](file:./geometry.md) and [Colors](file:./colors.md).
+
+## Main
+Let p be a new Geometry::Point with x 3 and y 4.
+Let c be a new Colors::Color with r 250 and g 5 and b 1.
+Show p's x + p's y + c's r + c's g + c's b.

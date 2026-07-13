@@ -1,0 +1,9 @@
+# bun
+
+The bun toolkit and runtime, reborn in LOGOS.
+
+## Main
+Let a be args().
+Repeat for arg in a:
+    If arg == "--version":
+        Show "1.3.14".
