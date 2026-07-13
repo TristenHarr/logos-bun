@@ -1,0 +1,3 @@
+[{"toml":"x = \"\\U0001F600\"","bug":"BUG-13","expect":"😀","bun":"U0001F600"},
+ {"toml":"x = \"\\U00000041\"","bug":"BUG-13","expect":"A","bun":"U00000041"},
+ {"toml":"x = \"\"\"a\\\n    b\"\"\"","bug":"BUG-14","expect":"ab","bun":"a    b"}]
