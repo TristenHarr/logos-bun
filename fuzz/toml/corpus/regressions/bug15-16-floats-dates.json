@@ -1,0 +1,6 @@
+[{"toml":"a = inf","bug":"BUG-15","spec":"Infinity(float)","bun":"\"inf\"(string)"},
+ {"toml":"a = nan","bug":"BUG-15","spec":"NaN(float)","bun":"\"nan\"(string)"},
+ {"toml":"a = -inf","bug":"BUG-15","spec":"-Infinity","bun":"REJECT: Expected t_numeric_literal but found inf"},
+ {"toml":"a = 1979-05-27","bug":"BUG-16","spec":"Date 1979-05-27","bun":"REJECT: Expected key but found -"},
+ {"toml":"a = 07:32:00","bug":"BUG-16","spec":"Time 07:32:00","bun":"REJECT: Expected key but found :"},
+ {"toml":"a = 1979-05-27T07:32:00Z","bug":"BUG-16","spec":"OffsetDateTime","bun":"REJECT"}]

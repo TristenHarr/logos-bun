@@ -42,12 +42,35 @@ export function gen(seed, n) {
     for (let i = 0; i < len; i++) parts.push(`${bareKey()} = ${scalar(depth)}`);
     return `{ ${parts.join(", ")} }`;
   };
+  const floatVal = () => {
+    const k = r();
+    if (k < 0.15) return pick(["inf", "+inf", "-inf", "nan", "+nan", "-nan"]);
+    const a = Math.floor(r() * 1000), b = Math.floor(r() * 1000);
+    if (k < 0.4) return `${chance(0.2) ? "-" : ""}${a}.${b}`;
+    if (k < 0.6) return `${a}.${b}e${chance(0.5) ? "+" : "-"}${Math.floor(r() * 30)}`;
+    if (k < 0.75) return `${a}e${Math.floor(r() * 20)}`;
+    // underscored float
+    return `${a}_${b % 10}.${b}`;
+  };
+  const dateVal = () => {
+    const y = 1900 + Math.floor(r() * 200), mo = 1 + Math.floor(r() * 12), da = 1 + Math.floor(r() * 28);
+    const h = Math.floor(r() * 24), mi = Math.floor(r() * 60), s = Math.floor(r() * 60);
+    const p2 = (x) => String(x).padStart(2, "0");
+    const k = r();
+    const date = `${y}-${p2(mo)}-${p2(da)}`, time = `${p2(h)}:${p2(mi)}:${p2(s)}${chance(0.4) ? "." + Math.floor(r() * 1000) : ""}`;
+    if (k < 0.3) return date;                                        // local date
+    if (k < 0.5) return time;                                        // local time
+    if (k < 0.7) return `${date}T${time}`;                           // local datetime
+    return `${date}T${time}${chance(0.5) ? "Z" : (chance(0.5) ? "+" : "-") + p2(Math.floor(r() * 14)) + ":00"}`; // offset
+  };
   function scalar(depth = 0) {
     const k = r();
-    if (k < 0.32) return intVal();
-    if (k < 0.55) return strVal();
-    if (k < 0.68) return boolVal();
-    if (depth < 2 && k < 0.85) return arrVal(depth + 1);
+    if (k < 0.24) return intVal();
+    if (k < 0.40) return strVal();
+    if (k < 0.52) return floatVal();
+    if (k < 0.62) return dateVal();
+    if (k < 0.70) return boolVal();
+    if (depth < 2 && k < 0.86) return arrVal(depth + 1);
     if (depth < 2) return inlineTable(depth + 1);
     return intVal();
   }

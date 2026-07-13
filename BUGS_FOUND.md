@@ -148,9 +148,37 @@ fuzzing can't.
 ### BUG-14 · BUN · 2026-07-13 · correctness
 **What:** In a TOML multiline basic string, a line-ending backslash should trim the newline AND all leading whitespace of the next line (TOML 1.0: "trimmed along with all whitespace up to the next non-whitespace character"). Bun trims only the newline, keeping the indentation: `Bun.TOML.parse('x = """a\\<newline>    b"""').x` returns `"a    b"` instead of `"ab"`. (With no indent on the continuation line, bun is correct — so it's specifically the leading-whitespace trim that's missing.) **Where:** `src/parsers/toml/lexer.rs:849` `decode_escape_sequences<ALLOW_MULTILINE>` — the line-continuation branch eats the newline but not the following spaces. **Found by:** the same TOML differential fuzz; minimized + spec-verified vs @iarna/toml. **Impact:** every indented multiline string with line continuations gets spurious spaces — corrupts embedded scripts/text in TOML configs. **Status:** open → gift pipeline (G-3); public/tweetable; upstream filing USER-driven. **Tweet:** Bun TOML bug #3: multiline strings with a line-ending "\" are supposed to swallow the newline AND the next line's indentation. Bun keeps the indentation. Your neatly-indented multiline config value comes out full of spaces you didn't write. Differential testing against the spec finds these in minutes.
 
+### BUG-15 · BUN · 2026-07-13 · correctness
+**What:** Bun's TOML parser mishandles the spec's special float values. `Bun.TOML.parse("a = inf").a`
+returns the STRING `"inf"` (should be the float `Infinity`); `"a = nan"` returns `"nan"` (should be
+`NaN`); and `"a = +inf"` / `"a = -inf"` are outright REJECTED (`Expected t_numeric_literal but found
+inf`) even though signed infinities are valid TOML 1.0. **Where:** bun `src/parsers/toml/lexer.rs`
+(the numeric-literal path doesn't recognize inf/nan; the bareword falls through to a string).
+**Found by:** TOML differential fuzz (Bun.TOML vs @iarna/toml) once float generation was added;
+minimized + spec-verified. **Impact:** any TOML using `inf`/`nan` (thresholds, sentinels) silently
+becomes a string or fails to parse. **Status:** open → gift pipeline (G-4); public/tweetable.
+**Tweet:** Bun TOML bug: `x = inf` should give you the float Infinity (it's in the TOML spec).
+Bun gives you the *string* "inf". And `x = -inf` doesn't parse at all. Special float values —
+inf, nan, and their signs — are broken.
+
+### BUG-16 · BUN · 2026-07-13 · correctness  ⭐ significant
+**What:** **Bun's `Bun.TOML.parse` has NO support for TOML date/time types** — a core category of
+the TOML 1.0 spec. All four are rejected with parse errors: `a = 1979-05-27` (local date) →
+`Expected key but found -`; `a = 07:32:00` (local time) → `Expected key but found :`;
+`a = 1979-05-27T07:32:00Z` (offset datetime) and local datetime → rejected. Bun lexes `1979` as a
+number, then chokes on the `-`. @iarna (and every conformant parser) returns Date values.
+**Where:** bun `src/parsers/toml/lexer.rs` — no date/time literal recognition in the number path.
+**Found by:** the same TOML fuzz (dates added to the generator → 663/3000 valid docs rejected, all
+date-containing). **Impact:** major — you cannot parse ANY real-world TOML containing a timestamp
+(extremely common in configs/manifests) with Bun.TOML; it throws. **Status:** open → gift pipeline
+(G-5); public/tweetable. **Tweet:** Bigger Bun TOML find: it can't parse dates. At all. `x =
+2024-01-01` — a plain TOML date, in the spec since day one — throws a parse error. Bun reads the
+year as a number and trips over the dash. Any config with a timestamp is unparseable by Bun.TOML.
+
 ---
 
-_Live count: 14 (⭐⭐⭐ 3 BUN [semver + 2 TOML], 4 toolchain, 7 ours). All 3 BUN bugs found by
-differential-fuzzing bun against a spec-conformant reference — the campaign's core method,
-working. Fuzz lanes: fuzz/semver/, fuzz/toml/. (stringWidth/glob ruled out — no authoritative
-reference; see fuzz/stringwidth/PROBE.md.)_
+_Live count: 16 (⭐×5 BUN [semver + 4 TOML: \U escape, multiline-ws, inf/nan, NO dates], 4
+toolchain, 7 ours). FIVE real bun bugs, all from differential-fuzzing against spec-conformant
+references — the campaign method delivering. Fuzz lanes: fuzz/semver/, fuzz/toml/. bun's TOML
+parser in particular is spec-incomplete (dates missing, special floats + \U escape + multiline
+continuation all wrong). (stringWidth/glob ruled out — no authoritative reference.)_
