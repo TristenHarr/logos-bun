@@ -7,6 +7,28 @@ Execution plan: see the approved wave plan (mirrored from
 Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED → SWEPT`.
 `[USER]` marks user-driven steps.
 
+## ▶▶ THE REWRITE HAS BEGUN (2026-07-13, autonomous kickoff) ▶▶
+
+Plan: `~/.claude/plans/we-want-to-make-glowing-corbato.md` (Autonomous Rewrite Execution).
+**New authorizations**: git in BOTH repos (scoped add/commit, NO destructive verbs, NO remote
+push); autonomous `sudo apt` + from-source builds; dangerously-skip-permissions loop.
+Bug ledger = `logos-bun/BUGS_FOUND.md` (tweetable). Remaining [USER] gates = REMOTE ops only
+(fork/push/publish). Toolchain = the sibling-isolated clone `/home/tristen/logos-bun-toolchain`.
+
+**Phase A progress:**
+- A1 deps ✓ — ninja 1.11.1, ccache, clang-21/lld-21 (bun needs clang 21.1.x exactly — BUG-9).
+- A2 oracle ✓ — RUST bun 1.4.0 **built from source** (build-oracle-rust.sh; WebKit prebuilt;
+  sha256 c3a199d7…; --version 1.4.0). Installed at the canonical oracle path.
+- A4 re-baseline ✓ (commit 0f6637d) — vendor/bun → 43ee038 (Rust rewrite); SPEC_PIN (1.4.0,
+  1881 tests); patches 0001+0002 re-anchored to the Rust harness (import-reorder drift caught
+  by the tripwire). gate --quick GREEN.
+- A5 bug ledger ✓ — BUGS_FOUND.md, 9 finds seeded, committed.
+- A3 toolchain clone — created at d7c86c1; namespaced-types re-apply IN PROGRESS (agent
+  a855734, RED-first, will commit + report SHA → then build.sh switches to it + vendor/
+  logicaffeine pin bumps + canary re-verifies).
+- A6 close Wave 2 — pending (review-pairs on the 6 harness cards + W2.4).
+- **Phase B — Wave 3 product code** — next: P1 dispatch (32 command tags) vs the Rust oracle.
+
 ## Wave table
 
 | Wave | Content | Status |

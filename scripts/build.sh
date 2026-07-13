@@ -9,7 +9,10 @@ LOCK_DIR="$ROOT/work/locks"
 LOCK="$LOCK_DIR/build.lock"
 mkdir -p "$LOCK_DIR"
 
-TOOLCHAIN="${LOGOS_WORKSPACE:-/home/tristen/logicaffeine}"
+# Build against the DEDICATED toolchain clone (sibling-churn-isolated, carries namespaced-types
+# @ 2a10c5c). NOT the live /home/tristen/logicaffeine (a concurrent session runs cargo-mutants
+# --in-place there → unreliable builds). Override with LOGOS_WORKSPACE for other toolchains.
+TOOLCHAIN="${LOGOS_WORKSPACE:-/home/tristen/logos-bun-toolchain}"
 PROJECT="$ROOT"
 ARGS=()
 while [[ $# -gt 0 ]]; do
