@@ -148,6 +148,21 @@ blind spot — not 10 separate review agents (the duplicate-dispatch token waste
 - 2026-07-13 · Test-file count at bun-v1.3.14 tag = 1,731 (vs 1,881 at dev 43ee038, vs
   ~1,941 in the doc) — ledger counts reality at pin.
 
+## Toolchain-gap G-tasks discovered by PORT doc-review (2026-07-13) — upstream logicaffeine
+
+The PORT completeness review found the EARLIEST ports need LOGOS primitives that DON'T EXIST:
+- **G-SORT**: LOGOS has no usable `sort` (QUICKGUIDE marks it proposed). P2 semver + the P4
+  install resolver sort candidate versions. Either upstream a real sort primitive, or every
+  port hand-writes selection sort. R7-STOP: blocks P2 semver.
+- **G-CONCURRENCY**: bun's installer is ThreadPool+Batch+MiniEventLoop+atomics; LOGOS has only
+  actor+CRDT-Shared, NO atomic-shared-counter analog (value-COW fights it). P4 install's
+  pending_task_count/finished_installing pattern needs upstream LOGOS concurrency primitives.
+  R7-STOP: blocks P4 install core. (Note: the deterministic runtime EXISTS —
+  logicaffeine_runtime scheduler/channels — so this may be a surfacing/mapping task, not a
+  from-scratch build. Investigate before carding.)
+Both are pre-Wave-4/Wave-5 upstream work. Not blocking now (harness phase); flagged early so
+the pin bump + G-tasks are sequenced before the ports that need them.
+
 ## Deferred user decisions
 
 - Distribution posture / public binary name (blocks shipping only).
