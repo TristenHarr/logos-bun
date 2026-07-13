@@ -60,8 +60,8 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | W2.4 | P0.6 oracle artifact cache (sha-addressed) | QUEUED | formalize vendor-artifacts/ |
 | W2.5 | P0.11 mutation scaffold (Stryker now; cargo-mutants→W4) | QUEUED | gate-manifest: shims/ needs mutants cfg |
 | W2.8 | GIFT.3 gift review-gate wiring | GREEN (isolated) | preflight.mjs (mechanized vs [USER]-emitted split, never fakes user steps), reuses W1.7 via appendGiftRows (refuse-before-write), L18 distinct readiness check + empty-guard; classify seeds ledger. Fixed W2.5's broken gate-audit control; floor 20→21. REVIEW pending |
-| PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | DRAFTED (a3ac75b), IN DOC-REVIEW | 12 patterns Rust-cited; #1 friction = `?` operator (no LOGOS analog); strings 3-way. 2 reviewers running (accuracy+completeness) → fixer → FREEZE |
-| PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | DRAFTED (a3ac75b), IN DOC-REVIEW | 17 traps Rust-cited; TRAP-17 `?`, recursion stack-probe 200k, div/0 uncatchable; most-dangerous TRAP-14 recursion DoS. 2 reviewers running → fixer → FREEZE |
+| PORT.1 | PORTING_RUST_TO_LOGOS.md (Rust→LOGOS idiom map) | **FROZEN 2026-07-13** (post-review; edits require an incident) | Doc-review closed by fixer: 5 accuracy citation fixes + completeness adds §5.3 Ordering (H1), §5.4 matches!/OR-patterns/ranges (M1/M2), §3 no-sort (H2) + labeled-break/no-Continue (H4), §10.5 concurrency (H3), §10.6 M3/M4/M5 fast-follow. Header line = FROZEN. |
+| PORT.2 | SEMANTIC_TRAPS.tsv (trap classes + fuzz foci) | **FROZEN 2026-07-13** (post-review; edits require an incident) | Doc-review closed by fixer: TRAP-02/TRAP-12 citation fixes; TRAP-11/12/13 fuzz-focus relabeled AUDIT/differential-harness (not corpus fuzzers); +TRAP-18 Ordering (H1), +TRAP-19 labeled-break/no-Continue (H4), +TRAP-20 matches!/OR-pattern/range (M1/M2). Now 20 rows, all 7-col. Header line = FROZEN. |
 | W2.9 | shim→.lg migration | **BLOCKED** | on G13 (sibling `## Test` stream) |
 
 ## ⚠️⚠️ ORACLE-LANGUAGE FINDING (PORT.1+PORT.2, 2026-07-13) — USER DECISION PENDING

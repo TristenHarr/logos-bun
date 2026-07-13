@@ -1,5 +1,7 @@
 # PORTING_RUST_TO_LOGOS.md — the bun→LOGOS idiom map
 
+STATUS: FROZEN 2026-07-13 — post-review; edits require an incident.
+
 The frozen pattern map: how bun's source idioms render as LOGOS idioms. A porter reads
 this and knows exactly how to render each construct. Every LOGOS syntax claim traces to a
 real citation. Where a construct is unproven against real LOGOS code it is marked
@@ -280,6 +282,18 @@ Repeat for word in h:
 `props.iter().map(|prop| (key, value))` becomes a `Repeat for prop in props:` loop that
 `Push`es a constructed pair per iteration.
 
+**GOTCHA — there is NO usable `sort` primitive (blocks P2 semver + the install resolver).**
+`sort` / `xs sorted` / `xs.sort()` are marked **(proposed)** in QUICKGUIDE §5 (`LOGOS_QUICKGUIDE.md:137`,
+"new builtins") and do NOT work at the current pin. This is not a cosmetic gap: bun's install
+resolver picks the max-satisfying version by sorting candidates with the `sort_gt` comparator
+(`src/semver/Version.rs:106`), which is exactly the code the first real port (P2 semver) must
+render. **Two options, both grounded in this doc:** (a) a ported resolver **hand-writes
+selection sort** — `Repeat` + `If` + swap, using a `## To compareVersion -> Ordering`
+(§5.3) as the comparator, Set-item swaps (§3), and 1-based indexing; OR (b) the **G-SORT
+toolchain G-task** lands a real LOGOS sort primitive upstream first. Per constitution R7
+(the STOP rule) a port that needs sort must NOT shim it — see WAVES.md's G-SORT entry
+(`## Toolchain-gap G-tasks`, "R7-STOP: blocks P2 semver"). Until then, hand-write it.
+
 **GOTCHA — 1-based indexing (SEMANTIC_TRAPS, the documented bracket footgun).** `item 1 of
 xs` is the FIRST element. bun/Rust is 0-based (`buf[0]`, `str[at_index + 1..]`, `for i in
 0..n`). **Every index arithmetic must shift by 1.** The stdlib does this constantly: to read
@@ -294,6 +308,25 @@ function is the #1 source of off-by-one regressions.
 `n`); LOGOS `Repeat for i from A to B` is **inclusive** of `B`. Porting `0..n` → `from 1 to
 n` (1-based, inclusive) already lands on the right element count; porting `0..n` → `from 0 to
 n` would over-run. Reconcile the base shift and the bound together, never separately.
+
+**GOTCHA — `Break` is innermost-only; there is NO `Continue`, no labeled break, no
+break-with-value (glob matcher = structural rewrite).** LOGOS `Break.` exits the **innermost**
+loop only (`ast/stmt.rs:282`; QUICKGUIDE:150), and the corpus/QUICKGUIDE have **no `Continue`
+statement** (the `Continue` token at `token.rs:48` is a Logic-mode presupposition kind, not
+loop control), no labeled `break 'label`, and no `break 'label value`. bun's glob matcher
+leans on all of these — `'main_loop: while` with `continue 'main_loop`, `break 'fallthrough`,
+and break-with-value `break 'blk high` / `break 'brk cp` (`src/glob/matcher.rs:188,227,268,330,648`).
+Renderings (SEMANTIC_TRAPS TRAP-19):
+
+| bun shape | LOGOS rendering |
+|-----------|-----------------|
+| plain `continue;` | guard the loop's REST with `If`: `If skip: ... else run the tail` — skip the rest of the body when the continue-condition holds |
+| `continue 'outer;` / `break 'outer;` (labeled, multi-level) | thread a mutable `done`/`skip` flag OUT through each nesting level, re-check it after the inner loop, and `Break.` each level in turn |
+| `break 'blk value;` (break-with-value) | assign the value to a var FIRST, THEN `Break.` |
+
+**Flag bun's glob matcher (`src/glob/matcher.rs`) as a structural rewrite, not a
+transliteration** — a `break 'main_loop` mechanically copied as `Break.` exits only the inner
+loop and the outer keeps running, silently matching the wrong path.
 
 ---
 
@@ -473,6 +506,80 @@ DependencyVersionValue` exists only for lockfile ABI layout; the *logical* type 
 union, which is exactly `## A Value is one of: A Npm with … . A DistTag with … . …`. Port the
 logic, drop the ABI trick.
 
+### 5.3 Three-way compare (`Ordering`) — a user enum, NO built-in `cmp` (blocks P2 semver day one)
+
+bun's semver is built on Rust's `std::cmp::Ordering`. `pub fn order_without_tag(lhs, rhs) ->
+Ordering` (`src/semver/Version.rs:419-459`) is a Less/Greater/Equal ladder over
+major/minor/patch/pre-release, and it is the backbone of the whole install resolver: `order`
+reuses it, `satisfies` matches on it (`match order { Ordering::Equal => …, Ordering::Greater
+=> …, Ordering::Less => … }` — `src/semver/SemverRange.rs:256`), and the sort comparator is
+`sort_gt(…) = order_fn(…) == Ordering::Greater` (`src/semver/Version.rs:106`).
+
+**LOGOS has the two-way comparisons `is less than` / `is greater than` / `is equal to`
+(`codegen_hotpath_locks.rs:85`, `audit_codegen.rs:33`, `correctness_is_equality.rs:67`; also
+`is at most` / `is between`), but NO built-in three-way `Ordering` / `cmp` / `<=>`** (verified
+by exhaustive corpus + QUICKGUIDE search — none exists). Model it as your own payload-free
+enum (§5.2 form), returned explicitly, and dispatched with `Inspect`:
+```
+## An Ordering is one of:
+    A Less.
+    An Equal.
+    A Greater.
+
+## To compareVersion (a: Version) and (b: Version) -> Ordering:
+    If a's major is less than b's major:
+        Return a new Less.
+    If a's major is greater than b's major:
+        Return a new Greater.
+    ...
+    Return a new Equal.
+```
+The enum declaration (`## A X is one of:` payload-free) is the `e2e_codegen_enums.rs:17`
+`## A Color is one of:` form (VERIFIED); the `Inspect`/`When Less:` dispatch is the
+`correctness_inspect.rs:21` `When Red:` form (VERIFIED). Consume it exactly like bun's `match
+order`:
+```
+Inspect compareVersion(a, b):
+    When Less: ...
+    When Equal: ...
+    When Greater: ...
+```
+
+**GOTCHA — compute the `Ordering` ONCE, then `Inspect` it.** The trap (SEMANTIC_TRAPS
+TRAP-18) is porting bun's single `Ordering` into scattered pairwise `is less than` /
+`is greater than` boolean tests at each call site. That (a) re-runs the whole
+major/minor/patch/pre ladder every comparison, and (b) risks an inconsistent partial order —
+an `a < b` test and a separate `a == b` test that disagree on the pre-release tie-break
+(`1.2.0` outranks `1.2.0-rc.1`: `Version.rs:439-451`). Write ONE `compareVersion -> Ordering`
+mirroring `order_without_tag`, and the total-order axioms (antisymmetry, transitivity) hold by
+construction. **This is the first thing the P2 semver port needs; it cannot render
+`Version.rs:419` without it.**
+
+### 5.4 `matches!`, match OR-patterns, guards, and ranges (THE lexer shape — P5)
+
+bun uses `matches!` and rich `match` arms pervasively, especially in the JSON/INI/lexer
+surface: `matches!(contents[1], b'"' | b'\'')` (`src/parsers/json.rs:537`),
+`matches!(contents[p], b']' | b',')` (`:794`), `matches!(self, ConfigOpt::_Auth |
+ConfigOpt::_Password)` (`src/ini/lib.rs:121`); OR-arms with guards `b'-' | b'.' if
+leads_a_number(contents) =>` (`src/parsers/json.rs:555`); and OR-of-range arms `0x30..=0x37
+=>` / `0x30..=0x39 | 0x61..=0x66 | 0x41..=0x46 =>` (`src/js_parser/lexer.rs:688,1289`).
+
+| bun shape | LOGOS rendering |
+|-----------|-----------------|
+| `matches!(x, A \| B)` (a **boolean test**) | `x is A or x is B` inside an `If` (logical `or`, QUICKGUIDE §5 legend / QUICKGUIDE:55) — **NOT** an `Inspect` |
+| `match` enum **OR-arm** `A \| B => body` | TWO `When` arms with the same body (`When A: body.` `When B: body.`) — there is **no `When A or B:` OR-arm** (UNVERIFIED / not in corpus or QUICKGUIDE; `Inspect` parses one variant per arm, `parser/mod.rs:5756`) |
+| match arm **guard** `pat if cond =>` | an `If cond:` nested inside the `When` arm |
+| contiguous **range** `0x30..=0x37` | `is between 48 and 55` (INCLUSIVE; `correctness_predicates.rs:97`, QUICKGUIDE:53) |
+| **OR of ranges** `A..=B \| C..=D` | `(x is between A and B) or (x is between C and D)` in an `If` |
+
+**GOTCHA — `matches!` is a boolean, not a match statement.** Porting `matches!(c, b'"' |
+b'\'')` to an `Inspect` with an empty `Otherwise` silently no-ops; it is `c is 34 or c is 39`
+in an `If`. **GOTCHA — range VALUES do not shift, only Seq INDICES do.** `0x30..=0x37`
+→ `is between 48 and 55` uses the literal byte values 48–55; the 1-based shift (§3, TRAP-01)
+applies to `item i of xs` indexing, NOT to a byte-value range test. **GOTCHA — never drop the
+guard.** `b'-' | b'.' if leads_a_number(...)` without the `If leads_a_number(...)` guard
+mis-classifies `-`/`.` that do not lead a number. (SEMANTIC_TRAPS TRAP-20.)
+
 ---
 
 ## 6. Structs & construction, functions & closures
@@ -579,7 +686,8 @@ is a `WTFStringImpl` (WebKit string) holding either **Latin-1** or **UTF-16** �
 `src/bun_core/string/mod.rs:52-53` ("`bun.String` — 5-variant tagged WTFString-or-ZigString")
 and the tag enum `pub enum Tag { Dead = 0, WTFStringImpl = 1, ZigString, StaticZigString,
 Empty }` — `src/bun_alloc/lib.rs:991-993`. The width is queried at runtime: `is_16bit()` /
-`is_8bit()` (`src/bun_core/string/mod.rs:566`, `src/bun_alloc/lib.rs:1513`). The `src/CLAUDE.md`
+`is_8bit()` (`src/bun_core/string/mod.rs:566` and `:573` respectively — the `is_8bit` in
+`src/bun_alloc/lib.rs` is the lower-level ZigString variant). The `src/CLAUDE.md`
 is explicit: *"`WTFStringImpl` (Latin-1 or UTF-16). **Latin-1 is NOT UTF-8** — bytes 128-255
 are single chars in Latin-1 but invalid UTF-8 — so converting either direction requires a real
 encoder, not a cast."* So:
@@ -600,14 +708,16 @@ encoder, not a cast."* So:
    `src/semver`/`src/install` parser surface, which is `&[u8]`-throughout) maps cleanly to
    LOGOS byte sequences (§7.3) — no encoding hazard, because it was never JS text.
 3. bun code that is genuinely UTF-8 (`String::clone_utf8`/`borrow_utf8`, already-decoded
-   native strings — `src/bun_core/string/mod.rs:188`) maps to LOGOS `Text`.
+   native strings — `borrow_utf8` sig at `src/bun_core/string/mod.rs:187`) maps to LOGOS `Text`.
 
 The SEMANTIC_TRAPS taxonomy lists "UTF-8 `Text` vs WTF-16 vs raw-byte string handling" as a
 dedicated fuzz-generator focus. Treat string encoding as a per-site decision, never a blanket
 `String → Text`. **Note vs the Zig source:** the trap is identical in shape — WebKit's WTF
 string model is the same — but the Rust rewrite ALSO surfaces the Latin-1 8-bit case
-explicitly (`is_8bit()`), so a porter must distinguish *three* encodings (UTF-8 / Latin-1 /
-UTF-16), not two.
+explicitly (`is_8bit()`), so a porter must distinguish *three* bun-side encodings (UTF-8 /
+Latin-1 / UTF-16), not two. **(Cross-ref: SEMANTIC_TRAPS TRAP-07 counts *four* indexing
+bases — these same three bun encodings PLUS LOGOS `Text`'s own codepoint basis, the target
+you are mapping *into*. "Three encodings" and "four bases" agree; the fourth is LOGOS.)**
 
 ### 7.2 LOGOS `Text` operations (VERIFIED working today)
 
@@ -698,7 +808,7 @@ wraparound, port to the Word type. General-purpose counting/arithmetic → `Int`
 ### 8.3 Integer division & overflow traps (SEMANTIC_TRAPS)
 
 - **Integer division truncates toward zero:** `7 / 2` = `3`, `10 / 2` = `5`
-  (`e2e_expressions.rs`/`e2e_operators.rs:100,33`, VERIFIED). Matches Rust `/` on unsigned and
+  (`e2e_expressions.rs:100` and `:33`, VERIFIED — there is no `e2e_operators.rs`). Matches Rust `/` on unsigned and
   `/` toward-zero on signed for positives. **UNVERIFIED** for negative operands (round-toward-
   zero vs floor) — the corpus test uses positives only; porter must confirm before porting bun
   code with negative dividends. This is a named trap class ("integer division/overflow/wrapping
@@ -708,7 +818,7 @@ wraparound, port to the Word type. General-purpose counting/arithmetic → `Int`
   on wrap always spells it (`wrapping_*`) — grep for that as your Word-type signal. Silent
   divergence otherwise.
 - **`%` modulo:** used throughout the stdlib as `x % 256`, `x % 16` for byte/nibble extraction
-  (`uuid.lg:32,213`). VERIFIED for positives; sign behavior on negatives UNVERIFIED (same
+  (`uuid.lg:32` and `:217-220`). VERIFIED for positives; sign behavior on negatives UNVERIFIED (same
   caveat as division). Rust `%` follows the dividend's sign; confirm LOGOS matches before
   porting signed remainders.
 
@@ -822,6 +932,72 @@ layout."
 
 ---
 
+## 10.5 Concurrency & the installer — actors/channels map; shared atomics do NOT (blocks P4 install core)
+
+bun's package installer is a **thread-pool + batches + a mini event loop + shared atomics**,
+NOT async/tokio. The shapes:
+- `use bun_threading::{ThreadPool, UnboundedQueue, thread_pool};` — `src/install/PackageManager.rs:27`;
+  `use bun_event_loop::MiniEventLoop` — `:18`.
+- `pub thread_pool: ThreadPool`, `pub task_batch: thread_pool::Batch` (plus
+  `network_tarball_batch`, `network_resolve_batch`, `patch_apply_batch`, …) —
+  `src/install/PackageManager.rs:394-408`.
+- **Shared mutable counters via atomics:** `use core::sync::atomic::{AtomicBool, AtomicU32,
+  Ordering};` (`:3`); `pub pending_tasks: AtomicU32` (`:416`), `pub finished_installing:
+  AtomicBool` (`:425`), `pub pending_pre_calc_hashes: AtomicU32` (`:415`),
+  `pub pending_lifecycle_script_tasks: AtomicU32` (`:424`). The install loop spins until
+  `pending_tasks` drains and flips `finished_installing`.
+
+**What MAPS — LOGOS has a real deterministic concurrency runtime** (`logicaffeine_runtime`:
+`scheduler.rs` "a single, deterministic, seed-driven scheduler", `channel.rs`, `task.rs`).
+Surface forms (VERIFIED in the concurrency corpus):
+
+| bun intent | LOGOS rendering | Citation |
+|-----------|-----------------|----------|
+| Channel / queue (`UnboundedQueue`) | `Let ch be a Pipe of Int.` (FIFO) | `e2e_concurrency.rs:73` (VERIFIED) |
+| Enqueue (`.push` to the queue) | `Send x into ch.` | `e2e_concurrency.rs:75` (VERIFIED) |
+| Dequeue (worker pulls a task) | `Receive x from ch.` | `concurrency_prelude.rs:34`, `concurrency_differential.rs:44` (VERIFIED) |
+| Spawn a pool task (`Batch`/`ThreadPool` job) | `Launch a task to worker with args.` | `concurrency_differential.rs:43,85` (VERIFIED) |
+| Long-lived worker (actor) | `Spawn an EchoAgent called "echo".` | QUICKGUIDE §12 (`:235`) |
+| Convergent shared state (merge, not lock) | `A Counter is Shared and has: points: ConvergentCount.` + `Increase c's points by 10.` / `Merge remote into local.` | QUICKGUIDE §12 (`:229-232`) |
+
+**GOTCHA — there is NO atomic-shared-counter analog; `pending_task_count`/`finished_installing`
+need the G-CONCURRENCY toolchain G-task.** LOGOS actors are **value-COW isolated** — a task
+cannot atomically `fetch_sub` a counter that another task also reads, because a mutation
+copy-on-writes into the mutator's private copy (§2, TRAP-09). The CRDT `Shared`/`ConvergentCount`
+surface is **merge-based (eventually-consistent), not a lock-free atomic**: it converges, it
+does not give you bun's "read the live count this instant, decrement it, and spin until zero"
+semantics. So bun's `pending_tasks: AtomicU32` drain-loop and its `finished_installing:
+AtomicBool` flag have **no direct LOGOS translation at the current pin**. Per constitution R7
+(the STOP rule): a port that needs the shared-atomic drain pattern must STOP and use the
+**G-CONCURRENCY** G-task, NOT shim it inside logos-bun — see WAVES.md's G-CONCURRENCY entry
+(`## Toolchain-gap G-tasks`, "R7-STOP: blocks P4 install core"). **Note (per that entry):**
+the deterministic runtime EXISTS, so G-CONCURRENCY may be a *surfacing/mapping* task (exposing
+a shared-counter/barrier idiom over the existing scheduler) rather than a from-scratch build —
+investigate before carding. What you CAN port today is the actor/channel decomposition (rewrite
+the counter-drain as "coordinator receives N `done` messages on a `Pipe`, then proceeds"), a
+deterministic single-threaded reshaping of the pool.
+
+### 10.6 Fast-follow pointers (surface later in a port, not day one)
+
+These don't block the first leaf ports; a porter meets them mid-port. Each has a home
+elsewhere in this doc — noted here so they aren't forgotten:
+- **simdutf FFI leaf crates → REIMPLEMENT the algorithm, don't transliterate.** bun's base64
+  is FFI over a C++ SIMD lib (`use bun_simdutf_sys::simdutf` — `src/base64/lib.rs:1`). Port it
+  as a real LOGOS byte algorithm (Word8 6-bit tables per §7.3/§8.2), the P2 "worked example."
+  The LOGOS side has no `simdutf`; there is nothing to bind, only to re-derive.
+- **Lockfile byte-serialization > discriminant.** bun's lockfile is `bytemuck`-Pod structs
+  with explicit padding + a `0xDEADBEEF` "never written" sentinel and an `Aligner`
+  (`src/install/lockfile/Buffers.rs:16,86-87`; `_padding_after_integrity: [u8; 3]` at
+  `src/install/npm.rs:690`). LOGOS has no memory layout — port to explicit `to_bytes`/`from_bytes`
+  (§5 discriminant gotcha, §6.1 `#[repr(C)]` gotcha); fuzz-focus = `bun.lockb` round-trip
+  byte-exact.
+- **SHA-512 SRI integrity.** npm integrity is `sha512-` + base64 (`src/install/integrity.rs:3,11,174`,
+  `SHA512_DIGEST_LEN = 64`; `src/install/npm.rs:679-682`). LOGOS ships a SHA-512/SHA-256/SHA-3
+  crypto substrate (`sha3_native.rs`, `simd_lanes.rs`; §8.2 Word64) — port the hash natively and
+  gate extract-after-verify with `Check that <digest matches>.` (§1.3c).
+
+---
+
 ## 11. Quick-reference cheat sheet (all VERIFIED unless flagged)
 
 | bun (Rust) | LOGOS |
@@ -833,6 +1009,8 @@ layout."
 | `panic!`/`unreachable!`/`.expect("inv")` | `Check that …` / `Assert that …` / `Trust that … because "…"` |
 | `&[u8]`, `&str[a..b]` | `Seq of Int` / `Text`; `items a through b of xs` (INCLUSIVE) |
 | `buf[i]` (0-based), `for i in 0..n` (half-open) | `item (i + 1) of buf` (1-BASED); `from 1 to n` (INCLUSIVE) |
+| `continue;` / `continue 'label` / `break 'label` / `break 'label val` | **no `Continue`, no labeled/value break** — `If`-guard the tail / mutable `done` flag / assign-then-`Break.` (§3, TRAP-19) |
+| `.sort()` / `xs.sort_by(cmp)` | **no usable sort** (proposed) — hand-write selection sort w/ §5.3 `Ordering`, OR G-SORT G-task (§3, WAVES.md) |
 | `.iter().map()/.filter()/.collect()` | `Repeat for x in xs:` + `Push`/`If` (no combinators) |
 | `a ++ b` / `[a, b].concat()` | `a followed by b` (Seq) / `a + b` (Text) |
 | generic `struct Foo<T>` / `fn f<T>` | `Foo of [T]` / `of [T]` |
@@ -842,6 +1020,11 @@ layout."
 | `#[repr(u8)] enum { A=0, B=1 }` + `match` | `## A X is one of:` + `Inspect`/`When`; discriminant → explicit `To tagValue` |
 | `enum URI { Local(T), Remote(T) }` (data) | `## A URI is one of: A Local with value T. A Remote with value T.` |
 | `union` + separate `.tag` (ABI) | ONE tagged `## X is one of:` (drop the union/`ManuallyDrop`) |
+| `Ordering` / `cmp` / `<=>` (3-way, `Version.rs:419`) | **no built-in** — user enum `## An Ordering is one of: A Less. An Equal. A Greater.` + `Inspect`; compute ONCE (§5.3) |
+| `matches!(x, A \| B)` (boolean test) | `x is A or x is B` in an `If` — **NOT** an `Inspect` (§5.4) |
+| match **OR-arm** `A \| B => body` | TWO `When` arms, same body (no `When A or B:`; §5.4) |
+| match arm **guard** `pat if cond =>` | `If cond:` nested inside the `When` arm (§5.4) |
+| range arm `0x30..=0x37 =>` | `is between 48 and 55` (INCLUSIVE; range VALUES don't 1-shift) (§5.4) |
 | `Foo { a: 1, b: 2 }` / `impl Default` | `a new Foo with a 1 and b 2` (defaults set explicitly) |
 | `.field` read / `p.x = 5` | `x's field` / `Set x's field to …` |
 | `u32`/`u64` **wrapping** (`wrapping_*`, crypto/hash/parse-pack) | `Word32`/`Word64` (§8.2 exact ops) |
@@ -850,6 +1033,8 @@ layout."
 | `&[u8]` bytes / `Vec<u8>` | `Seq of Int` (0–255) |
 | `Box<T>` / `ManuallyDrop<T>` / heap | value; structs are value-semantic |
 | `Rc`/`Arc`/`&mut dyn` shared | no analog (CRDT `Shared` for actors, else copy) |
+| `ThreadPool`/`Batch` job, `UnboundedQueue` | `Launch a task to f with args.` / `a Pipe of T` + `Send`/`Receive` (§10.5) |
+| `AtomicU32`/`AtomicBool` shared counter (`pending_tasks`, `finished_installing`) | **no analog** (value-COW); G-CONCURRENCY G-task, or coordinator counts `done` msgs on a `Pipe` (§10.5, WAVES.md) |
 | `.clone()` / `clone_into` / `clone_in` | `copy of x` (or build-fresh-and-`Return`) |
 | `MimallocArena` / AST arena | `Inside a zone called "…":` (UNVERIFIED) |
 | `mod` / `pub use` / `pub use X as Y` | invisible demand-prelude (no `use`); `## NoPrelude` opts out |
