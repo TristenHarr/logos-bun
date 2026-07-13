@@ -1,9 +1,12 @@
 # bun
 
-The bun toolkit and runtime, reborn in LOGOS.
+## To wantsVersion (xs: Seq of Text) -> Bool:
+    Repeat for x in xs:
+        If x is equal to "--version":
+            Return true.
+    Return false.
 
 ## Main
-Let a be args().
-Repeat for arg in a:
-    If arg == "--version":
-        Show "1.3.14".
+Let arguments be args().
+If wantsVersion(arguments):
+    Show "1.4.0".

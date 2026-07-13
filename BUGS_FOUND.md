@@ -96,7 +96,31 @@ the oracle-build script's version gate. **Status:** fixed (installed clang-21/ll
 LLVM apt channel). **Tweet:** Before you can rewrite Bun you have to *build* Bun, and Bun wants
 one exact clang version and nothing else. The bar to even reach the starting line is real.
 
+### BUG-10 · OURS · 2026-07-13 · minor
+**What:** Re-baselining the oracle from Bun 1.3.14 → 1.4.0 broke two of our own tests that had
+the version hardcoded: the walking-binary stub printed `"1.3.14"`, and a diffcli self-test's
+sed-wrapper corrupted the literal string `1.3.14` (which no longer appears, so it corrupted
+nothing → the "detect a divergence" test detected none). **Where:** `src/main.lg`,
+`red/p0/comparators/fixtures/diffcli/wrapped-sed.sh`. **Found by:** the gate, immediately after
+the re-baseline. **Status:** fixed (stub → 1.4.0; sed made version-*agnostic* so it can never
+be defanged by a future re-baseline). **Tweet:** Swapped our reference Bun from 1.3.14 to 1.4.0
+and instantly two of our own tests turned red — both had the version number baked in. The lesson
+that never gets old: hardcoded constants are future bugs with a delay timer. ⏲️
+
+### BUG-11 · TOOLCHAIN · 2026-07-13 · correctness
+**What:** In LOGOS at the pinned toolchain (v0.10.1), a `.lg` module whose title is followed by
+a **link-less prose abstract paragraph** (e.g. "The bun toolkit, reborn in LOGOS.") fails to
+parse — the abstract silently corrupts parsing of the `## Main` body that follows (garbage
+`ExpectedStatement` deep in the code). An abstract *with* markdown import-links parses fine;
+title-only parses fine; only pure prose breaks it. The newer (unreleased) tree had already
+fixed this. **Where:** logicaffeine parser / `scan_dependencies` abstract handling. **Found by:**
+building the first real port code (the CLI stub) against the pinned toolchain. **Status:** open
+(worked around: title-only stub; a toolchain fix is a candidate G-task). **Tweet:** Found a
+compiler bug in our own language the moment we built the first real file of the Bun port: a
+plain-English description paragraph at the top of a file silently corrupted parsing of the code
+*below* it. The docs literally can't hurt the code — except here they could. 🙃
+
 ---
 
-_Live count: 9 seeded (2 open toolchain gaps). BUN-category bugs begin at Wave 4, when we first
+_Live count: 11 seeded (3 open toolchain items). BUN-category bugs begin at Wave 4, when we first
 differential-fuzz our LOGOS ports against Bun's real Rust crates head-to-head._
