@@ -26,8 +26,16 @@ Bug ledger = `logos-bun/BUGS_FOUND.md` (tweetable). Remaining [USER] gates = REM
 - A3 toolchain clone — created at d7c86c1; namespaced-types re-apply IN PROGRESS (agent
   a855734, RED-first, will commit + report SHA → then build.sh switches to it + vendor/
   logicaffeine pin bumps + canary re-verifies).
-- A6 close Wave 2 — pending (review-pairs on the 6 harness cards + W2.4).
-- **Phase B — Wave 3 product code** — next: P1 dispatch (32 command tags) vs the Rust oracle.
+- **A COMPLETE ✓ (commit 53bd7a2, gate --wave 0 GREEN)** — deps + Rust 1.4.0 oracle built +
+  re-baseline + toolchain clone (build.sh → it) + first code building. `bun --version`=1.4.0
+  byte-exact vs the built Rust oracle. During execution found BUG-9 (clang-21 prereq), BUG-10
+  (hardcoded-version tests), BUG-11 (link-less prose abstract mis-parses at pinned v0.10.1).
+  **TOOLCHAIN CONSTRAINTS at the pin (v0.10.1) — every .lg module must obey**: (1) loops
+  (`Repeat for x in xs:`) parse ONLY inside `## To` functions, NOT at top level of `## Main`;
+  (2) a `.lg` module's abstract must contain markdown links or be ABSENT (link-less prose
+  breaks the parse); (3) `args()` includes the binary path as item 1 (Rust convention).
+- A6 close Wave 2 — deferred (review-pairs on the 6 harness cards + W2.4); non-blocking.
+- **Phase B — Wave 3 IN PROGRESS**: P1.1 dispatch (32 command tags) — implementer running.
 
 ## Wave table
 
