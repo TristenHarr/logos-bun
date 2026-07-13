@@ -218,6 +218,34 @@ The PORT completeness review found the EARLIEST ports need LOGOS primitives that
 Both are pre-Wave-4/Wave-5 upstream work. Not blocking now (harness phase); flagged early so
 the pin bump + G-tasks are sequenced before the ports that need them.
 
+## P2.1 SEMVER CORE — PORTED + GREEN (2026-07-13)
+
+The **first real bun component reborn in LOGOS.** `compareVersions` (Ordering enum +
+split-based parse + numeric MAJOR.MINOR.PATCH triple) in `src/main.lg`, exposed via the
+internal `bun __semver-compare A B` command (prints -1/0/1). Differential-verified vs
+node-semver: **3224 pairs × 4 seeds, 0 diffs** (`fuzz/semver/port-diff.mjs`), incl. the
+lexicographic traps 1.2.10>1.2.9 and 0.10.1>0.9.17. Commit f85f3b4; gate GREEN.
+
+Five toolchain grinds this port SURFACED and we FIXED (all in the toolchain clone, TDD-locked):
+- exitWith/eputs (592ec80) — CLI I/O primitives [earlier session]
+- `split(s, sep) -> Seq of Text` (b9f9928) — the string primitive every parser needs
+- comparative/superlative words as identifiers (6e36198) — the `Less/Equal/Greater` Ordering enum
+- worded inclusive inequalities `greater/less than or equal to` (9763a91)
+- worded negations `is not equal to` / `is not greater/less than` (e425b28)
+See BUGS_FOUND.md BUG-20..BUG-23 (all FIXED).
+
+**OPEN toolchain gaps found (BUG-24):**
+- Cross-module FUNCTION calls don't resolve (only `Module::Type` constructors do). Semver is
+  INLINED in main.lg as the workaround; re-modularize once the loader splices imported-module
+  functions into the callable namespace. This is the next module-system increment.
+- BUG-11 recurred: link-less / multi-line / backtick-laden prose abstracts before the first `##`
+  are parsed as code — forces canary-shaped or title-only headers. Preamble-robustness fix pending.
+
+**Next increments (semver ladder):** prerelease/build ORDERING (alpha<beta<rc, the `-`/`+`
+grammar) → `satisfies`/range parsing (^, ~, ||, hyphen, x-ranges; BUG-12 is bun's range bug our
+port must NOT replicate) → then the resolver (needs G-SORT). The semver CORE (parse/compare)
+needs no sort; the RESOLVER (max-satisfying) does.
+
 ## Deferred user decisions
 
 - Distribution posture / public binary name (blocks shipping only).
