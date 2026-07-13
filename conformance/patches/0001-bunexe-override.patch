@@ -1,0 +1,35 @@
+# 0001-bunexe-override.patch — Lane-A PUPPET seam (BAKE_A_BUN §6.2).
+#
+# WHAT: teach test/harness.ts `bunExe()` to honor `process.env.BUN_EXE_OVERRIDE`.
+#   Bun's tests are both host and subject — the test file spawns `bunExe()` as the
+#   subject-under-test. Lane A hosts them on the ORACLE bun while pointing the spawned
+#   subject at logos-bun via this env override. At the pin (bun-v1.3.14) `bunExe()` has
+#   NO env override — it hard-returns `process.execPath` — so this patch adds one.
+#
+# SEMANTICS: an override, when present and non-empty, wins over `process.execPath`
+#   (the oracle bun hosting the test). On Windows the same `\`->`/` normalization the
+#   original applies to `execPath` is applied to the override. Unset/empty -> byte-for-byte
+#   the original behavior (the oracle runs its own suite unchanged).
+#
+# ANCHORING: content-anchored on the exact `export function bunExe() {` body at the pin
+#   (3 context lines each side). NOT line-number anchored — the doc's "line ~120" is
+#   advisory. A re-baseline that reshapes this function makes the patch fail to apply,
+#   which scripts/worktree.mjs turns into a LOUD nonzero (the re-baseline tripwire).
+#
+# PROVENANCE: authored by an AI agent (Claude, logos-bun W1.3) against vendor/bun at tag
+#   bun-v1.3.14 (SHA 0d9b296af33f2b851fcbf4df3e9ec89751734ba4). Runtime-only: applied to
+#   a scratch worktree under work/worktrees/, never to vendor/bun itself (CLAUDE.md R5).
+#   Never sent upstream (a conformance-host override, not a bun change).
+diff --git a/test/harness.ts b/test/harness.ts
+index 98ca67455d..26016255a7 100644
+--- a/test/harness.ts
++++ b/test/harness.ts
+@@ -104,6 +104,8 @@ if (isDebug) {
+ }
+ 
+ export function bunExe() {
++  const override = process.env.BUN_EXE_OVERRIDE;
++  if (override) return isWindows ? override.replaceAll("\\", "/") : override;
+   if (isWindows) return process.execPath.replaceAll("\\", "/");
+   return process.execPath;
+ }

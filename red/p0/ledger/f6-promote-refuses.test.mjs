@@ -20,7 +20,11 @@ const fails = [];
 const promote = (dir, key) => {
   try {
     const out = execFileSync("node", [PROMOTE, "--ledger", join(dir, "ledger.tsv"), "--key", key], {
-      encoding: "utf8", env: { ...process.env, LEDGER_TODAY: "2026-07-13" },
+      encoding: "utf8",
+      // hermetic (no git in the temp dir): supply the first-green-commit via the LEDGER_HEAD_SHA
+      // seam (SCHEMA §10). promote now REFUSES to write the all-zeros sentinel (m4), so the seam
+      // is the fixture's real 40-hex source — the positive control still asserts a real PASS row.
+      env: { ...process.env, LEDGER_TODAY: "2026-07-13", LEDGER_HEAD_SHA: "abc1230000000000000000000000000000000000" },
     });
     return { code: 0, out };
   } catch (e) { return { code: e.status ?? 1, out: (e.stdout || "") + (e.stderr || "") }; }

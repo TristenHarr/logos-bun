@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="pass.spec.mjs" tests="3" failures="0" skipped="0" asserts="3">
+  <testcase name="pass one"/>
+  <testcase name="pass two"/>
+  <testcase name="pass three"/>
+</testsuite>

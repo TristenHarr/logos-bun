@@ -1,0 +1,3 @@
+# b1 bogus status, VALID chain
+BOGUS	C	src/toy.lg::x	-	-	a status token that is not in the grammar
+#CHAIN 1eee60eb20a537981931c414b0de80c95eb80d3cb4860a3f2cbce83a831dde1b

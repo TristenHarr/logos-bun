@@ -14,3 +14,21 @@ red/p0/ledger/f3-chain-broken.test.mjs	needs subprocess spawn (G2) + sha256 chai
 red/p0/ledger/f4-expired-quarantine.test.mjs	needs subprocess spawn (G2) to drive ledger-lint expiry (L3)	W2.9
 red/p0/ledger/f5-pass-shrink.test.mjs	needs subprocess spawn (G2) to drive ledger-lint monotonicity (L2)	W2.9
 red/p0/ledger/f6-promote-refuses.test.mjs	needs subprocess spawn (G2) to drive promote.mjs 5/5-across-2-ts gate	W2.9
+red/p0/ledger/b1-bogus-status-gate.test.mjs	needs subprocess spawn (G2) to drive ledger-lint over a bogus-status fixture (gate fails on the nonzero EXIT, not a tag substring)	W2.9
+red/p0/ledger/b3-window-promote.test.mjs	needs subprocess spawn (G2) to drive promote.mjs recent-window scan (ancient fail before a clean window promotes)	W2.9
+red/p0/ledger/m1m2-baseline.test.mjs	needs subprocess spawn (G2) + tmp git repos for prior-state resolution (committed-unchanged L1, relative-path baseline, committed .head ban, rename/delete baseline enumeration)	W2.9
+red/p0/ledger/majorc-runstore.test.mjs	needs subprocess spawn (G2) to drive promote.mjs + ledger-lint over run-store verdict/timestamp validation fixtures	W2.9
+red/p0/ledger/finding4-transition.test.mjs	needs subprocess spawn (G2) to drive ledger-lint over non-PASS baseline transition-table fixtures (DIVERGE/NOTIMPL)	W2.9
+red/p0/ledger/envscrub-gate.test.mjs	needs subprocess spawn (G2) to drive gate.sh env-seam scrub (a stray LEDGER_TODAY must not un-expire a quarantine)	W2.9
+red/p0/ledger/freeze-gate.test.mjs	needs subprocess spawn (G2) + a tmp git repo to drive gate.sh merge-freeze refusal + the committed .ratchet-break ban	W2.9
+red/p0/gifts/g1-illegal-transition.test.mjs	needs subprocess spawn (G2) to drive gifts-lint over an illegal-transition fixture	W2.9
+red/p0/gifts/g2-security-public-url.test.mjs	needs subprocess spawn (G2) to drive gifts-lint over a security-embargo-leak fixture	W2.9
+red/p0/gifts/g3-valid-lifecycle.test.mjs	needs subprocess spawn (G2) to drive gifts-lint over a valid full-lifecycle fixture	W2.9
+red/p0/gifts/g4-chain-broken.test.mjs	needs subprocess spawn (G2) to drive gifts-lint chain recompute over a tampered fixture	W2.9
+red/p0/gifts/g5-missing-classification.test.mjs	needs subprocess spawn (G2) to drive gifts-lint over a missing-classification fixture	W2.9
+red/p0/runner/runner.test.mjs	needs subprocess spawn (G2) to drive conformance/runner.mjs over the toy pass/fail/skip suite + the runner→promote handshake	W2.9
+red/p0/runner/l5-assert-parity.test.mjs	needs subprocess spawn (G2) to drive assert-parity-lint.mjs (L5) over chained ledger+run-store fixtures	W2.9
+red/p0/lanes/lanes.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (git worktree + patch apply) + lint-lanes.mjs over the oracle bun binary and pristine vendor/bun	W2.9
+red/p0/lanes/worktree-patches.test.mjs	needs subprocess spawn (G2) to drive worktree.mjs (git worktree + patch series apply) + behavioral eval of the patched bunExe() against the pristine vendor/bun	W2.9
+red/p0/lanes/assert-counter.test.mjs	needs subprocess spawn (G2) to run the patched harness under the oracle bun binary and read the BUN_ASSERT_COUNT_FILE sidecar	W2.9
+red/p0/lanes/lint-lanes.test.mjs	needs subprocess spawn (G2) to drive lint-lanes.mjs --report/--gate over the in-process-API fixture set	W2.9

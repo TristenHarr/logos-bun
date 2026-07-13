@@ -1,0 +1,4 @@
+# g5: a classified-state row with no classification (invariant 15) -> reject
+G-1	found	-	n	-	differential: semver.satisfies mismatch vs oracle
+G-1	classified	-	n	-	MISSING classification (must be ours|theirs|spec-ambiguity)
+#CHAIN 24491fefbf2520c23a7f299ca9776f8967a26c208873501ddc88fdcd89ca4068

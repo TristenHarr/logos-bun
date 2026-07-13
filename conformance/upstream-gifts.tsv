@@ -1,0 +1,6 @@
+# conformance/upstream-gifts.tsv — the gift finding ledger (machine-readable rows).
+# Human covenant + grammar: conformance/upstream-gifts.md. Chain: SCHEMA.md §4 (reused).
+# Row: id ⇥ state ⇥ classification ⇥ security ⇥ artifact-link ⇥ note   (6 TAB-separated fields)
+# Append-only: a finding's rows accumulate; the LATEST row per id is its current state.
+# No findings yet — GIFT.4 stays honestly open until the fuzz lanes surface a real bun bug.
+#CHAIN 2edf7771876f4b57165e341afd697010005bdebc48d8c7d30e4bdc2cc0ac141a

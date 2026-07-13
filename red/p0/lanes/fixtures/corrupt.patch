@@ -1,0 +1,12 @@
+diff --git a/test/harness.ts b/test/harness.ts
+--- a/test/harness.ts
++++ b/test/harness.ts
+@@ -104,6 +104,8 @@ if (isDebug) {
+ }
+
+ export function THIS_CONTEXT_LINE_DOES_NOT_EXIST_AT_THE_PIN() {
++  const override = process.env.BUN_EXE_OVERRIDE;
++  if (override) return override;
+   if (isWindows) return process.execPath.replaceAll("\\", "/");
+   return process.execPath;
+ }

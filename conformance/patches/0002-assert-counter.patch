@@ -1,0 +1,96 @@
+# 0002-assert-counter.patch — the executed-assertion counter (feeds W1.2's `asserts`).
+#
+# WHAT: when `process.env.BUN_ASSERT_COUNT_FILE` is set, a child test process appends
+#   `<file>\t<executed-expect-count>` to that file at the end of its run. This is the
+#   exact interface W1.2's runner consumes for the ledger's `asserts` column (SCHEMA.md
+#   field 5), which anti-skip-proofs a PASS: a green with zero executed assertions is a
+#   no-op masquerading as a pass.
+#
+# THE SEAM (and its coverage boundary — read honestly):
+#   Bun's `bun:test` module namespace is IMMUTABLE (reassigning `expect` throws
+#   "readonly property"), and test files `import { expect } from "bun:test"` DIRECTLY —
+#   so a harness-local `expect` wrapper is bypassed by every real test and would count
+#   ~zero. Verified empirically against the pinned oracle bun. The native per-file counter
+#   (bun's "N expect() calls" reporter line) lives in bun's native code and is NOT exposed
+#   to JS at this pin: MatcherState.assertionCalls / numPassingAsserts are commented out in
+#   packages/bun-types/test.d.ts. The ONE harness-reachable seam that every direct-imported
+#   `expect(x)` flows through is the MATCHER-OBJECT PROTOTYPE: `expect(x)` returns an object
+#   whose prototype carries `toBe`, `toContain`, `not`, ... as writable methods. Wrapping
+#   those prototype methods counts every EXECUTED matcher call, in-process, for direct
+#   imports. Verified against the oracle: a file with 4 matcher calls yields count 4,
+#   byte-matching bun's own "4 expect() calls".
+#
+#   Boundary: this counts executed MATCHER invocations (`expect(x).toBe(y)` = 1), which
+#   equals bun's expect()-call count for the universal one-matcher-per-expect idiom. A bare
+#   `expect(x)` with no matcher (a no-op, essentially never written) is not counted — an
+#   honest under-count in that vanishing case, never an over-count. `.not`/`.resolves`/
+#   `.rejects` chain THROUGH the same prototype so their terminal matcher still counts once.
+#
+# FLUSH: from a global `afterAll` (fires once per file under `bun test`; `process.on("exit")`
+#   is registered too as a belt-and-suspenders fallback but the runner drives afterAll). The
+#   file path is `Bun.main` (the test file for this process). The whole block is gated on
+#   BUN_ASSERT_COUNT_FILE — an unset env is byte-for-byte the stock harness (zero overhead).
+#
+# APPLIES ON TOP OF 0001 (disjoint regions: imports + a pre-BREAKING_CHANGES block here vs.
+#   the bunExe() body in 0001). Series order is enforced by scripts/worktree.mjs.
+#
+# PROVENANCE: AI-authored (Claude, logos-bun W1.3) against vendor/bun @ bun-v1.3.14. Runtime
+#   scratch-worktree only; vendor/bun never dirtied. Not for upstream.
+diff --git a/test/harness.ts b/test/harness.ts
+index 98ca67455d..65fd0573be 100644
+--- a/test/harness.ts
++++ b/test/harness.ts
+@@ -7,14 +7,51 @@
+ 
+ import { gc as bunGC, sleepSync, spawnSync, unsafe, which, write } from "bun";
+ import { heapStats } from "bun:jsc";
+-import { beforeAll, describe, expect } from "bun:test";
++import { afterAll, beforeAll, describe, expect } from "bun:test";
+ import { ChildProcess, execSync, fork } from "child_process";
+ import { readdir, rm, writeFile } from "fs/promises";
+-import fs, { closeSync, openSync, rmSync } from "node:fs";
++import fs, { appendFileSync, closeSync, openSync, rmSync } from "node:fs";
+ import os from "node:os";
+ import { dirname, isAbsolute, join } from "path";
+ import * as numeric from "_util/numeric.ts";
+ 
++// [logos-bun conformance] Executed-assertion counter. When BUN_ASSERT_COUNT_FILE is set,
++// count every matcher invocation in this test process and append `<file>\t<count>` at the
++// end of the file's run (afterAll fires once per file). This is the seam W1.2's runner reads
++// for the ledger `asserts` column. Coverage boundary: bun's native per-file counter (the
++// "N expect() calls" line) is not exposed to JS at this pin — MatcherState.assertionCalls is
++// commented out in bun-types/test.d.ts. So we count at the only harness-reachable seam: the
++// matcher-object PROTOTYPE (expect(x).toBe(...) etc.). This counts EXECUTED matcher calls,
++// which equals bun's expect()-call count for the normal one-matcher-per-expect idiom, and is
++// an honest lower bound for expect()-calls-that-invoke-no-matcher (rare). Zero effect on any
++// run where BUN_ASSERT_COUNT_FILE is unset (the entire block is gated on it).
++if (process.env.BUN_ASSERT_COUNT_FILE) {
++  const __logosCounter = { n: 0 };
++  const __sampleMatchers = (expect as unknown as (v: unknown) => Record<string, unknown>)(undefined);
++  const __proto = Object.getPrototypeOf(__sampleMatchers);
++  for (const __name of Object.getOwnPropertyNames(__proto)) {
++    if (__name === "constructor") continue;
++    const __d = Object.getOwnPropertyDescriptor(__proto, __name);
++    if (!__d || typeof __d.value !== "function" || __d.writable !== true) continue;
++    const __orig = __d.value as (...a: unknown[]) => unknown;
++    __proto[__name] = function (this: unknown, ...args: unknown[]) {
++      __logosCounter.n++;
++      return __orig.apply(this, args);
++    };
++  }
++  let __dumped = false;
++  const __dump = () => {
++    if (__dumped) return;
++    __dumped = true;
++    const file = (typeof Bun !== "undefined" && (Bun as unknown as { main?: string }).main) || process.argv[process.argv.length - 1] || "<unknown>";
++    try {
++      appendFileSync(process.env.BUN_ASSERT_COUNT_FILE as string, `${file}\t${__logosCounter.n}\n`);
++    } catch {}
++  };
++  afterAll(__dump);
++  process.on("exit", __dump);
++}
++
+ export const BREAKING_CHANGES_BUN_1_2 = false;
+ 
+ export const isMacOS = process.platform === "darwin";

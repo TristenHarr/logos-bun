@@ -1,0 +1,4 @@
+# g1: illegal transition found -> filed (skips classified)
+G-1	found	-	n	-	differential mismatch in url parser
+G-1	filed	theirs	n	https://github.com/oven-sh/bun/pull/99999	filed without classifying first
+#CHAIN 78be6ce4a83678dee924f26978cc94763fe24ad3b80ff8e9f71202138970ab19

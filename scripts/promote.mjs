@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { execFileSync } from "node:child_process";
-import { parseLedger, chainDigest, priorState, selfTest } from "./lints/ledger-lint.mjs";
+import { parseLedger, chainDigest, priorState, selfTest, loadRunStore, windowVerdict } from "./lints/ledger-lint.mjs";
 
 selfTest();
 
@@ -24,24 +24,16 @@ const refuse = (why) => { console.error(`REFUSE ${KEY}: ${why}`); process.exit(1
 function runStorePath() {
   return join(DIR, "runs", basename(LEDGER).replace(/\.tsv$/, ".runs.tsv"));
 }
+// the recorded runs for KEY, in append (chronological) order. loadRunStore parses + chain-
+// verifies the store (same §4 resolution as ledgers); a missing/tampered store yields null.
 function loadRuns(key) {
   const p = runStorePath();
-  if (!existsSync(p)) refuse(`no run store at ${p}`);
-  const text = readFileSync(p, "utf8");
-  // the run store is itself chained — verify it before trusting a single row (SCHEMA §6.1).
-  const parsedTrailer = text.match(/\n#CHAIN ([0-9a-f]{64})\n$/);
-  if (!parsedTrailer) refuse("run store has no #CHAIN trailer");
-  const body = text.slice(0, text.length - ("#CHAIN " + parsedTrailer[1] + "\n").length);
-  // the run store's prior state uses the same resolution as ledgers.
-  const prev = priorState(p).prevChain;
-  if (chainDigest(prev, body) !== parsedTrailer[1]) refuse("run store chain is invalid (tampered evidence)");
-  const runs = [];
-  for (const ln of body.split("\n")) {
-    if (!ln || ln.startsWith("#")) continue;
-    const [ts, k, verdict, asserts] = ln.split("\t");
-    if (k === key) runs.push({ ts, verdict, asserts });
+  const byKey = loadRunStore(p, ENV);
+  if (byKey === null) {
+    if (!existsSync(p)) refuse(`no run store at ${p}`);
+    refuse("run store has no valid #CHAIN trailer (tampered/missing evidence)");
   }
-  return runs;
+  return byKey.get(key) || [];
 }
 
 // ── the ledger + candidate row ─────────────────────────────────────────────────
@@ -53,23 +45,25 @@ if (!row) refuse("key not present in the ledger");
 if (row.kind === "PASS") refuse("already PASS");
 if (!["FAIL", "BLOCKED", "QUARANTINE"].includes(row.kind)) refuse(`status ${row.status} is not a promotable candidate`);
 
-// ── the 5/5-across-≥2-timestamps gate ──────────────────────────────────────────
+// ── the clean-window gate (SCHEMA §6, shared with ledger-lint's provenance) ─────
+// A key promotes iff its LAST 5 run records are all pass, span ≥2 distinct timestamps, and
+// agree on asserts. Ancient fails BEFORE that window do not block (B3). windowVerdict is the
+// single source of truth both promote and lint use — they can never diverge.
 const runs = loadRuns(KEY);
-const passes = runs.filter((r) => r.verdict === "pass");
-if (passes.length < 5) refuse(`only ${passes.length} recorded passes (need 5/5)`);
-if (runs.some((r) => r.verdict === "fail")) refuse(`run store contains a fail for this key (need a clean 5/5, got ${passes.length} pass / ${runs.length} total)`);
-const distinctTs = new Set(passes.map((r) => r.ts));
-if (distinctTs.size < 2) refuse(`5 passes but only ${distinctTs.size} distinct timestamp(s) (need ≥2 — a single sitting admits ~5%-flaky tests)`);
-const assertVals = new Set(passes.map((r) => r.asserts));
-if (assertVals.size !== 1) refuse(`passing runs disagree on asserts count {${[...assertVals].join(", ")}} — cannot record a stable count`);
-const asserts = [...assertVals][0];
+const v = windowVerdict(runs);
+if (!v.ok) refuse(v.why);
+const asserts = v.asserts;
 
 // ── HEAD sha for first-green-commit ────────────────────────────────────────────
+// A PASS row MUST carry a REAL 40-hex git sha (m4). No git AND no LEDGER_HEAD_SHA → REFUSE
+// loudly rather than write the all-zeros sentinel the lint now bans as fake provenance.
 function headSha() {
   try { return execFileSync("git", ["-C", DIR, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
-  catch { return ENV.LEDGER_HEAD_SHA || "0".repeat(40); } // fixtures with no git → deterministic stub
+  catch { return ENV.LEDGER_HEAD_SHA || null; }
 }
 const commit = headSha();
+if (!commit || !/^[0-9a-f]{40}$/.test(commit) || commit === "0".repeat(40))
+  refuse(`cannot resolve a real first-green-commit (no git HEAD and no valid LEDGER_HEAD_SHA) — refusing to write fake all-zeros provenance`);
 
 // ── write the PASS row + rechain (promote is the sole PASS writer) ──────────────
 const escaped = KEY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -82,5 +76,5 @@ const reparsed = parseLedger(mutated, basename(LEDGER));
 const prev = priorState(LEDGER).prevChain;
 const sealed = reparsed.body + "#CHAIN " + chainDigest(prev, reparsed.body) + "\n";
 writeFileSync(LEDGER, sealed);
-console.log(`promote: ${KEY} → PASS (first-green ${commit.slice(0, 12)}…, asserts=${asserts}, ${passes.length}/${runs.length} across ${distinctTs.size} timestamps)`);
+console.log(`promote: ${KEY} → PASS (first-green ${commit.slice(0, 12)}…, asserts=${asserts}, clean window of ${v.window} across ${v.distinctTs} timestamps)`);
 process.exit(0);

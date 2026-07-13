@@ -15,26 +15,42 @@ set may only grow (CLAUDE.md R1). Change this schema only via the incident path.
 
 ## 0. Threat model — what the chain does and does NOT do (read first)
 
-The `#CHAIN` trailer (§4) is an **integrity checksum against incomplete and
-accidental edits**, not a cryptographic anti-forgery seal. It is an *unkeyed*
-sha256 over *public* inputs, so anyone with `sha256sum` can recompute a valid
-trailer after editing a row. It therefore catches: a partial `sed`, a bad merge,
-an editor that rewrote a byte, a row hand-flipped by someone who forgot to (or
-did not know to) rechain — i.e. every realistic careless mutation. It does **not**
-stop a determined attacker who recomputes the trailer by hand. Adversarial
-tamper-evidence comes from three other places, and downstream cards must rely on
-those, not on the chain alone:
+Be precise about this, because it is easy to overclaim. The `#CHAIN` trailer (§4)
+and the run store (§6.1) are **structural tripwires against incomplete and
+accidental edits — NOT cryptographic anti-forgery seals.** Both are *unkeyed*
+sha256 over *public* inputs: anyone with `sha256sum` can recompute a valid trailer
+after editing a row, and anyone who can write the ledger can equally write a
+matching run store and rechain both. So neither the chain nor the run store
+**stops a determined attacker who hand-plants a PASS and rechains** — do not claim
+they do.
+
+What the tripwires *do* catch is every realistic **careless** mutation: a partial
+`sed`, a bad merge, an editor that rewrote a byte, a row hand-flipped by someone
+who forgot to (or did not know to) rechain, a run store that got out of sync with
+the ledger. That is their whole job — make the common failure loud and cheap.
+
+**Real anti-forgery rests on four things outside the hashes, and downstream cards
+must rely on THESE, not on the chain:**
 
 1. **git history + review** — every ledger change lands through a reviewed commit
-   (CLAUDE.md R4 routes all commits through `commit.mjs`); the diff is visible.
+   (CLAUDE.md R4 routes all commits through `commit.mjs`); the diff is visible, so
+   a hand-planted PASS (with its self-consistent chain and fabricated run store) is
+   a *visible* line in a reviewed diff. This is the load-bearing control.
 2. **PASS-set monotonicity vs HEAD** (§5, L2) — a committed PASS cannot silently
-   vanish or downgrade; the drop is a reviewable `ratchet-break`.
-3. **The tamper-evident run store** (§6.1) — a PASS cannot exist without 5/5
-   evidence in a *separately chained* runs ledger, so a hand-planted PASS row
-   (new key, invisible to monotonicity) is caught by the missing/forged evidence.
+   vanish or downgrade; the drop is a reviewable `ratchet-break`, and the lint
+   ENUMERATES the baseline ledgers committed at HEAD (not just the working-tree
+   files), so a `git mv`/`rm` that erases a proven PASS set is still caught.
+3. **The full transition law** (§5) — even non-PASS rows may not launder through
+   forbidden transitions (a `DIVERGE` never moves; a `NOTIMPL` may only reach
+   FAIL/PASS/deleted), closing the DIVERGE→FAIL→promote→PASS side door.
+4. **Visibility of the run store as evidence** (§6.1) — the run store makes the
+   *claim* behind a new PASS concrete and reviewable (5 clean runs across ≥2 real
+   timestamps at a fixed asserts count). A missing or malformed store makes the
+   PASS obviously unsupported; a *fabricated* one is still a reviewable diff (leg 1),
+   never a silent bypass.
 
-The chain's job is to make the *common* failure (a stale/partial edit) loud and
-cheap; §5 and §6.1 are the adversarial floor.
+The chain and run store are the cheap first line; git review + monotonicity +
+baseline enumeration + the transition law are the adversarial floor.
 
 ## 1. File shape
 
@@ -148,19 +164,28 @@ exactly the final `#CHAIN <64hex>\n` line, with **no normalization**. For a
 comment-only ledger, `body` is those comment bytes; for a truly empty file (only
 the trailer), `body` is the empty string.
 
-**`prev_chain`.** The 64-hex ASCII digest carried by the ledger at its **prior
-committed state**, resolved in this fixed order (this resolution is part of the
-interface — every tool and every fixture uses it):
+**`prev_chain`.** The 64-hex ASCII digest the chain is sealed against, resolved in
+this fixed order (part of the interface — every tool and every fixture uses it):
 
 1. If a **fixture-local head snapshot** `conformance/ledger/<name>.tsv.head`
-   exists, its trailer's 64-hex is `prev_chain`, and its PASS set is the
-   monotonicity baseline (§5). This is how the self-contained fixtures plant a
-   controlled prior state without touching real git.
-2. Else `git show HEAD:<path-to-ledger>` — on **success**, its trailer's 64-hex.
-   On **any nonzero exit** (no HEAD yet, path absent at HEAD, detached HEAD with
-   no such blob) → GENESIS. A `git show` failure is **never** itself a lint
-   error; it means "no prior state."
-3. GENESIS = the literal 64-character string of ASCII zeros (`0` × 64).
+   exists, its trailer's 64-hex is `prev_chain`. This is how the self-contained
+   fixtures plant a controlled prior state without touching real git.
+2. Else **GENESIS** = the literal 64-character string of ASCII zeros (`0` × 64).
+
+**Why the chain does NOT read `git show HEAD:<self>`.** For a committed, unchanged
+ledger, `git show HEAD:<self>` returns the file's OWN current trailer; feeding a
+file's own trailer into its own chain is an unsatisfiable fixed point
+(`sha256(T ‖ body) == T` has no solution), so a clean committed ledger would fail
+its own L1. The honest consequence: the chain is an accidental-edit tripwire keyed
+to a **fixed genesis** (or a controlled fixture `.head`), NOT a per-commit
+cryptographic chain across history (§0). Every generation reseals against the same
+genesis (or `.head`), so a committed unchanged ledger recomputes to its own trailer
+and PASSES, while any un-rechained body edit still mismatches. git HEAD is read in
+exactly one place — the §5 **monotonicity baseline** (the prior PASS set), never
+the chain — and that read uses the CORRECT repo-relative path (`git -C <dir>
+rev-parse --show-prefix` + basename), so it works for both absolute and relative
+invocations. A `git show` failure there is never a lint error; it means "no prior
+baseline" (→ empty).
 
 **Digest.** `chain = sha256_hex( utf8(prev_chain) ‖ body )`, where `‖` is raw
 byte concatenation (no separator), `prev_chain` is fed as its **64 ASCII hex
@@ -182,24 +207,37 @@ producer: it recomputes `sha256(prev_chain ‖ body)` and compares. A stale trai
 
 ## 5. PASS-set monotonicity (L2) & the transition law
 
-Baseline = the prior-state ledger resolved in §4 (`<name>.tsv.head` if present,
-else HEAD, else GENESIS/empty). Compare working-tree ledger to baseline:
+Baseline = the prior committed rows: the `<name>.tsv.head` snapshot if present,
+else the **git HEAD version** of the ledger (read via the correct repo-relative
+path, so absolute and relative lint invocations agree), else empty. This baseline
+read is the ONLY place git HEAD is consulted for a ledger, and it supplies the
+prior PASS set AND the prior status of every non-PASS row (for the transition
+table below) — it never feeds the chain (§4). Compare working-tree to baseline:
 
 - **No shrink.** Every key that is `PASS` in the baseline MUST still be present
   AND `PASS` in the working tree. A missing or downgraded baseline-PASS key is a
   shrink → lint FAIL unless authorized as a ratchet-break below. **Deleting the
-  whole ledger file** counts as dropping every baseline-PASS key (the lint
-  enumerates baseline ledgers, not just working-tree files).
+  whole ledger file** counts as dropping every baseline-PASS key: the gate
+  ENUMERATES baseline ledgers committed at HEAD (`git ls-tree HEAD
+  conformance/ledger/`) and lints each one even when it is absent from the working
+  tree, so a `git mv`/`rm` that erases a proven PASS set still goes RED.
 - **`asserts` monotone on a stable PASS key.** For a key that is PASS in both
   baseline and working tree, `asserts` MUST NOT decrease (a proof cannot silently
   weaken). A decrease → lint FAIL.
 - **Ratchet-break (the only way PASS shrinks).** A `PASS →` transition (downgrade
   or deletion of a baseline-PASS key) is permitted ONLY when, in the same working
-  state, BOTH exist: (a) an incident file under `conformance/incidents/` whose
-  body **names the exact key** being demoted, AND (b) the `ratchet-break` marker
-  `conformance/ledger/.ratchet-break` whose body **lists that key** (§9). The
-  marker is per-key scoped: a present marker authorizes only the keys it lists,
+  state, BOTH exist: (a) an incident file under `conformance/incidents/` that
+  **names the exact key** (`key:` header, case-insensitive), **references THIS
+  ledger** (`ledger:` basename) and records a `PASS→` **`transition:`** — an
+  unrelated or stale incident naming the same key for a *different* ledger or a
+  non-PASS transition does NOT authorize the drop; AND (b) the `ratchet-break`
+  marker `conformance/ledger/.ratchet-break` whose body **lists that key** (§9).
+  The marker is per-key scoped: a present marker authorizes only the keys it lists,
   never an unrelated PASS drop. Absent either, or the key not listed → lint FAIL.
+- **The transition table is enforced for NON-PASS rows too.** A baseline row's
+  status may only move as the table below allows even when the PASS set is
+  untouched: a `DIVERGE` never transitions, a `NOTIMPL` may only reach FAIL/PASS or
+  be deleted. This closes the `DIVERGE→FAIL→promote→PASS` laundering path.
 
 The complete transition table (from-status rows × to-status; `free` = allowed
 with no ceremony for a *new-or-non-PASS* key, `break` = requires §5 ratchet-break,
@@ -221,24 +259,49 @@ per-key marker mechanically, so the lint accepts it.
 `✗` = forbidden (`NOTIMPL` may only implement/prove → FAIL/PASS or be deleted;
 `DIVERGE` is a permanent stance — it never transitions).
 
-**New-key PASS is not trusted to the chain.** A key absent from the baseline that
-appears as `PASS` in the working tree is invisible to the no-shrink rule. The
+**New-key PASS demands visible run-store evidence.** A key absent from the baseline
+that appears as `PASS` in the working tree is invisible to the no-shrink rule. The
 lint therefore requires, for every working-tree PASS key, a matching **promotion
-record** in the chained run store (§6.1) proving 5/5 across ≥2 timestamps with a
-`first-green-commit` and `asserts` that match the row. A PASS row without backing
-run-store evidence → lint FAIL. This is what actually stops a hand-planted PASS
-(the chain alone cannot — §0).
+record** in the chained run store (§6.1): a clean promotion window (§6) with a
+`first-green-commit` and an `asserts` that match the row. A PASS row without
+backing run-store evidence → lint FAIL. Be honest about what this buys (§0): it
+does NOT cryptographically stop a determined forger — someone who writes the PASS
+row can equally write a matching run store and rechain both. What it DOES do is
+make the *claim* behind every new PASS concrete and reviewable, and make an
+*unsupported* PASS (missing/malformed evidence) fail loudly. The forgery floor is
+git review + this visible evidence, not the unkeyed hashes.
 
 ## 6. Promotion (promote.mjs — the SOLE writer of PASS)
 
 A candidate (a `FAIL`, `BLOCKED`, or live `QUARANTINE` row) is promoted to `PASS`
-ONLY when its run history shows **5/5 passes across ≥2 distinct run timestamps**
-(§6.3 frontier-scan). 4/5, or 5/5 within a single timestamp, is REFUSED. On a
-legitimate promotion, `promote.mjs` writes `STATUS=PASS`,
-`first-green-commit=<HEAD sha>`, `asserts=<the count all 5 passing runs agree on;
-disagreement is REFUSED>`, then recomputes the chain trailer (§4).
+ONLY when it clears the **clean promotion window** below. On a legitimate
+promotion, `promote.mjs` writes `STATUS=PASS`, `first-green-commit=<a REAL 40-hex
+git HEAD sha>` (or the `LEDGER_HEAD_SHA` fixture seam; with neither a git HEAD nor
+the seam it REFUSES rather than write the all-zeros sentinel — a PASS row with an
+all-zeros commit is fake provenance and the lint rejects it), `asserts=<the count
+the window agrees on; disagreement is REFUSED>`, then recomputes the chain
+trailer (§4).
 
-### 6.1 The run store (tamper-evident evidence — the real PASS floor)
+**The promotion window (the exact rule, shared by promote AND the lint).** Scan a
+RECENT WINDOW of the append-only run store, NOT the whole history. A key is
+promotable iff its **last `N=5` run records** (append order = chronological) are:
+
+- **all `pass`** — the window is the last 5 recorded runs; if the newest 5 contain
+  a `fail`, the key is not yet promotable;
+- across **≥2 distinct timestamps** — 5 passes sharing one `ts` is a single sitting
+  and admits a ~5%-flaky test, so it is REFUSED; and
+- agreeing on a single **`asserts`** count (the value written to the PASS row).
+
+Crucially, an **ancient `fail` BEFORE that clean window does NOT block** promotion.
+This is deliberate: the run store is append-only (§6.1) and `record-run.mjs` (W1.2)
+records `fail` rows during normal frontier development, so a whole-history "must be
+clean" rule would make every FAIL-frontier candidate permanently un-promotable once
+it fails even once. The window is what a frontier key climbs into. 4/5, or 5/5
+within a single timestamp, or a fail inside the last-5 window, is REFUSED.
+`promote.mjs` and `ledger-lint.mjs` compute this from ONE shared function, so the
+writer and the checker can never diverge.
+
+### 6.1 The run store (structural tripwire — the visible PASS evidence)
 
 Run history lives in `conformance/ledger/runs/<name>.runs.tsv`, one **append-only,
 independently chained** file per ledger (same `#CHAIN` discipline as §4, same
@@ -248,15 +311,24 @@ lint). A row is:
 ts ⇥ key ⇥ verdict ⇥ asserts
 ```
 
-- `ts` = an ISO-8601 UTC instant `YYYY-MM-DDThh:mm:ssZ`. "Distinct timestamps"
-  means distinct `ts` values; 5 passes sharing one `ts` is a single timestamp
-  (correctly refused). `verdict ∈ {pass, fail}`. `asserts` = the run's count.
-- The run store is chained, so a hand-appended fake pass breaks the store's own
-  chain (caught by lint) unless the forger also rechains it — the same
-  accidental-vs-adversarial split as §0, but here it is the *floor* under every
-  PASS and is cross-checked by both promote (before writing) and lint (§5). The
-  store is written by the CI test runner and by `ratchet.mjs`/`promote.mjs`; it is
-  never hand-edited.
+- `ts` = an ISO-8601 UTC instant pinned to `YYYY-MM-DDThh:mm:ssZ` and validated as
+  a **real** calendar date + wall-clock time. The **sub-second form is REJECTED**:
+  `…T00:00:00.000Z` is not a valid `ts`, so it can never be miscounted as a second
+  distinct timestamp against `…T00:00:00Z`. "Distinct timestamps" means distinct
+  valid `ts` values.
+- `verdict ∈ {pass, fail}` **exactly** — a `skip`/`error`/empty verdict is a
+  fail-in-disguise and is REJECTED (both by the structural lint and by the window
+  scan), never silently treated as a non-disqualifier.
+- `asserts` = the run's count (decimal, no leading zeros).
+- The store is **structurally linted by default** — the gate globs
+  `conformance/ledger/runs/*.runs.tsv` and the ledger lint checks its LF-only
+  bytes, final newline, single `#CHAIN` trailer, chain validity, field count, and
+  the per-field grammar above, alongside the ledger it backs.
+- The store is chained, so a hand-appended fake pass breaks the store's own chain
+  (caught by lint) unless the forger ALSO rechains it — the same
+  accidental-vs-adversarial split as §0: this is a *tripwire and visible evidence*,
+  not a forgery seal (a forger who rewrites both leaves a reviewable diff). It is
+  written by the CI test runner and by `ratchet.mjs`/`promote.mjs`; never hand-edited.
 
 ## 7. Demotion (ratchet.mjs — the flake safety valve)
 
@@ -287,12 +359,34 @@ incident naming a key is REQUIRED for any `PASS →` transition on that key (§5
   key's `PASS →` transition in the working state (paired with an incident). Its
   body is one authorized key per line.
 - `conformance/ledger/.merge-freeze` — presence means a confirmed regression froze
-  the repo; only fix-regression work proceeds.
+  the repo; only fix-regression work proceeds. The freeze **actually blocks**: while
+  this marker exists in the working tree, `scripts/gate.sh` REFUSES (a distinct
+  `FREEZE` gate failure) so nothing merges past a live confirmed regression until it
+  is fixed or formally reverted.
+- `conformance/ledger/<name>.tsv.head` — the fixture prior-state snapshot (§4/§10).
 
-Both markers are **transient CI/working-tree artifacts and MUST be gitignored** —
-a *committed* marker is a lint FAIL (a marker in git history would let anyone
-unlock demotions permanently). They exist only in the working state that performs
-the transition, alongside the committed incident that is the durable record.
+All three are **transient working-tree/fixture seams and MUST be gitignored**
+(`.ratchet-break`, `.merge-freeze`, `*.tsv.head`) — a *committed* one is a lint
+FAIL: a committed marker would let anyone unlock demotions permanently, and a
+committed `.head` would forge the monotonicity baseline (it supplies both
+`prev_chain` and the PASS baseline). The lint bans all three at HEAD
+(`checkMarkersNotCommitted`) and — via the gate's nonzero-exit contract — that ban
+reds the gate. They exist only in the working state that performs the transition,
+alongside the committed incident that is the durable record.
+
+**Documented follow-ups (deliberately not enforced here).**
+- *Max QUARANTINE horizon.* `QUARANTINE(expires=9999-12-31)` parks a flake
+  effectively forever. A horizon cap (e.g. reject an expiry more than K days out)
+  is intentionally NOT enforced yet, because a legitimate long quarantine and a
+  parked flake are indistinguishable by date alone; a cap would false-red honest
+  long quarantines. The durable control is that every QUARANTINE carries an
+  incident, so a stale one is visible in review. Revisit with an incident-freshness
+  cross-check.
+- *`#`-leading keys.* A ledger LINE whose first byte is `#` is a comment (§1). This
+  never hides a data row — field 1 is a STATUS token, and no status shape starts
+  with `#`. A KEY (field 3) may contain or begin with `#` freely (`[^\t\n]+`); it
+  rides inside the TAB-split row, not at line start. Incident `key:` headers
+  likewise take the value verbatim, so a `#`-leading key is matched literally.
 
 ## 10. Fixture / hermetic-run contract (how the RED battery is self-contained)
 

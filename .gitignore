@@ -1,4 +1,5 @@
 /target
+target/
 /vendor-artifacts/
 /work/locks/
 /work/worktrees/
@@ -9,3 +10,6 @@ node_modules/
 *.log
 .ratchet-break
 .merge-freeze
+# ledger prior-state snapshots are a working-tree/fixture seam only — a committed one forges the
+# monotonicity baseline (ledger-lint bans them at HEAD too). SCHEMA §4 step 1 / §10.
+*.tsv.head

@@ -12,7 +12,7 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 | Wave | Content | Status |
 |---|---|---|
 | 0 | Bootstrap: repo, pins, oracle, P0.1, multi-module smoke, gate.sh v0 | **GREEN** (gate --wave 0, 2026-07-13T03:20Z) |
-| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2, gate-audit + **G2-early, G13 largo-test (tests-in-LOGOS)** | IN PROGRESS |
+| 1 | Enforcement: P0.4, P0.2, P0.3, P0.5, P0.10, GIFT.2 (G2-early/G13/W1.6 gate-audit deferred → W2) | **GREEN** (gate --full, 2026-07-13T04:32Z) — cross-integration review pending before LOCK |
 | 2 | Harness completion: P0.7, P0.8, P0.9, P0.6, P0.11, PORT.1/2, GIFT.3, **W2.9 shim→.lg migration (L16)** | QUEUED |
 | 3 | First product: G9 TOML (upstream), P1.1–P1.4, PORT.3 trial | QUEUED |
 | 4 | P2 leaf fan-out; cargo-mutants; G11 opens | QUEUED |
@@ -39,15 +39,51 @@ Task states: `QUEUED → RED → IMPL → REVIEW → FIX → GREEN → LOCKED �
 
 | Card | Task | State | Note |
 |---|---|---|---|
-| W1.1 | P0.4 ledger core + hash chain (KEYSTONE, serial) | GREEN | SCHEMA.md frozen (6-field row + #CHAIN trailer, genesis vector pinned); L1/L2/L3 in gate; run-store provenance gates new PASS; REVIEW in flight |
-| W1.2 | P0.2 runner fork + assert counts | IMPL | SCHEMA frozen → launched |
-| W1.3 | P0.3 patches + lane lint | IMPL | SCHEMA frozen → launched |
+| W1.1 | P0.4 ledger core + hash chain (KEYSTONE, serial) | **GREEN (fixed)** | 3 reviews → CHANGES-REQUIRED (3 BLOCKERs) → comprehensive fixer closed ALL 10: B1 gate reds on nonzero-exit not tag-sieve; B2 .merge-freeze consumed (l_freeze) + marker ban gates; B3 recent-window promotion; M1 priorState split (kills abs-self fixed-point + rel-GENESIS wipe); M2 .tsv.head ban + baseline enumeration; run-store verdict/ts validation; env-seam scrub; transition table for non-PASS rows; m4 all-zeros-sha ban; threat-model rewritten honest. Chain-helper exports UNCHANGED (W1.2/W1.7 safe). **Orchestrator consolidation: extended B1 fix to l4/l5 (same sieve bug in lane/assert lints).** Artifacts: work/loops/W1.1/review-{1,2,3-blast}.md + fixer report. Gate --full GREEN. |
+| W1.2 | P0.2 runner fork + assert counts | GREEN (isolated) | runner.mjs (forked, exports sealRunStore via shared chain helper), 3-file toy + junit goldens, skip→fail (can't fake passes), L5 assert-parity in gate; runner→promote handshake proven. REVIEW pending |
+| W1.3 | P0.3 patches + lane lint | GREEN (isolated) | 0001-bunexe-override + 0002-assert-counter (content-anchored), worktree.mjs (abs-path, vendor-pristine), lint-lanes (L4, over-inclusive). Empirically corrected harness line numbers + assert-counter seam. REVIEW pending |
 | W1.4 | P0.5 comparators | GREEN | diffcli/normalize/treehash/exec-eq + goldens; verdict JSON carries normalizer audit trail; REVIEW pending |
 | W1.5 | P0.10 workflow-ops | GREEN | commit.mjs (refusal codes 3/4/5/6), loop.mjs state machine, L8 lint live in gate; adversarial self-probe held; REVIEW pending |
 | W1.6 | gate.sh v1 + gate-audit (serial, last) | QUEUED | integrates all |
-| W1.7 | GIFT.2 gifts ledger | QUEUED | joins W1.1 chain mechanism |
+| W1.7 | GIFT.2 gifts ledger | GREEN (isolated) | upstream-gifts.md/.tsv + gifts-lint (l17) + 3 templates grounded in real vendor/bun SECURITY.md/PR-template/CLAUDE.md; reused chain helper; security embargo scans ALL rows + pins y/n flag; 5 RED drivers ablation-verified. REVIEW pending. Foreign reds = W1.1 fixer + W1.2/W1.3 shims |
 | W1.8 | G2-early subprocess+sha256 (logicaffeine) | QUEUED | hold: review verdicts + sibling-stream coordination |
 | W1.9 | G13 largo test (logicaffeine) | QUEUED | **COORDINATE FIRST**: sibling stream has in-progress `BlockType::Test` in the tree — someone may already be building the test framework |
+
+## Coordination hazards (active)
+
+- **gate.sh is a hot multi-writer file.** W1.1-fixer (B1 `_ledger_gate` rewrite + env-scrub +
+  freeze-check), W1.7 (l17, done), W1.2 (L5), W1.3 (L4) all edit it. Edit is exact-match so a
+  stale-view append FAILS loudly rather than clobbering — but a **consolidation pass is required
+  at Wave-1 close**: verify L1–L17 all present, the main check sequence calls every l-fn, and
+  the fixer's B1 `_ledger_gate` (fail-on-nonzero-exit) survived. Do NOT mark Wave 1 GREEN
+  without re-reading gate.sh end to end.
+- **Sibling `## Test`-block stream in logicaffeine** (BlockType::Test / Stmt::TestDef, breaks
+  teach_lock.rs + jones_fidelity_lock): W1.9 (G13 largo test) MUST reconcile with it before
+  launching. The namespaced-types fix also shares lexer.rs with it — flag at user commit.
+
+## Durable spec-pin facts (empirically verified at bun-v1.3.14; the doc's numbers were stale)
+
+- `test/harness.ts` `bunExe()` = lines **106-109** (doc said ~120); no env override → patch 0001.
+- `test/bundler/expectBundled.ts` `BUN_EXE` = line **115** (doc said 147). Content-anchored.
+- **Assert-counter seam**: `bun:test` `expect` is IMMUTABLE + directly imported → a harness-local
+  `expect` wrapper counts ~zero (the obvious approach fails). Native per-file counter not
+  exposed to JS at this pin. The ONE reachable seam = the matcher-object prototype
+  (toBe/toContain writable:true) — wrap those; verified byte-matching bun's "N expect() calls".
+  Sink env var = `BUN_ASSERT_COUNT_FILE` (NOT `BUN_ASSERT_SINK`). Flush via global afterAll.
+- **W1.2↔W1.3 integration**: `preload.ts` strips env vars not in `bunEnv` → the runner MUST pass
+  `BUN_EXE_OVERRIDE` through `bunEnv` (or run without preload's strip). Verify at review.
+- worktree.mjs MUST use ABSOLUTE target paths — a relative target nests inside vendor/bun and
+  dirties the oracle (L7). `--clean --all` + L7 24h sweep are the leak defenses; concurrent
+  siblings share work/worktrees/ and can clean each other's scratch trees mid-run.
+
+## Review plan (Wave-1 close, proportionate to §2.5 intent)
+
+Keystone W1.1 got the full 3-review treatment (correct — it's THE foundation). For the 5 harness
+infra cards (comparators/workflow-ops/runner/patches/gifts), each self-reported an adversarial
+self-probe + flagged blind spots. Proportionate close: ONE cross-integration adversarial review
+that (a) checks the cards COMPOSE (runner+patches BUN_EXE_OVERRIDE-through-bunEnv; ledger+runner+
+gifts chain-helper reuse; gate.sh consolidation L1-L17), and (b) spot-attacks each card's flagged
+blind spot — not 10 separate review agents (the duplicate-dispatch token waste makes that costly).
 
 ## Findings log
 

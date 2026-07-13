@@ -1,0 +1,5 @@
+# g2: security=y finding leaks a public issue URL before security-routing
+G-2	found	-	y	-	UAF in the archive extractor (memory-safety)
+G-2	classified	theirs	y	-	routed to security@bun.com per SECURITY.md
+G-2	embargoed	theirs	y	https://github.com/oven-sh/bun/issues/12345	LEAK: public issue URL on an embargoed security finding
+#CHAIN acb1129375e810c4f5c7e2c7b00007634ec0eed191311f2aaaec6d47716b6cfe

@@ -1,0 +1,8 @@
+# b3 runs — ancient fail then clean window of 5 across 2 ts
+2026-07-01T00:00:00Z	src/toy.lg::windowed	fail	13
+2026-07-05T00:00:00Z	src/toy.lg::windowed	pass	13
+2026-07-05T00:00:00Z	src/toy.lg::windowed	pass	13
+2026-07-06T00:00:00Z	src/toy.lg::windowed	pass	13
+2026-07-06T00:00:00Z	src/toy.lg::windowed	pass	13
+2026-07-06T00:00:00Z	src/toy.lg::windowed	pass	13
+#CHAIN f3aef244ae5f01ab1bbf692681c02ec3d64637cbe914634ddd834952cc579018

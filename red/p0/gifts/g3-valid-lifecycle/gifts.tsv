@@ -1,0 +1,16 @@
+# g3: two findings walking the full lifecycle legally, chained + accepted.
+G-1	found	-	n	-	differential: url.parse mismatch vs oracle
+G-1	classified	theirs	n	-	their bug; reproduced against vendor crate
+G-1	ready	theirs	n	conformance/gifts/G-1/	branch content prepared, PR body drafted
+G-1	filed	theirs	n	https://github.com/oven-sh/bun/pull/40001	claude/gift-url-parse
+G-1	in-review	theirs	n	https://github.com/oven-sh/bun/pull/40001	maintainer assigned
+G-1	merged	theirs	n	https://github.com/oven-sh/bun/pull/40001	landed upstream
+G-1	re-baselined	theirs	n	-	SPEC_PIN bumped; row retired
+G-2	found	-	y	-	crash: OOB read in the css tokenizer (memory-safety)
+G-2	classified	theirs	y	-	routed to security@bun.com (SECURITY.md)
+G-2	embargoed	theirs	y	-	awaiting coordinated disclosure; no public link
+G-2	filed	theirs	y	security@bun.com	report sent; ack within 5 days
+G-2	in-review	theirs	y	security@bun.com	handler assigned
+G-2	merged	theirs	y	security@bun.com	fix coordinated + disclosed
+G-2	re-baselined	theirs	y	-	adopted upstream fix at re-baseline
+#CHAIN 2c0156acf8f7e6f17e514656e25eaab21b4b117bb2369cf8ed5bf5e8c85dc7f3
