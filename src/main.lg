@@ -688,22 +688,59 @@
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Return jsEvalTernary(substitute(trim(expr), env)).
 
-## To bindLet (stmt: Text, env: Text) -> Text:
-    Let afterLet be substringAfter(stmt, "let ").
-    Let name be trim(substringBefore(afterLet, "=")).
-    Let value be jsEvalIn(substringAfter(afterLet, "="), env).
-    Return concat(concat(concat(concat(env, name), "="), value), ";").
+## To envSet (env: Text, name: Text, val: Text) -> Text:
+    Return concat(concat(concat(concat(name, "="), val), ";"), env).
 
-## To runStmts (stmts: Seq of Text, i: Int, env: Text) -> Text:
+## To bindAssign (assign: Text, env: Text) -> Text:
+    Let name be trim(substringBefore(assign, " = ")).
+    Let value be jsEvalIn(substringAfter(assign, " = "), env).
+    Return envSet(env, name, value).
+
+## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(123):
+        Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(125):
+        Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
+    If c is equal to ";":
+        If depth is equal to 0:
+            Return splitTop(s, i + 1, 0, concat(acc, chr(10))).
+        Return splitTop(s, i + 1, depth, concat(acc, c)).
+    Return splitTop(s, i + 1, depth, concat(acc, c)).
+
+## To execStmt (stmt: Text, env: Text) -> Text:
+    Let s be trim(stmt).
+    If startsWith(s, "while "):
+        Return execWhile(s, env).
+    If startsWith(s, "let "):
+        Return bindAssign(substringAfter(s, "let "), env).
+    If hasSep(s, " = "):
+        Return bindAssign(s, env).
+    Return env.
+
+## To runBlock (stmts: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of stmts:
+        Return env.
+    Let st be item i of stmts.
+    Return runBlock(stmts, i + 1, execStmt(st, env)).
+
+## To execWhile (stmt: Text, env: Text) -> Text:
+    Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let body be trim(substringBefore(substringAfter(stmt, chr(123)), chr(125))).
+    If boolOf(jsEvalIn(cond, env)):
+        Return execWhile(stmt, runBlock(split(body, ";"), 1, env)).
+    Return env.
+
+## To runProgram (stmts: Seq of Text, i: Int, env: Text) -> Text:
     Let stmt be trim(item i of stmts).
     If i is equal to length of stmts:
         Return jsEvalIn(stmt, env).
-    If startsWith(stmt, "let "):
-        Return runStmts(stmts, i + 1, bindLet(stmt, env)).
-    Return runStmts(stmts, i + 1, env).
+    Return runProgram(stmts, i + 1, execStmt(stmt, env)).
 
 ## To jsRun (program: Text) -> Text:
-    Return runStmts(split(program, ";"), 1, "").
+    Return runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
 
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
