@@ -710,10 +710,39 @@
         Return splitTop(s, i + 1, depth, concat(acc, c)).
     Return splitTop(s, i + 1, depth, concat(acc, c)).
 
+## To execIf (stmt: Text, env: Text) -> Text:
+    Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let afterBrace be substringAfter(stmt, chr(123)).
+    Let thenBlock be braceBody(afterBrace, 1, 0, "").
+    If boolOf(jsEvalIn(cond, env)):
+        Return runBlockStr(thenBlock, env).
+    Let afterClose be trim(substringAfter(substringAfter(afterBrace, thenBlock), chr(125))).
+    If startsWith(afterClose, "else"):
+        Let elseBlock be braceBody(substringAfter(afterClose, chr(123)), 1, 0, "").
+        Return runBlockStr(elseBlock, env).
+    Return env.
+
+## To braceBody (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(123):
+        Return braceBody(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(125):
+        If depth is equal to 0:
+            Return acc.
+        Return braceBody(s, i + 1, depth - 1, concat(acc, c)).
+    Return braceBody(s, i + 1, depth, concat(acc, c)).
+
+## To runBlockStr (body: Text, env: Text) -> Text:
+    Return runBlock(split(splitTop(body, 1, 0, ""), chr(10)), 1, env).
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If startsWith(s, "while "):
         Return execWhile(s, env).
+    If startsWith(s, "if "):
+        Return execIf(s, env).
     If startsWith(s, "let "):
         Return bindAssign(substringAfter(s, "let "), env).
     If hasSep(s, " = "):
@@ -728,9 +757,9 @@
 
 ## To execWhile (stmt: Text, env: Text) -> Text:
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
-    Let body be trim(substringBefore(substringAfter(stmt, chr(123)), chr(125))).
+    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
     If boolOf(jsEvalIn(cond, env)):
-        Return execWhile(stmt, runBlock(split(body, ";"), 1, env)).
+        Return execWhile(stmt, runBlockStr(body, env)).
     Return env.
 
 ## To runProgram (stmts: Seq of Text, i: Int, env: Text) -> Text:

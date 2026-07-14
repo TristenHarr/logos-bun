@@ -21,9 +21,16 @@ if (OURS) {
     const N = 2 + Math.floor(rnd() * 7);        // loop bound 2..8
     const acc0 = String(Math.floor(rnd() * 5));
     const upd = pick(["+", "*", "-"]);
-    const stmts = [`let acc = ${acc0}`, `let i = 1`,
-      `while ( i <= ${N} ) { acc = acc ${upd} i ; i = i + 1 }`];
-    // Final: acc, or a comparison of acc against a literal.
+    // The loop body: a plain accumulate, OR a conditional accumulate (nested if
+    // inside the while — exercises the brace-matcher), OR an if/else split.
+    const cmp = pick(["<", ">", "<=", ">=", "==", "!="]);
+    const cond = `i ${cmp} ${1 + Math.floor(rnd() * N)}`;
+    const bodyKind = rnd();
+    let body;
+    if (bodyKind < 0.4) body = `acc = acc ${upd} i ; i = i + 1`;
+    else if (bodyKind < 0.7) body = `if ( ${cond} ) { acc = acc ${upd} i } ; i = i + 1`;
+    else body = `if ( ${cond} ) { acc = acc + i } else { acc = acc + 1 } ; i = i + 1`;
+    const stmts = [`let acc = ${acc0}`, `let i = 1`, `while ( i <= ${N} ) { ${body} }`];
     const fin = rnd() < 0.5 ? "acc" : `acc ${pick(["<", ">", "<=", ">=", "==", "!="])} ${Math.floor(rnd() * 60)}`;
     stmts.push(fin);
     return stmts.join(" ; ");
