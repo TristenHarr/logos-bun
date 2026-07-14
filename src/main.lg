@@ -13,6 +13,8 @@
 ## To native toText (n: Int) -> Text
 ## To native trim (s: Text) -> Text
 ## To native substringBefore (s: Text, sep: Text) -> Text
+## To native ord (s: Text) -> Int
+## To native concat (a: Text, b: Text) -> Text
 ## To native parseInt (s: Text) -> Int
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
@@ -450,6 +452,36 @@
 ## To tomlGet (doc: Text, dottedKey: Text) -> Text:
     Return tomlScan(split(doc, chr(10)), dottedKey, 1, "").
 
+## To b64Char (n: Int) -> Text:
+    Return item (n + 1) of "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".
+
+## To b64Quad (c1: Text, c2: Text, c3: Text, c4: Text) -> Text:
+    Return concat(concat(concat(c1, c2), c3), c4).
+
+## To b64Encode (s: Text, i: Int, acc: Text) -> Text:
+    Let n be length of s.
+    If i is greater than n:
+        Return acc.
+    Let b1 be ord(item i of s).
+    Let c1 be b64Char(b1 // 4).
+    Let remaining be n - i + 1.
+    If remaining is equal to 1:
+        Let c2 be b64Char((b1 % 4) * 16).
+        Return b64Encode(s, i + 3, concat(acc, b64Quad(c1, c2, "=", "="))).
+    Let b2 be ord(item (i + 1) of s).
+    If remaining is equal to 2:
+        Let c2 be b64Char(((b1 % 4) * 16) + (b2 // 16)).
+        Let c3 be b64Char((b2 % 16) * 4).
+        Return b64Encode(s, i + 3, concat(acc, b64Quad(c1, c2, c3, "="))).
+    Let b3 be ord(item (i + 2) of s).
+    Let c2 be b64Char(((b1 % 4) * 16) + (b2 // 16)).
+    Let c3 be b64Char(((b2 % 16) * 4) + (b3 // 64)).
+    Let c4 be b64Char(b3 % 64).
+    Return b64Encode(s, i + 3, concat(acc, b64Quad(c1, c2, c3, c4))).
+
+## To base64Encode (s: Text) -> Text:
+    Return b64Encode(s, 1, "").
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -503,6 +535,8 @@ Otherwise If cmd is equal to "__glob-path":
         Show "false".
 Otherwise If cmd is equal to "__toml-get":
     Show tomlGet(item 3 of arguments, item 4 of arguments).
+Otherwise If cmd is equal to "__base64":
+    Show base64Encode(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

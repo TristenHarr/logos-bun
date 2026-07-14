@@ -388,5 +388,34 @@ via `bun __toml-get`; differential-fuzzed vs @iarna/toml (the same reference tha
 bugs): **~49k lookups across 10 seeds, 0 diffs** (fuzz/toml/get-diff.mjs), now with REAL-WORLD
 FORMATTING — arbitrary indentation, any spacing around `=`, full-line + inline `#` comments, blank
 lines (on 2 new natives: `trim`/`substringBefore`, c57e2b1). Correctly scopes keys to their table
-(`port` under `[install.cache]` ≠ top-level). Subset: arrays/inline-tables/floats deferred. Remaining toolchain gaps: cross-module functions (BUG-24), atomics (install
-parallelism). **Next: TOML arrays + comments, glob brace expansion, or the next P2 leaf (url/base64).**_
+(`port` under `[install.cache]` ≠ top-level). Subset: arrays/inline-tables/floats deferred._
+
+### BUG-29 · TOOLCHAIN · 2026-07-14 · gap (worked around)
+**What:** LOGOS's `+` string-concat codegen mis-lowers a NESTED concat inside a **tail-call
+argument**: the TCE (tail-call-elimination) arg path wraps only the outermost `+` in `format!`,
+leaving an inner `String + String` (two variables) as raw Rust `a + b` — which doesn't compile
+(`E0308`, Rust needs `String + &str`). A single `+`, or a concat anchored by a string literal,
+lowers fine; only nested variable-to-variable concat in a tail-recursive call breaks. **Where:**
+`logicaffeine_compile::codegen::tce` (arg materialization uses `codegen_expr_with_async` without
+the string-concat flattening the normal path's `collect_string_concat_operands` does). **Found
+by:** base64Encode (a tail-recursive accumulator building 4-char groups). **Status:** worked
+around with a `concat(a,b)` native (a call sidesteps the `+` codegen); proper fix = thread the
+string-aware codegen into the TCE arg path (high blast radius — all tail-recursive fns — so
+deferred to a focused unit). **Tweet:** (n/a — our toolchain.)
+
+### BUG-30 · TOOLCHAIN · 2026-07-14 · gap (FIXED)
+**What:** base64 (and any byte/bit work) needs `ord` (char→code, inverse of `chr`) — LOGOS had
+`chr` but no inverse. **Where:** `logicaffeine_system::text`. **Found by:** the base64 port.
+**Status:** **FIXED** (toolchain baf0905): `ord(s)` (Unicode scalar of first char, -1 for empty;
+byte value for ASCII) + `concat` (BUG-29 workaround). **Tweet:** (n/a — toolchain.)
+
+---
+
+**P2 LEAF — BASE64 (RFC 4648 encode) PORTED + GREEN:** `base64Encode` in pure LOGOS — the
+3-byte→4-char bit-arithmetic done with integer `//` and `%` (no bitwise needed), all three padding
+cases, recursion-threaded accumulator built via `concat`. Exposed via `bun __base64`;
+differential-fuzzed vs Node `Buffer.toString('base64')`: **~8k printable-ASCII strings across 4
+seeds, 0 diffs** (fuzz/base64/encode-diff.mjs). New byte/bit capability for LOGOS (`ord`), the
+substrate hashes + wire codecs will reuse. Subset: ASCII in (UTF-8-multibyte/binary + decode next).
+Remaining toolchain gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics.
+**Next: base64 decode, TOML arrays, glob braces, or another P2 leaf (url/ini).**_
