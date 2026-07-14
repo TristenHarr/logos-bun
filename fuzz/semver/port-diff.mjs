@@ -5,13 +5,14 @@
 //
 // The port lives in src/main.lg (Ordering + parse + compareVersions), exposed
 // through the internal `bun __semver-compare A B` command which prints -1/0/1 —
-// exactly node-semver's `compare` codomain. We generate random release triples
-// (MAJOR.MINOR.PATCH), run BOTH engines on each ordered pair, and demand byte
-// agreement on the sign. A single disagreement fails the lane.
+// exactly node-semver's `compare` codomain. We generate random versions, run
+// BOTH engines on each ordered pair, and demand byte agreement on the sign. A
+// single disagreement fails the lane.
 //
-// SCOPE: plain release triples. Prerelease/build ORDERING is a later increment,
-// so the corpus omits prerelease tags (the parser strips them but does not yet
-// order them); mixing them in would be testing unimplemented behavior, not a bug.
+// SCOPE: full SemVer §11 precedence — MAJOR.MINOR.PATCH plus prerelease ORDERING
+// (numeric-vs-alphanumeric, numeric-compares-numerically, longer-set-wins) and
+// build metadata (ignored). Every generated version is validated with
+// semver.valid() first, so the corpus is exactly node-semver's accepted domain.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -67,15 +68,38 @@ if (OURS) {
     if (k < 0.55) return 9 + Math.floor(rnd() * 3);       // 9,10,11 — digit-width edge
     return Math.floor(rnd() * 60);                        // 0..59 — general
   };
-  const ver = () => `${comp()}.${comp()}.${comp()}`;
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  // Prerelease identifiers spanning every §11 rule: alphanumeric words that sort
+  // (alpha<beta<rc), numeric ids (which rank BELOW alphanumeric and compare
+  // numerically so 2<11), and hyphenated ids (a prerelease may contain `-`).
+  const preId = () => pick(["alpha", "beta", "rc", "pre", "dev", "0", "1", "2", "10", "11", "x-1", "a"]);
+  const preTag = () => {
+    const len = 1 + Math.floor(rnd() * 3);
+    return Array.from({ length: len }, preId).join(".");
+  };
+  const ver = () => {
+    let v = `${comp()}.${comp()}.${comp()}`;
+    if (rnd() < 0.55) v += `-${preTag()}`;                // prerelease on most versions — the point
+    if (rnd() < 0.2) v += `+build.${Math.floor(rnd() * 99)}`; // build metadata (must be ignored)
+    return v;
+  };
 
-  // Adversarial fixed cases first — the classic lexicographic-vs-numeric traps.
+  // Adversarial fixed cases: the lexicographic-vs-numeric traps AND the full
+  // SemVer §11 precedence chain (each adjacent pair must order strictly less).
   const fixed = [
     ["1.2.10", "1.2.9"], ["0.10.0", "0.9.0"], ["1.0.0", "1.0.0"],
     ["2.0.0", "10.0.0"], ["1.11.0", "1.9.0"], ["0.10.1", "0.9.17"],
+    ["1.0.0-alpha", "1.0.0-alpha.1"], ["1.0.0-alpha.1", "1.0.0-alpha.beta"],
+    ["1.0.0-alpha.beta", "1.0.0-beta"], ["1.0.0-beta", "1.0.0-beta.2"],
+    ["1.0.0-beta.2", "1.0.0-beta.11"], ["1.0.0-beta.11", "1.0.0-rc.1"],
+    ["1.0.0-rc.1", "1.0.0"], ["1.0.0-alpha", "1.0.0"],
+    ["1.0.0+build", "1.0.0"], ["1.0.0-x.7.z.92", "1.0.0-x.7.z.92"],
   ];
   const pairs = [...fixed];
-  for (let i = 0; i < n; i++) pairs.push([ver(), ver()]);
+  // Only node-VALID versions enter the corpus (else semver.compare throws) —
+  // this keeps the domain exactly node-semver's accepted set.
+  const genValid = () => { for (;;) { const v = ver(); if (semver.valid(v)) return v; } };
+  for (let i = 0; i < n; i++) pairs.push([genValid(), genValid()]);
 
   let checked = 0;
   for (const [a, b] of pairs) {

@@ -6,6 +6,9 @@
     A Greater.
 
 ## To native split (s: Text, sep: Text) -> Seq of Text
+## To native substringAfter (s: Text, sep: Text) -> Text
+## To native compareText (a: Text, b: Text) -> Int
+## To native isDigits (s: Text) -> Bool
 ## To native parseInt (s: Text) -> Int
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
@@ -37,6 +40,51 @@
         Return a new Greater.
     Return a new Equal.
 
+## To intToOrdering (n: Int) -> Ordering:
+    If n is less than 0:
+        Return a new Less.
+    If n is greater than 0:
+        Return a new Greater.
+    Return a new Equal.
+
+## To minInt (a: Int, b: Int) -> Int:
+    If a is less than b:
+        Return a.
+    Return b.
+
+## To buildStripped (v: Text) -> Text:
+    Return item 1 of split(v, "+").
+
+## To prereleaseOf (v: Text) -> Text:
+    Return substringAfter(buildStripped(v), "-").
+
+## To comparePrereleaseIds (a: Text, b: Text) -> Ordering:
+    If isDigits(a):
+        If isDigits(b):
+            Return cmpInt(parseInt(a), parseInt(b)).
+        Return a new Less.
+    If isDigits(b):
+        Return a new Greater.
+    Return intToOrdering(compareText(a, b)).
+
+## To comparePrerelease (pa: Text, pb: Text) -> Ordering:
+    If pa is equal to "":
+        If pb is equal to "":
+            Return a new Equal.
+        Return a new Greater.
+    If pb is equal to "":
+        Return a new Less.
+    Let idsA be split(pa, ".").
+    Let idsB be split(pb, ".").
+    Let countA be length of idsA.
+    Let countB be length of idsB.
+    Let shared be minInt(countA, countB).
+    Repeat for i from 1 to shared:
+        Let verdict be comparePrereleaseIds(item i of idsA, item i of idsB).
+        If orderingToInt(verdict) is not equal to 0:
+            Return verdict.
+    Return cmpInt(countA, countB).
+
 ## To compareVersions (a: Text, b: Text) -> Ordering:
     Let majorA be major(a).
     Let majorB be major(b).
@@ -46,7 +94,11 @@
     Let minorB be minor(b).
     If minorA is not equal to minorB:
         Return cmpInt(minorA, minorB).
-    Return cmpInt(patch(a), patch(b)).
+    Let patchA be patch(a).
+    Let patchB be patch(b).
+    If patchA is not equal to patchB:
+        Return cmpInt(patchA, patchB).
+    Return comparePrerelease(prereleaseOf(a), prereleaseOf(b)).
 
 ## To orderingToInt (o: Ordering) -> Int:
     Inspect o:

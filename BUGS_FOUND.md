@@ -286,14 +286,32 @@ module separation, worked around by inlining.)
 
 ---
 
-_Live count: 24 (⭐×6 BUN [semver + 5 TOML], 11 toolchain [**6 FIXED**, 1 open + BUG-11 recurring],
+### BUG-25 · TOOLCHAIN · 2026-07-14 · gap (FIXED)
+**What:** semver prerelease ordering (SemVer §11) needed three string primitives LOGOS lacked:
+`substringAfter(s, sep)` (the tail past the FIRST delimiter — prerelease extraction, correct even
+when the tail recurses the delimiter), `compareText(a, b)` (lexicographic byte compare → -1/0/1,
+the alphanumeric-identifier rule), and `isDigits(s)` (numeric-identifier test). **Where:**
+`logicaffeine_system::text` + `map_native_function`. **Found by:** the semver prerelease-ordering
+increment. **Status:** **FIXED** (toolchain af97110) — locked by a new `text::tests` module.
+**Tweet:** Semver's prerelease rules (`1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta`) need a real
+string toolkit. Added `substringAfter`/`compareText`/`isDigits` to LOGOS as native builtins — the
+parser's bread and butter. (n/a — our toolchain.)
+
+---
+
+_Live count: 25 (⭐×6 BUN [semver + 5 TOML], 12 toolchain [**7 FIXED**, 1 open + BUG-11 recurring],
 7 ours). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML
 parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table) — materially
-spec-incomplete. Fuzz lanes: fuzz/semver/, fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/
-(ruled out). **P2.1 SEMVER CORE PORTED + GREEN:** `compareVersions` (Ordering + split-parse +
-numeric triple) in `src/main.lg`, exercised via `bun __semver-compare`, differential-verified vs
-node-semver — **3224 pairs across 4 seeds, 0 diffs** (red/p2/semver-compare.test.mjs), incl. the
-lexicographic traps 1.2.10>1.2.9 and 0.10.1>0.9.17. Toolchain fixes this session: exitWith/eputs
-(592ec80), split (b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded
-negations (e425b28). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER, not
-core), atomics (install), BUG-11 preamble robustness._
+spec-incomplete. Fuzz lanes: fuzz/semver/ (port-diff + diff), fuzz/toml/, fuzz/json/ (clean),
+fuzz/stringwidth/ (ruled out). **P2.1 SEMVER — FULL SemVer §11 PRECEDENCE PORTED + GREEN:**
+`compareVersions` (Ordering + split-parse + numeric triple + prerelease ordering + build-metadata
+ignored) in `src/main.lg` via `bun __semver-compare`, differential-verified vs node-semver —
+**~15.6k pairs across 7 seeds, 0 diffs** (fuzz/semver/port-diff.mjs, now WITH prereleases +
+build), incl. the full spec chain `1.0.0-alpha < …-alpha.1 < …-alpha.beta < …-beta < …-beta.2 <
+…-beta.11 < …-rc.1 < 1.0.0` and the lexicographic traps 1.2.10>1.2.9 / 0.10.1>0.9.17. Toolchain
+fixes this campaign: exitWith/eputs (592ec80), split (b9f9928), comparative-identifiers (6e36198),
+worded `>=`/`<=` (9763a91), worded negations (e425b28), substringAfter/compareText/isDigits
+(af97110). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER + range
+max-satisfying, not core/compare), atomics (install), BUG-11 preamble robustness. **Next:
+`satisfies`/range parsing** (^, ~, ||, hyphen, x-ranges — where bun's BUG-12 is a trap our port
+must NOT replicate)._
