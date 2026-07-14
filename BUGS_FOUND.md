@@ -409,7 +409,7 @@ deferred to a focused unit). **Tweet:** (n/a — our toolchain.)
 **Status:** **FIXED** (toolchain baf0905): `ord(s)` (Unicode scalar of first char, -1 for empty;
 byte value for ASCII) + `concat` (BUG-29 workaround). **Tweet:** (n/a — toolchain.)
 
-### BUG-31 · TOOLCHAIN · 2026-07-14 · gap (worked around; proper fix = identifier-freedom)
+### BUG-31 · TOOLCHAIN · 2026-07-14 · gap (FIXED)
 **What:** `before` cannot be used as a variable name — `Let before be f(x).` fails to parse
 (`ParseError { ExpectedIdentifier }` **at `before`**), while the byte-identical `Let a be f(x).`
 compiles. Isolated by a controlled A/B (two functions differing only in the bound name): the
@@ -422,9 +422,14 @@ walks forward function by function. **Where:** `logicaffeine_language` parser id
 (the `expect_identifier`/`Let`-binding + call-argument arms the identifier-freedom battery covers).
 **Found by:** porting the jsint object machinery (`resolveObjDot`'s `before`/`afterDot` locals) —
 and it had ALSO silently broken a pre-existing, never-committed `resolveProps` (`.length` support)
-that used `before`, which had therefore never compiled. **Status:** worked around (renamed the
-locals `before→lhs`, `afterDot→tail`); proper fix = add the temporal prepositions to the freed set
-+ extend `identifier_freedom.rs` (next increment). **Tweet:** Rewriting Bun's JS engine in our own
+that used `before`, which had therefore never compiled. **Status:** **FIXED** (toolchain 4e7c9e6):
+freed `TokenType::Before`/`::After` at BOTH imperative identifier surfaces — the binding arm
+(`expect_identifier`) and the expression-atom arm (`parse_primary_expr_inner`) — beside the
+prepositions/particles already freed there; both are only reached where an identifier is required
+(binding arm is Imperative-mode-guarded), so declarative "Before X, Y" clauses keep precedence.
+Locked by two `parser::tests` (one frees `before`, one guards `if` still errors); regression clean
+(language lib 227/227, temporal NL 32/32, e2e `before`+`after` program computes correctly). The
+bun-side locals stay renamed (clean names). **Tweet:** Rewriting Bun's JS engine in our own
 English language, a variable named `before` wouldn't parse — the word is a reserved preposition our
 identifier-freedom pass had missed. The compiler thought I was starting a subordinate clause. Human
 languages make *great* programming languages and *hilarious* footguns. 🐛
