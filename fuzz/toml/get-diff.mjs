@@ -5,10 +5,12 @@
 // then each key is looked up both ways and the string-normalized values compared.
 //
 // SCOPE: the bunfig subset tomlGet supports — top-level + [table] + [a.b] nested
-// sections, values = basic string / integer / boolean, one `key = value` per line.
-// Arrays, inline tables, floats (1.0→1 normalization trap), underscored ints,
-// multiline strings, and `#` comments are a later increment; the generator stays
-// inside the subset so a disagreement is a real bug, not an unimplemented feature.
+// sections, values = basic string / integer / boolean, one `key = value` per line,
+// with REAL-WORLD FORMATTING: arbitrary indentation, any spacing around `=`,
+// full-line `#` comments, blank lines, and inline `# ...` comments after a value.
+// Arrays, inline tables, floats (1.0→1 normalization trap), underscored ints, and
+// multiline strings are a later increment; the generator stays inside the subset
+// so a disagreement is a real bug, not an unimplemented feature.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -72,17 +74,24 @@ if (OURS) {
     // Build a doc: a top-level section then 1-3 [table]/[a.b] sections, unique keys.
     const lines = [];
     const keys = []; // [dottedKey, tomlValueText]
+    const indent = () => " ".repeat(Math.floor(rnd() * 4));
+    const eq = () => pick(["=", " = ", "  =  ", "= ", " =", "\t=\t"]);
+    const comment = () => `# ${Array.from({ length: Math.floor(rnd() * 6) }, () => pick("abc 012.".split(""))).join("")}`;
+    const maybeInline = () => (rnd() < 0.3 ? `  ${comment()}` : "");
     const emitTable = (prefix) => {
       const used = new Set();
       const cnt = 1 + Math.floor(rnd() * 4);
       for (let i = 0; i < cnt; i++) {
+        if (rnd() < 0.25) lines.push(indent() + comment()); // stray full-line comment
+        if (rnd() < 0.2) lines.push("");                    // stray blank line
         let k = ident(); if (used.has(k)) continue; used.add(k);
         const v = value();
         const content = v.str ? v.toml.slice(1, -1) : v.toml;
-        lines.push(`${k} = ${v.toml}`);
+        lines.push(`${indent()}${k}${eq()}${v.toml}${maybeInline()}`);
         keys.push([prefix ? `${prefix}.${k}` : k, content]);
       }
     };
+    if (rnd() < 0.5) lines.push(comment()); // leading comment
     emitTable("");
     const tcnt = 1 + Math.floor(rnd() * 3);
     const tablesUsed = new Set();
@@ -90,7 +99,7 @@ if (OURS) {
       let tp = ident() + (rnd() < 0.4 ? `.${ident()}` : "");
       if (tablesUsed.has(tp)) continue; tablesUsed.add(tp);
       lines.push("");
-      lines.push(`[${tp}]`);
+      lines.push(`${indent()}[${tp}]${maybeInline()}`);
       emitTable(tp);
     }
     const doc = lines.join("\n");

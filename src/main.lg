@@ -11,6 +11,8 @@
 ## To native isDigits (s: Text) -> Bool
 ## To native startsWith (s: Text, prefix: Text) -> Bool
 ## To native toText (n: Int) -> Text
+## To native trim (s: Text) -> Text
+## To native substringBefore (s: Text, sep: Text) -> Text
 ## To native parseInt (s: Text) -> Int
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
@@ -420,7 +422,7 @@
 ## To tomlUnquote (v: Text) -> Text:
     If startsWith(v, chr(34)):
         Return item 1 of split(substringAfter(v, chr(34)), chr(34)).
-    Return v.
+    Return trim(substringBefore(v, "#")).
 
 ## To tomlFullKey (currentTable: Text, key: Text) -> Text:
     If currentTable is equal to "":
@@ -430,14 +432,19 @@
 ## To tomlScan (lines: Seq of Text, dottedKey: Text, i: Int, currentTable: Text) -> Text:
     If i is greater than length of lines:
         Return "".
-    Let line be item i of lines.
+    Let line be trim(item i of lines).
+    If line is equal to "":
+        Return tomlScan(lines, dottedKey, i + 1, currentTable).
+    If startsWith(line, "#"):
+        Return tomlScan(lines, dottedKey, i + 1, currentTable).
     If startsWith(line, "["):
-        Let tbl be item 1 of split(substringAfter(line, "["), "]").
+        Let tbl be trim(item 1 of split(substringAfter(line, "["), "]")).
         Return tomlScan(lines, dottedKey, i + 1, tbl).
-    Let parts be split(line, " = ").
-    If length of parts is equal to 2:
-        If tomlFullKey(currentTable, item 1 of parts) is equal to dottedKey:
-            Return tomlUnquote(item 2 of parts).
+    Let beforeEq be substringBefore(line, "=").
+    If beforeEq is not equal to line:
+        Let key be trim(beforeEq).
+        If tomlFullKey(currentTable, key) is equal to dottedKey:
+            Return tomlUnquote(trim(substringAfter(line, "="))).
     Return tomlScan(lines, dottedKey, i + 1, currentTable).
 
 ## To tomlGet (doc: Text, dottedKey: Text) -> Text:

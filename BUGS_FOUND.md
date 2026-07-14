@@ -385,7 +385,8 @@ grammar (`* ? [...] **`) is LOGOS-native; only brace expansion `{a,b}` remains. 
 + `[a.b]` nested sections, string/int/bool values, table-scoped dotted-key lookup (recursion-
 threaded table state) — PURE LOGOS (startsWith/substringAfter/split/chr, no new natives). Exposed
 via `bun __toml-get`; differential-fuzzed vs @iarna/toml (the same reference that found bun's 5 TOML
-bugs): **~26k lookups across 5 seeds, 0 diffs** (fuzz/toml/get-diff.mjs). Correctly scopes keys to
-their table (`port` under `[install.cache]` ≠ top-level). Subset: arrays/inline-tables/floats/
-comments deferred. Remaining toolchain gaps: cross-module functions (BUG-24), atomics (install
+bugs): **~49k lookups across 10 seeds, 0 diffs** (fuzz/toml/get-diff.mjs), now with REAL-WORLD
+FORMATTING — arbitrary indentation, any spacing around `=`, full-line + inline `#` comments, blank
+lines (on 2 new natives: `trim`/`substringBefore`, c57e2b1). Correctly scopes keys to their table
+(`port` under `[install.cache]` ≠ top-level). Subset: arrays/inline-tables/floats deferred. Remaining toolchain gaps: cross-module functions (BUG-24), atomics (install
 parallelism). **Next: TOML arrays + comments, glob brace expansion, or the next P2 leaf (url/base64).**_
