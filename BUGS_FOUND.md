@@ -418,6 +418,8 @@ differential-fuzzed vs Node `Buffer.toString('base64')`: **~8k strings across 4 
 base64 DECODE also done (`b64Index` char→6-bit via range arithmetic, `base64Decode`, `bun
 __base64-decode`): encode matches Node + decode ROUND-TRIPS + decode matches Node over ~4.5k
 strings (fuzz/base64/encode-diff.mjs). New byte/bit capability for LOGOS (`ord`), the substrate
-hashes + wire codecs reuse. Subset: ASCII in (UTF-8-multibyte/binary next). Remaining toolchain
-gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics. **Next: TOML arrays,
-glob braces, or another P2 leaf (url/ini).**_
+hashes + wire codecs reuse. Subset: ASCII in (UTF-8-multibyte/binary next). **P2 LEAF — HEX (toHex/fromHex,
+Buffer hex codec) ALSO DONE:** byte↔nibble arithmetic in pure LOGOS, encode matches Node + decode
+round-trips over ~7.5k strings (fuzz/hex/codec-diff.mjs). Remaining toolchain gaps: cross-module
+functions (BUG-24), TCE nested-concat (BUG-29), atomics. **P2 leaves shipped: semver, glob, TOML,
+base64, hex — all pure LOGOS, all differential-verified. Next: url/ini leaves, or the deeper P3+ work.**_

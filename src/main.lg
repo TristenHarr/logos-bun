@@ -519,6 +519,39 @@
 ## To base64Decode (s: Text) -> Text:
     Return b64Decode(s, 1, "").
 
+## To hexDigit (n: Int) -> Text:
+    If n is less than 10:
+        Return chr(48 + n).
+    Return chr(87 + n).
+
+## To hexEncode (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let b be ord(item i of s).
+    Let pair be concat(hexDigit(b // 16), hexDigit(b % 16)).
+    Return hexEncode(s, i + 1, concat(acc, pair)).
+
+## To toHex (s: Text) -> Text:
+    Return hexEncode(s, 1, "").
+
+## To hexVal (c: Text) -> Int:
+    Let o be ord(c).
+    If o is less than or equal to 57:
+        Return o - 48.
+    If o is less than or equal to 70:
+        Return o - 55.
+    Return o - 87.
+
+## To hexDecode (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let hi be hexVal(item i of s).
+    Let lo be hexVal(item (i + 1) of s).
+    Return hexDecode(s, i + 2, concat(acc, chr((hi * 16) + lo))).
+
+## To fromHex (s: Text) -> Text:
+    Return hexDecode(s, 1, "").
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -576,6 +609,10 @@ Otherwise If cmd is equal to "__base64":
     Show base64Encode(item 3 of arguments).
 Otherwise If cmd is equal to "__base64-decode":
     Show base64Decode(item 3 of arguments).
+Otherwise If cmd is equal to "__hex":
+    Show toHex(item 3 of arguments).
+Otherwise If cmd is equal to "__hex-decode":
+    Show fromHex(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
