@@ -351,6 +351,12 @@ negation `[!..]`/`[^..]`, combined), literals — recursive backtracking, PURE L
 just char-indexing + `compareText` + recursion). Exposed via `bun __glob`; differential-fuzzed vs
 minimatch (`{dot:true}`, fs-special `.`/`..`/empty segments excluded — those are minimatch's
 filesystem rules, not fnmatch): **~17.5k pairs across 12 seeds, ~55% match, 0 diffs**
-(fuzz/glob/match-diff.mjs). Remaining toolchain gaps: cross-module functions (BUG-24), atomics
-(install parallelism), BUG-11 preamble robustness. **Next: glob globstar `**` (with `/`-awareness,
-multi-segment) + brace expansion `{a,b}`, or P1.3 bunfig (pure-.lg TOML parser).**_
+(fuzz/glob/match-diff.mjs). **GLOBSTAR `**` + `/`-aware multi-segment matching ALSO DONE + GREEN**
+(`globPath` via `matchSegs`, `bun __glob-path`): `**` matches zero-or-more path segments (a middle
+`**` may match zero; a TRAILING `**` requires ≥1 — the fuzz caught that exact rule, `a/**` matches
+`a/b` not `a`), non-`**` segments match one via the single-segment core, `*` never crosses `/`.
+~7.3k pairs across 6 seeds vs minimatch, 0 diffs (fuzz/glob/path-diff.mjs). The full practical glob
+grammar (`* ? [...] **`) is LOGOS-native; only brace expansion `{a,b}` remains. Remaining toolchain
+gaps: cross-module functions (BUG-24), atomics (install parallelism), BUG-11 preamble robustness.
+**Next: P1.3 bunfig (pure-.lg TOML parser — also lets us NOT replicate bun's 5 TOML bugs), or the
+BUG-24/BUG-11 toolchain fixes, or glob brace expansion.**_

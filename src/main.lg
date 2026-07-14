@@ -394,6 +394,29 @@
 ## To glob (pat: Text, text: Text) -> Bool:
     Return globMatch(pat, text, 1, 1).
 
+## To matchSegs (patSegs: Seq of Text, pathSegs: Seq of Text, pi: Int, ti: Int) -> Bool:
+    Let plen be length of patSegs.
+    Let tlen be length of pathSegs.
+    If pi is greater than plen:
+        Return ti is greater than tlen.
+    Let patSeg be item pi of patSegs.
+    If patSeg is equal to "**":
+        If pi is equal to plen:
+            Return ti is less than or equal to tlen.
+        If matchSegs(patSegs, pathSegs, pi + 1, ti):
+            Return true.
+        If ti is less than or equal to tlen:
+            Return matchSegs(patSegs, pathSegs, pi, ti + 1).
+        Return false.
+    If ti is greater than tlen:
+        Return false.
+    If glob(patSeg, item ti of pathSegs):
+        Return matchSegs(patSegs, pathSegs, pi + 1, ti + 1).
+    Return false.
+
+## To globPath (pat: Text, path: Text) -> Bool:
+    Return matchSegs(split(pat, "/"), split(path, "/"), 1, 1).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -437,6 +460,11 @@ Otherwise If cmd is equal to "__semver-min":
     Show minSatisfying(item 3 of arguments, item 4 of arguments).
 Otherwise If cmd is equal to "__glob":
     If glob(item 3 of arguments, item 4 of arguments):
+        Show "true".
+    Otherwise:
+        Show "false".
+Otherwise If cmd is equal to "__glob-path":
+    If globPath(item 3 of arguments, item 4 of arguments):
         Show "true".
     Otherwise:
         Show "false".
