@@ -304,14 +304,21 @@ parser's bread and butter. (n/a — our toolchain.)
 `logicaffeine_system::text` + `map_native_function`. **Found by:** the `satisfies` increment.
 **Status:** **FIXED** (toolchain 08e6c04) — locked by `text::tests`. **Tweet:** (n/a — toolchain.)
 
-### BUG-12 · BUN · REPRODUCED + OUR PORT IS CORRECT (2026-07-14)
-**Update:** the campaign's thesis, demonstrated concretely. `Bun.semver.satisfies("2.0.0",
-">1.0.0 3.0.0")` returns **true** (bun DROPS the trailing `3.0.0` exact-version conjunct);
-node-semver and our LOGOS port both return the correct **false** (the set is `>1.0.0 AND =3.0.0`;
-2.0.0 fails `=3.0.0`). **The reimplementation is more correct than the original.** Pinned as a
-regression lock in `fuzz/semver/satisfies-diff.mjs`. **Tweet:** Ported bun's semver to LOGOS and
-found it's *more* correct than bun: `satisfies("2.0.0", ">1.0.0 3.0.0")` — bun says yes (it drops
-the `3.0.0` requirement!), our rewrite + node-semver say no. Verified against both.
+### BUG-12 · BUN · GENERALIZED + OUR PORT IS CORRECT (2026-07-14)  ⭐⭐
+**Update — bigger than first thought.** Now that our LOGOS satisfies matches node-semver over
+~30k pairs, we turned the fuzzer AROUND on bun (`fuzz/semver/bun-hunt.mjs`: Bun.semver.satisfies vs
+node-semver over valid pairs). Result: **~8.5% of realistic multi-conjunct ranges disagree** (≈510
+/ 6000 per seed, stable across seeds) — one root cause. Bun's range is a two-comparator `{left,
+right}` model, so it **drops ANY bare exact-version conjunct that doesn't fit** — not just the
+trailing one. Confirmed classes (bun=true, node+ours=false): `>1.13.1 3.2.12`, `<6.17.8 4.12.3`,
+`>=2.4.5 4.2.1`, `2.0.0 3.7.2` (two bare exacts → 2nd dropped), `<=5.1.13 4.2.1 >3.16.3` (exact in
+the MIDDLE of 3), `>=7.19.19 8.0.17 <9.9.4`. Our LOGOS port returns the correct `false` on ALL of
+them (three-way verified: ours = node-semver ≠ bun). **The reimplementation is materially more
+correct than the original — a real dependency-resolution soundness bug in bun.** Pinned in
+`fuzz/semver/satisfies-diff.mjs` (BUG-12 lock) + the standing hunt lane `bun-hunt.mjs`.
+**Tweet:** Rewrote bun's semver in a natural-language language, then pointed the fuzzer back at
+bun: it fails ~8.5% of realistic ranges. `satisfies("2.0.0", "2.0.0 3.7.2")` → bun says TRUE (it
+just... drops the `3.7.2`). Any `>=X Y` floor+pin range is unsound. Our rewrite + node-semver agree: false.
 
 ### BUG-27 · OURS · 2026-07-14 · correctness (FIXED, caught by our own fuzz)
 **What:** our `satisfies` had a `range == "*"` / `range == ""` fast-path returning true
