@@ -552,6 +552,23 @@
 ## To fromHex (s: Text) -> Text:
     Return hexDecode(s, 1, "").
 
+## To jsEvalAdd (tokens: Seq of Text, i: Int, acc: Int, curProduct: Int, curSign: Int) -> Int:
+    If i is greater than length of tokens:
+        Return acc + (curSign * curProduct).
+    Let op be item i of tokens.
+    Let num be parseInt(item (i + 1) of tokens).
+    If op is equal to "+":
+        Return jsEvalAdd(tokens, i + 2, acc + (curSign * curProduct), num, 1).
+    If op is equal to "-":
+        Return jsEvalAdd(tokens, i + 2, acc + (curSign * curProduct), num, -1).
+    If op is equal to "*":
+        Return jsEvalAdd(tokens, i + 2, acc, curProduct * num, curSign).
+    Return jsEvalAdd(tokens, i + 2, acc, curProduct % num, curSign).
+
+## To jsEval (expr: Text) -> Int:
+    Let tokens be split(expr, " ").
+    Return jsEvalAdd(tokens, 2, 0, parseInt(item 1 of tokens), 1).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -613,6 +630,8 @@ Otherwise If cmd is equal to "__hex":
     Show toHex(item 3 of arguments).
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
+Otherwise If cmd is equal to "__js-eval":
+    Show jsEval(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

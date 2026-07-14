@@ -422,4 +422,11 @@ hashes + wire codecs reuse. Subset: ASCII in (UTF-8-multibyte/binary next). **P2
 Buffer hex codec) ALSO DONE:** byte↔nibble arithmetic in pure LOGOS, encode matches Node + decode
 round-trips over ~7.5k strings (fuzz/hex/codec-diff.mjs). Remaining toolchain gaps: cross-module
 functions (BUG-24), TCE nested-concat (BUG-29), atomics. **P2 leaves shipped: semver, glob, TOML,
-base64, hex — all pure LOGOS, all differential-verified. Next: url/ini leaves, or the deeper P3+ work.**_
+base64, hex — all pure LOGOS, all differential-verified.** **P7 THE JS ENGINE — FIRST SLICE:** the
+`jsint` definitional interpreter begins — `jsEval` evaluates JS arithmetic expressions (`+ - * %`)
+with correct operator precedence + left-to-right associativity in pure LOGOS (recursion-threaded
+two-tier evaluator, no parser stack). Exposed via `bun __js-eval`; differential-fuzzed vs Node's
+own `eval()`: **10k expressions across 4 seeds, 0 diffs** (fuzz/jsint/arith-diff.mjs). This is the
+seed the Futamura projections will eventually specialize into a JIT. Next: parens, a real tokenizer
+(drop the space requirement), comparisons/booleans, variables → statements. Remaining toolchain
+gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics._
