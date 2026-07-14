@@ -60,15 +60,29 @@ if (OURS) {
     const len = 1 + Math.floor(rnd() * 7);
     return Array.from({ length: len }, literal).join("");
   };
-  // A pattern DERIVED from a text (replace some chars with * / ?) so matches are
-  // dense, plus occasional fully-random patterns for the miss cases.
+  // A well-formed char class over [abc12] — singles, a range, optional negation
+  // ([!..]/[^..]). Biased to INCLUDE `want` (so it matches) when one is given.
+  const clsChars = "abc12";
+  const cls = (want) => {
+    const neg = rnd() < 0.35;
+    let members = rnd() < 0.4 ? pick(["a-c", "1-2", "a-c", "b-c"])
+      : Array.from({ length: 1 + Math.floor(rnd() * 3) }, () => pick(clsChars.split(""))).join("");
+    // for a POSITIVE class, fold `want` in so the pair is a match (density);
+    // for a NEGATIVE class, leaving it out also makes a match.
+    if (want && !neg && "abc12".includes(want) && !members.includes(want) && !members.includes("-"))
+      members += want;
+    return `[${neg ? pick(["!", "^"]) : ""}${members}]`;
+  };
+  // A pattern DERIVED from a text (replace some chars with * / ? / [class]) so
+  // matches are dense, plus occasional fully-random patterns for the miss cases.
   const patFrom = (t) => {
     let out = "";
     for (const ch of t) {
       const k = rnd();
-      if (k < 0.18) out += "*";
-      else if (k < 0.3) out += "?";
-      else if (k < 0.38) { /* drop the char (only matchable via a neighboring *) */ }
+      if (k < 0.16) out += "*";
+      else if (k < 0.26) out += "?";
+      else if (k < 0.42) out += cls(ch);
+      else if (k < 0.5) { /* drop the char (only matchable via a neighboring *) */ }
       else out += ch;
     }
     if (out === "") out = "*";
@@ -78,7 +92,7 @@ if (OURS) {
     const len = 1 + Math.floor(rnd() * 6);
     return Array.from({ length: len }, () => {
       const k = rnd();
-      return k < 0.25 ? "*" : k < 0.4 ? "?" : literal();
+      return k < 0.22 ? "*" : k < 0.35 ? "?" : k < 0.5 ? cls(null) : literal();
     }).join("");
   };
 

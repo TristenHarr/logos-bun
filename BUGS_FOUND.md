@@ -345,11 +345,12 @@ fold over `satisfies` (recursion-threaded to dodge loop-var shadowing) — so it
 2500 candidate lists × (max+min) across 5 seeds, 0 diffs (fuzz/semver/resolve-diff.mjs), incl.
 prerelease-exclusion (`1.0.0-alpha` not picked for `^1.0.0`). **The whole semver module bun's
 installer needs — compare, satisfies, maxSatisfying, minSatisfying — is now LOGOS-native and
-node-semver-faithful.** **P2.2 GLOB (fnmatch core) STARTED + GREEN:** a segment-level `glob(pat,
-text)` matcher — `*` (any run), `?` (one char), literals — recursive backtracking, PURE LOGOS (no
-new natives; just char-indexing + recursion). Exposed via `bun __glob`; differential-fuzzed vs
+node-semver-faithful.** **P2.2 GLOB (full fnmatch core) STARTED + GREEN:** a segment-level
+`glob(pat, text)` matcher — `*` (any run), `?` (one char), `[...]` char classes (ranges `a-z`,
+negation `[!..]`/`[^..]`, combined), literals — recursive backtracking, PURE LOGOS (no new natives;
+just char-indexing + `compareText` + recursion). Exposed via `bun __glob`; differential-fuzzed vs
 minimatch (`{dot:true}`, fs-special `.`/`..`/empty segments excluded — those are minimatch's
-filesystem rules, not fnmatch): **~8.8k pairs across 6 seeds, ~67% match, 0 diffs**
+filesystem rules, not fnmatch): **~17.5k pairs across 12 seeds, ~55% match, 0 diffs**
 (fuzz/glob/match-diff.mjs). Remaining toolchain gaps: cross-module functions (BUG-24), atomics
-(install parallelism), BUG-11 preamble robustness. **Next: glob char classes `[...]` + globstar
-`**` (with `/`-awareness), or P1.3 bunfig (pure-.lg TOML parser).**_
+(install parallelism), BUG-11 preamble robustness. **Next: glob globstar `**` (with `/`-awareness,
+multi-segment) + brace expansion `{a,b}`, or P1.3 bunfig (pure-.lg TOML parser).**_

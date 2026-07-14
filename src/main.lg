@@ -325,6 +325,43 @@
 ## To minSatisfying (versionsCsv: Text, range: Text) -> Text:
     Return minSatFrom(split(versionsCsv, ","), range, 1, "").
 
+## To findClassEnd (pat: Text, i: Int) -> Int:
+    If i is greater than length of pat:
+        Return 0.
+    If item i of pat is equal to "]":
+        Return i.
+    Return findClassEnd(pat, i + 1).
+
+## To classNegated (pat: Text, start: Int) -> Bool:
+    Let c be item start of pat.
+    If c is equal to "!":
+        Return true.
+    If c is equal to "^":
+        Return true.
+    Return false.
+
+## To charInClass (pat: Text, i: Int, end: Int, ch: Text) -> Bool:
+    If i is greater than or equal to end:
+        Return false.
+    Let lo be item i of pat.
+    If i + 2 is less than end:
+        If item (i + 1) of pat is equal to "-":
+            Let hi be item (i + 2) of pat.
+            If compareText(ch, lo) is greater than or equal to 0:
+                If compareText(ch, hi) is less than or equal to 0:
+                    Return true.
+            Return charInClass(pat, i + 3, end, ch).
+    If ch is equal to lo:
+        Return true.
+    Return charInClass(pat, i + 1, end, ch).
+
+## To classMatch (pat: Text, start: Int, end: Int, ch: Text) -> Bool:
+    If classNegated(pat, start):
+        If charInClass(pat, start + 1, end, ch):
+            Return false.
+        Return true.
+    Return charInClass(pat, start, end, ch).
+
 ## To globMatch (pat: Text, text: Text, pi: Int, ti: Int) -> Bool:
     Let plen be length of pat.
     Let tlen be length of text.
@@ -341,6 +378,15 @@
         Return false.
     If pc is equal to "?":
         Return globMatch(pat, text, pi + 1, ti + 1).
+    If pc is equal to "[":
+        Let closeIdx be findClassEnd(pat, pi + 1).
+        If closeIdx is equal to 0:
+            If pc is equal to item ti of text:
+                Return globMatch(pat, text, pi + 1, ti + 1).
+            Return false.
+        If classMatch(pat, pi + 1, closeIdx, item ti of text):
+            Return globMatch(pat, text, closeIdx + 1, ti + 1).
+        Return false.
     If pc is equal to item ti of text:
         Return globMatch(pat, text, pi + 1, ti + 1).
     Return false.
