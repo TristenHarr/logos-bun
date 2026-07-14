@@ -78,12 +78,20 @@ if (OURS) {
     c[i] = Math.max(0, c[i] + d);
     return c;
   };
+  const wildTail = pick(["x", "X", "*"]);
+  // A partial (x-range) form of a base: `1.x`, `1.2.x`, `1`, `1.2`.
+  const partial = (base) => pick([
+    `${base[0]}.${wildTail}`, `${base[0]}.${base[1]}.${wildTail}`,
+    `${base[0]}`, `${base[0]}.${base[1]}`,
+  ]);
   // Build a range from a base triple, inside the implemented grammar.
   const rangeFrom = (base) => {
     const b = str(base);
     const b2 = str([base[0] + 1 + Math.floor(rnd() * 2), comp(), comp()]);
+    const px = partial(base);
     switch (pick(["caret", "tilde", "gt", "gte", "lt", "lte", "eq", "exact",
-                  "and", "hyphen", "or", "star"])) {
+                  "and", "hyphen", "or", "star",
+                  "xbare", "xcaret", "xtilde", "xgte", "xgt", "xlt", "xlte"])) {
       case "caret": return `^${b}`;
       case "tilde": return `~${b}`;
       case "gt": return `>${b}`;
@@ -95,6 +103,14 @@ if (OURS) {
       case "and": return `>=${b} <${b2}`;
       case "hyphen": return `${b} - ${b2}`;
       case "or": return `^${b} || ^${b2}`;
+      // partial x-ranges (bare + caret/tilde/comparator over a partial)
+      case "xbare": return px;
+      case "xcaret": return `^${px}`;
+      case "xtilde": return `~${px}`;
+      case "xgte": return `>=${px}`;
+      case "xgt": return `>${px}`;
+      case "xlt": return `<${px}`;
+      case "xlte": return `<=${px}`;
       default: return "*";
     }
   };

@@ -320,13 +320,13 @@ _Live count: 26 (⭐×6 BUN [semver + 5 TOML], 13 toolchain [**8 FIXED**, 1 open
 parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table); bun's semver
 `satisfies` drops trailing exact conjuncts (BUG-12). Fuzz lanes: fuzz/semver/ (port-diff +
 satisfies-diff + diff), fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out). **P2.1
-SEMVER — compareVersions (full SemVer §11) + satisfies (RANGE grammar) PORTED + GREEN:** in
-`src/main.lg` via `bun __semver-compare` / `__semver-satisfies`, differential-verified vs
-node-semver — **compare ~17k pairs / satisfies ~9.3k pairs (^ ~ >= <= > < =, exact, `*`, AND, OR
-`||`, hyphen ranges), 0 diffs**, incl. the full §11 prerelease chain AND the BUG-12 lock (we're
-correct where bun is wrong). Toolchain fixes this campaign: exitWith/eputs (592ec80), split
-(b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded negations
-(e425b28), substringAfter/compareText/isDigits (af97110), startsWith/toText (08e6c04). Remaining
-gaps: cross-module functions (BUG-24), sort (semver RESOLVER max-satisfying, not compare/satisfies),
-atomics (install), BUG-11 preamble robustness. **Next: partial x-ranges (`1.x`, `1.2.x`, `^1.x`) +
-prerelease-version-in-range special rule** → then the resolver (needs G-SORT)._
+SEMVER — compareVersions (full SemVer §11) + satisfies (FULL RANGE grammar incl. x-ranges) PORTED
++ GREEN:** in `src/main.lg` via `bun __semver-compare` / `__semver-satisfies`, differential-verified
+vs node-semver — **compare ~17k pairs / satisfies ~18k pairs (^ ~ >= <= > < =, exact, `*`, partial
+x-ranges `1.x`/`1.2.x`/`^1.x`/`~1.x`/`>=1.x`, AND, OR `||`, hyphen ranges), 0 diffs**, incl. the
+full §11 prerelease chain AND the BUG-12 lock (we're correct where bun is wrong). Toolchain fixes
+this campaign: exitWith/eputs (592ec80), split (b9f9928), comparative-identifiers (6e36198), worded
+`>=`/`<=` (9763a91), worded negations (e425b28), substringAfter/compareText/isDigits (af97110),
+startsWith/toText (08e6c04). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER
+max-satisfying, not compare/satisfies), atomics (install), BUG-11 preamble robustness. **Next:
+prerelease-version-in-range special rule (the last satisfies edge)** → then the resolver (G-SORT)._

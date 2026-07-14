@@ -117,43 +117,106 @@
 ## To versionString (m: Int, n: Int, p: Int) -> Text:
     Return toText(m) + "." + toText(n) + "." + toText(p).
 
-## To testCaret (version: Text, spec: Text) -> Bool:
-    If cmpNum(version, spec) is greater than or equal to 0:
-        Let m be major(spec).
-        Let n be minor(spec).
-        Let p be patch(spec).
-        If m is greater than 0:
-            Return cmpNum(version, versionString(m + 1, 0, 0)) is less than 0.
+## To isWild (part: Text) -> Bool:
+    If part is equal to "x":
+        Return true.
+    If part is equal to "X":
+        Return true.
+    If part is equal to "*":
+        Return true.
+    If part is equal to "":
+        Return true.
+    Return false.
+
+## To specCount (spec: Text) -> Int:
+    Let parts be split(spec, ".").
+    Let upto be minInt(3, length of parts).
+    Repeat for i from 1 to upto:
+        If isWild(item i of parts):
+            Return i - 1.
+    Return upto.
+
+## To compOr0 (spec: Text, i: Int) -> Int:
+    Let parts be split(spec, ".").
+    If length of parts is greater than or equal to i:
+        Let part be item i of parts.
+        If isWild(part):
+            Return 0.
+        Return numericCore(part).
+    Return 0.
+
+## To xLo (spec: Text) -> Text:
+    Return versionString(compOr0(spec, 1), compOr0(spec, 2), compOr0(spec, 3)).
+
+## To partialUpper (spec: Text) -> Text:
+    If specCount(spec) is equal to 2:
+        Return versionString(compOr0(spec, 1), compOr0(spec, 2) + 1, 0).
+    Return versionString(compOr0(spec, 1) + 1, 0, 0).
+
+## To caretUpper (spec: Text) -> Text:
+    Let m be compOr0(spec, 1).
+    Let n be compOr0(spec, 2).
+    Let p be compOr0(spec, 3).
+    Let c be specCount(spec).
+    If m is greater than 0:
+        Return versionString(m + 1, 0, 0).
+    If c is equal to 1:
+        Return versionString(1, 0, 0).
+    If c is equal to 3:
         If n is greater than 0:
-            Return cmpNum(version, versionString(0, n + 1, 0)) is less than 0.
-        Return cmpNum(version, versionString(0, 0, p + 1)) is less than 0.
+            Return versionString(0, n + 1, 0).
+        Return versionString(0, 0, p + 1).
+    Return versionString(0, n + 1, 0).
+
+## To tildeUpper (spec: Text) -> Text:
+    If specCount(spec) is equal to 1:
+        Return versionString(compOr0(spec, 1) + 1, 0, 0).
+    Return versionString(compOr0(spec, 1), compOr0(spec, 2) + 1, 0).
+
+## To testXRange (version: Text, spec: Text) -> Bool:
+    Let c be specCount(spec).
+    If c is equal to 0:
+        Return true.
+    If c is equal to 3:
+        Return cmpNum(version, spec) is equal to 0.
+    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+        Return cmpNum(version, partialUpper(spec)) is less than 0.
+    Return false.
+
+## To testCaret (version: Text, spec: Text) -> Bool:
+    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+        Return cmpNum(version, caretUpper(spec)) is less than 0.
     Return false.
 
 ## To testTilde (version: Text, spec: Text) -> Bool:
-    If cmpNum(version, spec) is greater than or equal to 0:
-        Return cmpNum(version, versionString(major(spec), minor(spec) + 1, 0)) is less than 0.
+    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+        Return cmpNum(version, tildeUpper(spec)) is less than 0.
     Return false.
 
 ## To testComparator (version: Text, token: Text) -> Bool:
     If token is equal to "":
         Return true.
-    If token is equal to "*":
-        Return true.
     If startsWith(token, ">="):
-        Return cmpNum(version, substringAfter(token, "=")) is greater than or equal to 0.
+        Return cmpNum(version, xLo(substringAfter(token, "="))) is greater than or equal to 0.
     If startsWith(token, "<="):
-        Return cmpNum(version, substringAfter(token, "=")) is less than or equal to 0.
+        Let specLe be substringAfter(token, "=").
+        If specCount(specLe) is equal to 3:
+            Return cmpNum(version, specLe) is less than or equal to 0.
+        Return cmpNum(version, partialUpper(specLe)) is less than 0.
     If startsWith(token, ">"):
-        Return cmpNum(version, substringAfter(token, ">")) is greater than 0.
+        Let specGt be substringAfter(token, ">").
+        If specCount(specGt) is equal to 3:
+            Return cmpNum(version, specGt) is greater than 0.
+        Return cmpNum(version, partialUpper(specGt)) is greater than or equal to 0.
     If startsWith(token, "<"):
-        Return cmpNum(version, substringAfter(token, "<")) is less than 0.
+        Return cmpNum(version, xLo(substringAfter(token, "<"))) is less than 0.
     If startsWith(token, "="):
-        Return cmpNum(version, substringAfter(token, "=")) is equal to 0.
+        Return testXRange(version, substringAfter(token, "=")).
     If startsWith(token, "^"):
         Return testCaret(version, substringAfter(token, "^")).
     If startsWith(token, "~"):
         Return testTilde(version, substringAfter(token, "~")).
-    Return cmpNum(version, token) is equal to 0.
+    Return testXRange(version, token).
 
 ## To testSet (version: Text, setStr: Text) -> Bool:
     Let hyphenParts be split(setStr, " - ").
