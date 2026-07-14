@@ -241,6 +241,22 @@ See BUGS_FOUND.md BUG-20..BUG-23 (all FIXED).
 - BUG-11 recurred: link-less / multi-line / backtick-laden prose abstracts before the first `##`
   are parsed as code — forces canary-shaped or title-only headers. Preamble-robustness fix pending.
 
+**★ P2.1 SEMVER MODULE COMPLETE (2026-07-14) ★** — the entire semver surface `bun install`
+needs, ported to LOGOS in `src/main.lg` and differential-verified vs node-semver (~50k pairs
+total, 0 diffs across compare/satisfies/resolve fuzz lanes):
+- `compareVersions` — full SemVer §11 (numeric triple + prerelease ordering + build ignored). commit 113643e.
+- `satisfies` — full node-semver RANGE parity: `^ ~ >= <= > < =`, exact, `*`, partial x-ranges
+  (`1.x`/`1.2.x`/`^1.x`/`~1.x`/`>=1.x`), AND, OR `||`, hyphen ranges, AND the prerelease-version-
+  in-range special rule. commits f85f3b4 → bafe700 → 397a336 → 98c44b3.
+- `maxSatisfying`/`minSatisfying` — the resolver, a single-pass fold (recursion-threaded), NO
+  G-SORT needed. commit cd2adb9.
+- Exposed via internal `bun __semver-compare|satisfies|max|min`. Fuzz: fuzz/semver/{port,satisfies,
+  resolve}-diff.mjs. Proved MORE correct than bun (BUG-12 lock: `satisfies("2.0.0",">1.0.0 3.0.0")`
+  — bun says true, we + node-semver say false). Fuzz caught + fixed our own BUG-27 (prerelease vs `*`).
+- **8 toolchain grinds this leaf surfaced + fixed** (all TDD-locked in the clone): exitWith/eputs,
+  split, comparative-word identifiers, worded `>=`/`<=`, worded negations, substringAfter/
+  compareText/isDigits, startsWith/toText. LOGOS is materially more complete for the next port.
+
 **Prerelease ORDERING DONE (2026-07-14, commit 113643e):** full SemVer §11 precedence —
 `compareVersions` now orders prereleases (numeric-vs-alphanumeric, numeric-compares-numerically,
 longer-set-wins, `1.0.0-alpha < 1.0.0`) with build metadata ignored. On three new text natives
