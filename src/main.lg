@@ -925,17 +925,21 @@
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
 
+## To funcValueOf (text: Text) -> Text:
+    Let param be trim(substringBefore(substringAfter(text, "("), ")")).
+    Let body be trim(braceBody(substringAfter(text, chr(123)), 1, 0, "")).
+    Return concat(concat(concat(chr(1), param), chr(1)), replaceAll(body, ";", chr(2))).
+
 ## To defineFn (stmt: Text, env: Text) -> Text:
     Let name be trim(substringBefore(substringAfter(stmt, "function "), "(")).
-    Let param be trim(substringBefore(substringAfter(stmt, "("), ")")).
-    Let body be trim(braceBody(substringAfter(stmt, chr(123)), 1, 0, "")).
-    Let stored be concat(concat(concat(chr(1), param), chr(1)), replaceAll(body, ";", chr(2))).
-    Return envSet(env, name, stored).
+    Return envSet(env, name, funcValueOf(stmt)).
 
 ## To bindAssign (assign: Text, env: Text) -> Text:
     Let name be trim(substringBefore(assign, " = ")).
-    Let value be jsEvalIn(substringAfter(assign, " = "), env).
-    Return envSet(env, name, value).
+    Let rhs be trim(substringAfter(assign, " = ")).
+    If startsWith(rhs, "function ("):
+        Return envSet(env, name, funcValueOf(rhs)).
+    Return envSet(env, name, jsEvalIn(rhs, env)).
 
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
