@@ -771,6 +771,78 @@
 ## To jsRun (program: Text) -> Text:
     Return runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
 
+## To nchars (s: Text, i: Int, n: Int) -> Text:
+    If i + n is greater than length of s + 1:
+        Return "".
+    If n is equal to 2:
+        Return concat(item i of s, item (i + 1) of s).
+    Return concat(concat(item i of s, item (i + 1) of s), item (i + 2) of s).
+
+## To isOp3 (t: Text) -> Bool:
+    If t is equal to "===":
+        Return true.
+    If t is equal to "!==":
+        Return true.
+    Return false.
+
+## To isOp2 (t: Text) -> Bool:
+    If t is equal to "==":
+        Return true.
+    If t is equal to "!=":
+        Return true.
+    If t is equal to "<=":
+        Return true.
+    If t is equal to ">=":
+        Return true.
+    If t is equal to "&&":
+        Return true.
+    If t is equal to "||":
+        Return true.
+    Return false.
+
+## To isOp1 (c: Text) -> Bool:
+    Let ops be ["+", "-", "*", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!"].
+    If ops contains c:
+        Return true.
+    If c is equal to chr(123):
+        Return true.
+    If c is equal to chr(125):
+        Return true.
+    Return false.
+
+## To spaced (t: Text) -> Text:
+    Return concat(concat(" ", t), " ").
+
+## To normJs (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let op3 be nchars(s, i, 3).
+    If isOp3(op3):
+        Return normJs(s, i + 3, concat(acc, spaced(op3))).
+    Let op2 be nchars(s, i, 2).
+    If isOp2(op2):
+        Return normJs(s, i + 2, concat(acc, spaced(op2))).
+    Let c be item i of s.
+    If isOp1(c):
+        Return normJs(s, i + 1, concat(acc, spaced(c))).
+    Return normJs(s, i + 1, concat(acc, c)).
+
+## To joinNonEmpty (parts: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of parts:
+        Return acc.
+    Let piece be item i of parts.
+    If piece is equal to "":
+        Return joinNonEmpty(parts, i + 1, acc).
+    If acc is equal to "":
+        Return joinNonEmpty(parts, i + 1, piece).
+    Return joinNonEmpty(parts, i + 1, concat(concat(acc, " "), piece)).
+
+## To normalizeJs (s: Text) -> Text:
+    Return joinNonEmpty(split(normJs(s, 1, ""), " "), 1, "").
+
+## To jsExec (program: Text) -> Text:
+    Return jsRun(normalizeJs(program)).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -836,6 +908,8 @@ Otherwise If cmd is equal to "__js-eval":
     Show jsEvalTernary(item 3 of arguments).
 Otherwise If cmd is equal to "__js-run":
     Show jsRun(item 3 of arguments).
+Otherwise If cmd is equal to "__js":
+    Show jsExec(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
