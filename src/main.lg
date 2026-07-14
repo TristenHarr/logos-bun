@@ -758,6 +758,8 @@
         Return substringAfter(v, chr(3)).
     If startsWith(v, chr(5)):
         Return matArr(split(substringAfter(v, chr(5)), chr(6)), 1, "").
+    If startsWith(v, chr(7)):
+        Return "[object Object]".
     Return v.
 
 ## To hasStr (expr: Text) -> Bool:
@@ -806,7 +808,86 @@
         Let elem be arrGet(lastTok, parseInt(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
+    If startsWith(lastTok, chr(7)):
+        Let got be objGet(lastTok, materialize(evalValue(inner))).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
     Return resolveArrays(trim(concat(concat(prefix, buildArr(split(inner, ","), 1, "")), rest))).
+
+## To objScan (entries: Seq of Text, i: Int, key: Text) -> Text:
+    If i is greater than length of entries:
+        Return concat(chr(3), "undefined").
+    Let entry be item i of entries.
+    If substringBefore(entry, chr(8)) is equal to key:
+        Return substringAfter(entry, chr(8)).
+    Return objScan(entries, i + 1, key).
+
+## To objGet (objVal: Text, key: Text) -> Text:
+    Let content be substringAfter(objVal, chr(7)).
+    If content is equal to "":
+        Return concat(chr(3), "undefined").
+    Return objScan(split(content, chr(6)), 1, key).
+
+## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return concat(chr(7), acc).
+    Let entry be trim(item i of entries).
+    Let k be materialize(litToStr(trim(substringBefore(entry, " : ")))).
+    Let v be evalValue(trim(substringAfter(entry, " : "))).
+    Let pair be concat(concat(k, chr(8)), v).
+    If i is equal to 1:
+        Return buildObj(entries, i + 1, pair).
+    Return buildObj(entries, i + 1, concat(concat(acc, chr(6)), pair)).
+
+## To resolveObjects (expr: Text) -> Text:
+    If substringBefore(expr, chr(123)) is equal to expr:
+        Return expr.
+    Let leftOfClose be substringBefore(expr, chr(125)).
+    Let rest be substringAfter(expr, chr(125)).
+    Let pieces be split(leftOfClose, chr(123)).
+    Let np be length of pieces.
+    Let inner be trim(item np of pieces).
+    Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
+    If inner is equal to "":
+        Return resolveObjects(trim(concat(concat(prefix, chr(7)), rest))).
+    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(inner, " , "), 1, "")), rest))).
+
+## To dotSep () -> Text:
+    Return concat(concat(" ", chr(46)), " ").
+
+## To resolveObjDot (expr: Text) -> Text:
+    If substringBefore(expr, dotSep()) is equal to expr:
+        Return expr.
+    Let lhs be substringBefore(expr, dotSep()).
+    Let tail be substringAfter(expr, dotSep()).
+    Let tailToks be split(tail, " ").
+    Let lhsToks be split(lhs, " ").
+    Let recv be item (length of lhsToks) of lhsToks.
+    If startsWith(recv, chr(7)):
+        Let val be objGet(recv, item 1 of tailToks).
+        Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+        Let restToks be joinRange(tailToks, 2, length of tailToks, "").
+        Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), val), restToks))).
+    Return expr.
+
+## To propLength (v: Text) -> Int:
+    If startsWith(v, chr(5)):
+        Let content be substringAfter(v, chr(5)).
+        If content is equal to "":
+            Return 0.
+        Return length of split(content, chr(6)).
+    Return length of materialize(litToStr(v)).
+
+## To resolveProps (expr: Text) -> Text:
+    If substringBefore(expr, " . length") is equal to expr:
+        Return expr.
+    Let lhs be substringBefore(expr, " . length").
+    Let tail be substringAfter(expr, " . length").
+    Let lhsToks be split(lhs, " ").
+    Let recv be item (length of lhsToks) of lhsToks.
+    Let n be propLength(recv).
+    Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+    Return resolveProps(trim(concat(concat(concat(newPrefix, " "), toText(n)), tail))).
 
 ## To litToStr (tok: Text) -> Text:
     If startsWith(tok, chr(34)):
@@ -824,6 +905,8 @@
 ## To evalValue (expr: Text) -> Text:
     If startsWith(trim(expr), chr(5)):
         Return trim(expr).
+    If startsWith(trim(expr), chr(7)):
+        Return trim(expr).
     If hasStr(expr):
         Return concat(chr(3), concatTerms(split(expr, " + "), 1, "")).
     Return toText(evalParens(expr)).
@@ -837,7 +920,7 @@
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let subd be substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env).
-    Return jsEvalTernary(resolveArrays(subd)).
+    Return jsEvalTernary(resolveObjDot(resolveProps(resolveArrays(resolveObjects(subd))))).
 
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
@@ -990,7 +1073,7 @@
     Return false.
 
 ## To isOp1 (c: Text) -> Bool:
-    Let ops be ["+", "-", "*", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ","].
+    Let ops be ["+", "-", "*", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ",", "."].
     If ops contains c:
         Return true.
     If c is equal to chr(123):
