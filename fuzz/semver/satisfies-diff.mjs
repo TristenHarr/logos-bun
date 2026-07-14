@@ -84,6 +84,8 @@ if (OURS) {
     `${base[0]}.${wildTail}`, `${base[0]}.${base[1]}.${wildTail}`,
     `${base[0]}`, `${base[0]}.${base[1]}`,
   ]);
+  // A valid prerelease tag (node-accepted): triggers the §11-in-range special rule.
+  const preTag = () => pick(["alpha", "alpha.1", "beta.2", "rc.1", "0", "pre.3"]);
   // Build a range from a base triple, inside the implemented grammar.
   const rangeFrom = (base) => {
     const b = str(base);
@@ -91,7 +93,8 @@ if (OURS) {
     const px = partial(base);
     switch (pick(["caret", "tilde", "gt", "gte", "lt", "lte", "eq", "exact",
                   "and", "hyphen", "or", "star",
-                  "xbare", "xcaret", "xtilde", "xgte", "xgt", "xlt", "xlte"])) {
+                  "xbare", "xcaret", "xtilde", "xgte", "xgt", "xlt", "xlte",
+                  "pcaret", "pgte", "pand"])) {
       case "caret": return `^${b}`;
       case "tilde": return `~${b}`;
       case "gt": return `>${b}`;
@@ -111,6 +114,12 @@ if (OURS) {
       case "xgt": return `>${px}`;
       case "xlt": return `<${px}`;
       case "xlte": return `<=${px}`;
+      // prerelease comparators — the §11-in-range special rule (a comparator's
+      // prerelease at the version's own tuple is what lets a prerelease version
+      // in). bp shares the base tuple so matching-tuple cases are dense.
+      case "pcaret": { const bp = `${b}-${preTag()}`; return `^${bp}`; }
+      case "pgte": { const bp = `${b}-${preTag()}`; return `>=${bp}`; }
+      case "pand": { const bp = `${b}-${preTag()}`; return `>=${bp} <${b2}`; }
       default: return "*";
     }
   };
@@ -127,6 +136,12 @@ if (OURS) {
     // node-semver) treats it as `>1.0.0 AND =3.0.0` → false. This pin ensures we
     // never replicate bun's bug: node-semver says false, so must we.
     ["2.0.0", ">1.0.0 3.0.0"], ["3.0.0", ">1.0.0 3.0.0"], ["1.5.0", ">1.0.0 3.0.0"],
+    // §11-in-range special rule: a prerelease version only satisfies a set that
+    // has a prerelease comparator at its own [major,minor,patch] tuple.
+    ["1.2.3-alpha", ">1.0.0"], ["1.2.3-alpha", "^1.0.0"], ["1.2.3-alpha", "^1.2.3-alpha"],
+    ["1.2.3-beta", "^1.2.3-alpha"], ["1.2.4-alpha", ">=1.2.3-alpha <2.0.0"],
+    ["1.2.3-alpha", ">=1.2.3-alpha <2.0.0"], ["1.2.3", "^1.2.3-alpha"],
+    ["1.2.3-alpha.2", ">=1.2.3-alpha.1"], ["3.4.5-alpha", "^3.4.5-alpha"],
   ];
   const pairs = [...fixed];
   let guard = 0;
@@ -135,7 +150,10 @@ if (OURS) {
     const base = triple();
     const range = rangeFrom(base);
     if (semver.validRange(range) === null) continue;
-    const ver = str(pick([base, perturb(base), perturb(perturb(base)), triple()]));
+    let ver = str(pick([base, perturb(base), perturb(perturb(base)), triple()]));
+    // ~40% of the time attach a prerelease to the tested version — the trigger
+    // for the §11-in-range special rule; the tuple often matches a comparator's.
+    if (rnd() < 0.4) ver += `-${preTag()}`;
     if (!semver.valid(ver)) continue;
     pairs.push([ver, range]);
   }

@@ -313,20 +313,32 @@ regression lock in `fuzz/semver/satisfies-diff.mjs`. **Tweet:** Ported bun's sem
 found it's *more* correct than bun: `satisfies("2.0.0", ">1.0.0 3.0.0")` — bun says yes (it drops
 the `3.0.0` requirement!), our rewrite + node-semver say no. Verified against both.
 
+### BUG-27 · OURS · 2026-07-14 · correctness (FIXED, caught by our own fuzz)
+**What:** our `satisfies` had a `range == "*"` / `range == ""` fast-path returning true
+unconditionally — but under SemVer §11, a PRERELEASE version does not satisfy `*` (which desugars
+to `>=0.0.0`, a comparator with no prerelease at the version's tuple). So `satisfies("1.2.3-alpha",
+"*")` wrongly returned true. **Where:** `src/main.lg` `satisfies` shortcut. **Found by:**
+fuzz/semver/satisfies-diff.mjs the moment prerelease versions entered the corpus — differential
+fuzzing earning its keep. **Status:** **FIXED** (commit below) — removed the shortcuts so `*`/`""`
+flow through `testSet`, which applies the special rule (`testSet` already handled it correctly).
+**Tweet:** Fuzzing our own semver rewrite against node-semver caught a bug the moment we added
+prereleases: `1.2.3-alpha` should NOT match `*`. Differential fuzzing is the gift that keeps giving.
+
 ---
 
-_Live count: 26 (⭐×6 BUN [semver + 5 TOML], 13 toolchain [**8 FIXED**, 1 open + BUG-11 recurring],
-7 ours). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML
-parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table); bun's semver
-`satisfies` drops trailing exact conjuncts (BUG-12). Fuzz lanes: fuzz/semver/ (port-diff +
+_Live count: 27 (⭐×6 BUN [semver + 5 TOML], 13 toolchain [**8 FIXED**, 1 open + BUG-11 recurring],
+8 ours [all fixed]). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct).
+bun's TOML parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table); bun's
+semver `satisfies` drops trailing exact conjuncts (BUG-12). Fuzz lanes: fuzz/semver/ (port-diff +
 satisfies-diff + diff), fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out). **P2.1
-SEMVER — compareVersions (full SemVer §11) + satisfies (FULL RANGE grammar incl. x-ranges) PORTED
-+ GREEN:** in `src/main.lg` via `bun __semver-compare` / `__semver-satisfies`, differential-verified
-vs node-semver — **compare ~17k pairs / satisfies ~18k pairs (^ ~ >= <= > < =, exact, `*`, partial
-x-ranges `1.x`/`1.2.x`/`^1.x`/`~1.x`/`>=1.x`, AND, OR `||`, hyphen ranges), 0 diffs**, incl. the
-full §11 prerelease chain AND the BUG-12 lock (we're correct where bun is wrong). Toolchain fixes
-this campaign: exitWith/eputs (592ec80), split (b9f9928), comparative-identifiers (6e36198), worded
-`>=`/`<=` (9763a91), worded negations (e425b28), substringAfter/compareText/isDigits (af97110),
-startsWith/toText (08e6c04). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER
-max-satisfying, not compare/satisfies), atomics (install), BUG-11 preamble robustness. **Next:
-prerelease-version-in-range special rule (the last satisfies edge)** → then the resolver (G-SORT)._
+SEMVER — COMPLETE: compareVersions (full SemVer §11) + satisfies (FULL node-semver RANGE parity)
+PORTED + GREEN:** in `src/main.lg` via `bun __semver-compare` / `__semver-satisfies`,
+differential-verified vs node-semver — **compare ~17k pairs / satisfies ~30k pairs (^ ~ >= <= > < =,
+exact, `*`, partial x-ranges `1.x`/`1.2.x`/`^1.x`/`~1.x`/`>=1.x`, AND, OR `||`, hyphen ranges, AND
+the prerelease-version-in-range special rule), 0 diffs**, incl. the full §11 prerelease chain AND
+the BUG-12 lock (we're correct where bun is wrong). Toolchain fixes this campaign: exitWith/eputs
+(592ec80), split (b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded
+negations (e425b28), substringAfter/compareText/isDigits (af97110), startsWith/toText (08e6c04).
+Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER max-satisfying, NOT
+compare/satisfies), atomics (install), BUG-11 preamble robustness. **Next: the version RESOLVER
+(pick max-satisfying from a list — needs G-SORT), or P1.3 bunfig (pure-.lg TOML).**_

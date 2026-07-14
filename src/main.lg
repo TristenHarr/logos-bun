@@ -148,6 +148,11 @@
 ## To xLo (spec: Text) -> Text:
     Return versionString(compOr0(spec, 1), compOr0(spec, 2), compOr0(spec, 3)).
 
+## To loBound (spec: Text) -> Text:
+    If specCount(spec) is equal to 3:
+        Return spec.
+    Return xLo(spec).
+
 ## To partialUpper (spec: Text) -> Text:
     If specCount(spec) is equal to 2:
         Return versionString(compOr0(spec, 1), compOr0(spec, 2) + 1, 0).
@@ -173,23 +178,39 @@
         Return versionString(compOr0(spec, 1) + 1, 0, 0).
     Return versionString(compOr0(spec, 1), compOr0(spec, 2) + 1, 0).
 
+## To testGE (version: Text, spec: Text) -> Bool:
+    Return cmpNum(version, loBound(spec)) is greater than or equal to 0.
+
+## To testLT (version: Text, spec: Text) -> Bool:
+    Return cmpNum(version, loBound(spec)) is less than 0.
+
+## To testLE (version: Text, spec: Text) -> Bool:
+    If specCount(spec) is equal to 3:
+        Return cmpNum(version, spec) is less than or equal to 0.
+    Return cmpNum(version, partialUpper(spec)) is less than 0.
+
+## To testGT (version: Text, spec: Text) -> Bool:
+    If specCount(spec) is equal to 3:
+        Return cmpNum(version, spec) is greater than 0.
+    Return cmpNum(version, partialUpper(spec)) is greater than or equal to 0.
+
 ## To testXRange (version: Text, spec: Text) -> Bool:
     Let c be specCount(spec).
     If c is equal to 0:
         Return true.
     If c is equal to 3:
         Return cmpNum(version, spec) is equal to 0.
-    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+    If testGE(version, spec):
         Return cmpNum(version, partialUpper(spec)) is less than 0.
     Return false.
 
 ## To testCaret (version: Text, spec: Text) -> Bool:
-    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+    If testGE(version, spec):
         Return cmpNum(version, caretUpper(spec)) is less than 0.
     Return false.
 
 ## To testTilde (version: Text, spec: Text) -> Bool:
-    If cmpNum(version, xLo(spec)) is greater than or equal to 0:
+    If testGE(version, spec):
         Return cmpNum(version, tildeUpper(spec)) is less than 0.
     Return false.
 
@@ -197,19 +218,13 @@
     If token is equal to "":
         Return true.
     If startsWith(token, ">="):
-        Return cmpNum(version, xLo(substringAfter(token, "="))) is greater than or equal to 0.
+        Return testGE(version, substringAfter(token, "=")).
     If startsWith(token, "<="):
-        Let specLe be substringAfter(token, "=").
-        If specCount(specLe) is equal to 3:
-            Return cmpNum(version, specLe) is less than or equal to 0.
-        Return cmpNum(version, partialUpper(specLe)) is less than 0.
+        Return testLE(version, substringAfter(token, "=")).
     If startsWith(token, ">"):
-        Let specGt be substringAfter(token, ">").
-        If specCount(specGt) is equal to 3:
-            Return cmpNum(version, specGt) is greater than 0.
-        Return cmpNum(version, partialUpper(specGt)) is greater than or equal to 0.
+        Return testGT(version, substringAfter(token, ">")).
     If startsWith(token, "<"):
-        Return cmpNum(version, xLo(substringAfter(token, "<"))) is less than 0.
+        Return testLT(version, substringAfter(token, "<")).
     If startsWith(token, "="):
         Return testXRange(version, substringAfter(token, "=")).
     If startsWith(token, "^"):
@@ -218,23 +233,64 @@
         Return testTilde(version, substringAfter(token, "~")).
     Return testXRange(version, token).
 
+## To stripOp (token: Text) -> Text:
+    If startsWith(token, ">="):
+        Return substringAfter(token, "=").
+    If startsWith(token, "<="):
+        Return substringAfter(token, "=").
+    If startsWith(token, ">"):
+        Return substringAfter(token, ">").
+    If startsWith(token, "<"):
+        Return substringAfter(token, "<").
+    If startsWith(token, "="):
+        Return substringAfter(token, "=").
+    If startsWith(token, "^"):
+        Return substringAfter(token, "^").
+    If startsWith(token, "~"):
+        Return substringAfter(token, "~").
+    Return token.
+
+## To sameTuple (a: Text, b: Text) -> Bool:
+    If major(a) is not equal to major(b):
+        Return false.
+    If minor(a) is not equal to minor(b):
+        Return false.
+    If patch(a) is equal to patch(b):
+        Return true.
+    Return false.
+
+## To tokenAllowsPre (token: Text, version: Text) -> Bool:
+    Let spec be stripOp(token).
+    If prereleaseOf(spec) is equal to "":
+        Return false.
+    Return sameTuple(spec, version).
+
 ## To testSet (version: Text, setStr: Text) -> Bool:
     Let hyphenParts be split(setStr, " - ").
     If length of hyphenParts is equal to 2:
-        If cmpNum(version, item 1 of hyphenParts) is greater than or equal to 0:
-            Return cmpNum(version, item 2 of hyphenParts) is less than or equal to 0.
+        Let loH be item 1 of hyphenParts.
+        Let hiH be item 2 of hyphenParts.
+        If testGE(version, loH):
+            If testLE(version, hiH):
+                If prereleaseOf(version) is equal to "":
+                    Return true.
+                If tokenAllowsPre(loH, version):
+                    Return true.
+                If tokenAllowsPre(hiH, version):
+                    Return true.
         Return false.
     Let tokens be split(setStr, " ").
     Repeat for i from 1 to length of tokens:
         If not testComparator(version, item i of tokens):
             Return false.
-    Return true.
+    If prereleaseOf(version) is equal to "":
+        Return true.
+    Repeat for i from 1 to length of tokens:
+        If tokenAllowsPre(item i of tokens, version):
+            Return true.
+    Return false.
 
 ## To satisfies (version: Text, range: Text) -> Bool:
-    If range is equal to "":
-        Return true.
-    If range is equal to "*":
-        Return true.
     Let sets be split(range, "||").
     Repeat for i from 1 to length of sets:
         If testSet(version, item i of sets):
