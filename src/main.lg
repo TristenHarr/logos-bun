@@ -482,6 +482,43 @@
 ## To base64Encode (s: Text) -> Text:
     Return b64Encode(s, 1, "").
 
+## To b64Index (c: Text) -> Int:
+    Let o be ord(c).
+    If o is greater than or equal to 65:
+        If o is less than or equal to 90:
+            Return o - 65.
+    If o is greater than or equal to 97:
+        If o is less than or equal to 122:
+            Return o - 71.
+    If o is greater than or equal to 48:
+        If o is less than or equal to 57:
+            Return o + 4.
+    If o is equal to 43:
+        Return 62.
+    Return 63.
+
+## To b64DecodeTrip (c1: Text, c2: Text, c3: Text, c4: Text) -> Text:
+    Let v1 be b64Index(c1).
+    Let v2 be b64Index(c2).
+    Let out1 be chr((v1 * 4) + (v2 // 16)).
+    If c3 is equal to "=":
+        Return out1.
+    Let v3 be b64Index(c3).
+    Let out2 be concat(out1, chr(((v2 % 16) * 16) + (v3 // 4))).
+    If c4 is equal to "=":
+        Return out2.
+    Let v4 be b64Index(c4).
+    Return concat(out2, chr(((v3 % 4) * 64) + v4)).
+
+## To b64Decode (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let trip be b64DecodeTrip(item i of s, item (i + 1) of s, item (i + 2) of s, item (i + 3) of s).
+    Return b64Decode(s, i + 4, concat(acc, trip)).
+
+## To base64Decode (s: Text) -> Text:
+    Return b64Decode(s, 1, "").
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -537,6 +574,8 @@ Otherwise If cmd is equal to "__toml-get":
     Show tomlGet(item 3 of arguments, item 4 of arguments).
 Otherwise If cmd is equal to "__base64":
     Show base64Encode(item 3 of arguments).
+Otherwise If cmd is equal to "__base64-decode":
+    Show base64Decode(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

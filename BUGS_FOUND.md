@@ -414,8 +414,10 @@ byte value for ASCII) + `concat` (BUG-29 workaround). **Tweet:** (n/a — toolch
 **P2 LEAF — BASE64 (RFC 4648 encode) PORTED + GREEN:** `base64Encode` in pure LOGOS — the
 3-byte→4-char bit-arithmetic done with integer `//` and `%` (no bitwise needed), all three padding
 cases, recursion-threaded accumulator built via `concat`. Exposed via `bun __base64`;
-differential-fuzzed vs Node `Buffer.toString('base64')`: **~8k printable-ASCII strings across 4
-seeds, 0 diffs** (fuzz/base64/encode-diff.mjs). New byte/bit capability for LOGOS (`ord`), the
-substrate hashes + wire codecs will reuse. Subset: ASCII in (UTF-8-multibyte/binary + decode next).
-Remaining toolchain gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics.
-**Next: base64 decode, TOML arrays, glob braces, or another P2 leaf (url/ini).**_
+differential-fuzzed vs Node `Buffer.toString('base64')`: **~8k strings across 4 seeds, 0 diffs.
+base64 DECODE also done (`b64Index` char→6-bit via range arithmetic, `base64Decode`, `bun
+__base64-decode`): encode matches Node + decode ROUND-TRIPS + decode matches Node over ~4.5k
+strings (fuzz/base64/encode-diff.mjs). New byte/bit capability for LOGOS (`ord`), the substrate
+hashes + wire codecs reuse. Subset: ASCII in (UTF-8-multibyte/binary next). Remaining toolchain
+gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics. **Next: TOML arrays,
+glob braces, or another P2 leaf (url/ini).**_
