@@ -325,6 +325,29 @@
 ## To minSatisfying (versionsCsv: Text, range: Text) -> Text:
     Return minSatFrom(split(versionsCsv, ","), range, 1, "").
 
+## To globMatch (pat: Text, text: Text, pi: Int, ti: Int) -> Bool:
+    Let plen be length of pat.
+    Let tlen be length of text.
+    If pi is greater than plen:
+        Return ti is greater than tlen.
+    Let pc be item pi of pat.
+    If pc is equal to "*":
+        If globMatch(pat, text, pi + 1, ti):
+            Return true.
+        If ti is less than or equal to tlen:
+            Return globMatch(pat, text, pi, ti + 1).
+        Return false.
+    If ti is greater than tlen:
+        Return false.
+    If pc is equal to "?":
+        Return globMatch(pat, text, pi + 1, ti + 1).
+    If pc is equal to item ti of text:
+        Return globMatch(pat, text, pi + 1, ti + 1).
+    Return false.
+
+## To glob (pat: Text, text: Text) -> Bool:
+    Return globMatch(pat, text, 1, 1).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -366,6 +389,11 @@ Otherwise If cmd is equal to "__semver-max":
     Show maxSatisfying(item 3 of arguments, item 4 of arguments).
 Otherwise If cmd is equal to "__semver-min":
     Show minSatisfying(item 3 of arguments, item 4 of arguments).
+Otherwise If cmd is equal to "__glob":
+    If glob(item 3 of arguments, item 4 of arguments):
+        Show "true".
+    Otherwise:
+        Show "false".
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
