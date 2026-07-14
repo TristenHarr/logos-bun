@@ -569,6 +569,27 @@
     Let tokens be split(expr, " ").
     Return jsEvalAdd(tokens, 2, 0, parseInt(item 1 of tokens), 1).
 
+## To joinPieces (pieces: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
+    If i is greater than upto:
+        Return acc.
+    If i is equal to 1:
+        Let firstPiece be item 1 of pieces.
+        Return joinPieces(pieces, 2, upto, firstPiece).
+    Let piece be item i of pieces.
+    Let nextAcc be concat(concat(acc, "("), piece).
+    Return joinPieces(pieces, i + 1, upto, nextAcc).
+
+## To evalParens (expr: Text) -> Int:
+    If substringBefore(expr, "(") is equal to expr:
+        Return jsEval(expr).
+    Let leftOfClose be substringBefore(expr, ")").
+    Let rest be substringAfter(expr, ")").
+    Let pieces be split(leftOfClose, "(").
+    Let np be length of pieces.
+    Let inner be trim(item np of pieces).
+    Let prefix be joinPieces(pieces, 1, np - 1, "").
+    Return evalParens(concat(concat(prefix, toText(jsEval(inner))), rest)).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -631,7 +652,7 @@ Otherwise If cmd is equal to "__hex":
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
-    Show jsEval(item 3 of arguments).
+    Show evalParens(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
