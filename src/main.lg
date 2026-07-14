@@ -601,29 +601,29 @@
 ## To jsEvalCmp (expr: Text) -> Text:
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
-        Return cmpResult(evalParens(item 1 of parts) is less than or equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
     If hasSep(expr, " >= "):
         Let parts be split(expr, " >= ").
-        Return cmpResult(evalParens(item 1 of parts) is greater than or equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
-        Return cmpResult(evalParens(item 1 of parts) is equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
     If hasSep(expr, " !== "):
         Let parts be split(expr, " !== ").
-        Return cmpResult(evalParens(item 1 of parts) is not equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
     If hasSep(expr, " == "):
         Let parts be split(expr, " == ").
-        Return cmpResult(evalParens(item 1 of parts) is equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
     If hasSep(expr, " != "):
         Let parts be split(expr, " != ").
-        Return cmpResult(evalParens(item 1 of parts) is not equal to evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
-        Return cmpResult(evalParens(item 1 of parts) is less than evalParens(item 2 of parts)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than 0).
     If hasSep(expr, " > "):
         Let parts be split(expr, " > ").
-        Return cmpResult(evalParens(item 1 of parts) is greater than evalParens(item 2 of parts)).
-    Return toText(evalParens(expr)).
+        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
+    Return evalValue(expr).
 
 ## To boolOf (t: Text) -> Bool:
     Return t is equal to "true".
@@ -744,6 +744,43 @@
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
+
+## To materialize (v: Text) -> Text:
+    If startsWith(v, chr(3)):
+        Return substringAfter(v, chr(3)).
+    Return v.
+
+## To hasStr (expr: Text) -> Bool:
+    If substringBefore(expr, chr(34)) is not equal to expr:
+        Return true.
+    If substringBefore(expr, chr(3)) is not equal to expr:
+        Return true.
+    Return false.
+
+## To litToStr (tok: Text) -> Text:
+    If startsWith(tok, chr(34)):
+        Let content be item 1 of split(substringAfter(tok, chr(34)), chr(34)).
+        Return concat(chr(3), replaceAll(content, chr(4), " ")).
+    Return tok.
+
+## To concatTerms (terms: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of terms:
+        Return acc.
+    Let t be trim(item i of terms).
+    Let val be materialize(litToStr(t)).
+    Return concatTerms(terms, i + 1, concat(acc, val)).
+
+## To evalValue (expr: Text) -> Text:
+    If hasStr(expr):
+        Return concat(chr(3), concatTerms(split(expr, " + "), 1, "")).
+    Return toText(evalParens(expr)).
+
+## To cmpVals (a: Text, b: Text) -> Int:
+    If startsWith(a, chr(3)):
+        Return compareText(materialize(a), materialize(b)).
+    If startsWith(b, chr(3)):
+        Return compareText(materialize(a), materialize(b)).
+    Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Return jsEvalTernary(substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env)).
@@ -911,19 +948,25 @@
 ## To spaced (t: Text) -> Text:
     Return concat(concat(" ", t), " ").
 
-## To normJs (s: Text, i: Int, acc: Text) -> Text:
+## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        Return normJs(s, i + 1, inStr is equal to false, concat(acc, c)).
+    If inStr:
+        If c is equal to " ":
+            Return normJs(s, i + 1, inStr, concat(acc, chr(4))).
+        Return normJs(s, i + 1, inStr, concat(acc, c)).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
-        Return normJs(s, i + 3, concat(acc, spaced(op3))).
+        Return normJs(s, i + 3, inStr, concat(acc, spaced(op3))).
     Let op2 be nchars(s, i, 2).
     If isOp2(op2):
-        Return normJs(s, i + 2, concat(acc, spaced(op2))).
-    Let c be item i of s.
+        Return normJs(s, i + 2, inStr, concat(acc, spaced(op2))).
     If isOp1(c):
-        Return normJs(s, i + 1, concat(acc, spaced(c))).
-    Return normJs(s, i + 1, concat(acc, c)).
+        Return normJs(s, i + 1, inStr, concat(acc, spaced(c))).
+    Return normJs(s, i + 1, inStr, concat(acc, c)).
 
 ## To joinNonEmpty (parts: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of parts:
@@ -936,10 +979,10 @@
     Return joinNonEmpty(parts, i + 1, concat(concat(acc, " "), piece)).
 
 ## To normalizeJs (s: Text) -> Text:
-    Return joinNonEmpty(split(normJs(s, 1, ""), " "), 1, "").
+    Return joinNonEmpty(split(normJs(s, 1, false, ""), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
-    Return jsRun(normalizeJs(program)).
+    Return materialize(jsRun(normalizeJs(program))).
 
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
