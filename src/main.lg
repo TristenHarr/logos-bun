@@ -590,6 +590,41 @@
     Let prefix be joinPieces(pieces, 1, np - 1, "").
     Return evalParens(concat(concat(prefix, toText(jsEval(inner))), rest)).
 
+## To cmpResult (b: Bool) -> Text:
+    If b:
+        Return "true".
+    Return "false".
+
+## To hasSep (expr: Text, sep: Text) -> Bool:
+    Return substringBefore(expr, sep) is not equal to expr.
+
+## To jsEvalCmp (expr: Text) -> Text:
+    If hasSep(expr, " <= "):
+        Let parts be split(expr, " <= ").
+        Return cmpResult(evalParens(item 1 of parts) is less than or equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " >= "):
+        Let parts be split(expr, " >= ").
+        Return cmpResult(evalParens(item 1 of parts) is greater than or equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " === "):
+        Let parts be split(expr, " === ").
+        Return cmpResult(evalParens(item 1 of parts) is equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " !== "):
+        Let parts be split(expr, " !== ").
+        Return cmpResult(evalParens(item 1 of parts) is not equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " == "):
+        Let parts be split(expr, " == ").
+        Return cmpResult(evalParens(item 1 of parts) is equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " != "):
+        Let parts be split(expr, " != ").
+        Return cmpResult(evalParens(item 1 of parts) is not equal to evalParens(item 2 of parts)).
+    If hasSep(expr, " < "):
+        Let parts be split(expr, " < ").
+        Return cmpResult(evalParens(item 1 of parts) is less than evalParens(item 2 of parts)).
+    If hasSep(expr, " > "):
+        Let parts be split(expr, " > ").
+        Return cmpResult(evalParens(item 1 of parts) is greater than evalParens(item 2 of parts)).
+    Return toText(evalParens(expr)).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -652,7 +687,7 @@ Otherwise If cmd is equal to "__hex":
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
-    Show evalParens(item 3 of arguments).
+    Show jsEvalCmp(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

@@ -1,10 +1,10 @@
-// fuzz/jsint/arith-diff — the FIRST slice of the P7 JS engine: a definitional
-// arithmetic-expression evaluator (jsEval + evalParens) in pure LOGOS,
-// differential-fuzzed against Node's own eval(). Covers + - * % with correct
-// precedence (* % bind tighter than + -), left-to-right associativity, AND
-// parenthesized subexpressions (nested grouping), over space-separated integer
-// tokens. Division (JS float) and a real tokenizer (drop the space requirement)
-// are later increments; the generator stays integer-exact so a diff is a real bug.
+// fuzz/jsint/arith-diff — the P7 JS engine's expression evaluator (jsEvalCmp →
+// evalParens → jsEval) in pure LOGOS, differential-fuzzed against Node's own
+// eval(). Covers integer arithmetic + - * % with correct precedence, left-to-
+// right associativity, parenthesized subexpressions (nested grouping), AND the
+// comparison/equality tier (< > <= >= == === != !==, which sits below arithmetic
+// and yields booleans). Division (JS float) and a real tokenizer (drop the space
+// requirement) are later increments; the generator stays integer-exact.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -20,30 +20,34 @@ if (OURS) {
   const pick = (a) => a[Math.floor(rnd() * a.length)];
   const num = () => String(Math.floor(rnd() * 30));
   const op = () => pick(["+", "-", "*", "%"]);
-  // A factor is a number or, with decreasing probability by depth, a
-  // parenthesized subexpression — so nesting stays bounded.
-  const factor = (depth) => (depth < 3 && rnd() < 0.35 ? `( ${expr(depth + 1)} )` : num());
-  const expr = (depth) => {
-    const terms = 1 + Math.floor(rnd() * (depth === 0 ? 6 : 3));
+  const cmp = () => pick(["<", ">", "<=", ">=", "==", "===", "!=", "!=="]);
+  const factor = (depth) => (depth < 3 && rnd() < 0.35 ? `( ${arith(depth + 1)} )` : num());
+  const arith = (depth) => {
+    const terms = 1 + Math.floor(rnd() * (depth === 0 ? 5 : 3));
     let parts = [factor(depth)];
     for (let i = 1; i < terms; i++) {
-      let o = op(), rhs = factor(depth);
-      if (o === "%") rhs = num() === "0" ? "1" : rhs; // reduce chance of % 0
+      const o = op();
+      // % by a NONZERO literal only — this integer engine has no NaN, so x % 0
+      // (JS NaN) is out of scope; keeping the divisor a plain 1..29 avoids it
+      // and the "% (subexpr that reduces to 0)" trap.
+      const rhs = o === "%" ? String(1 + Math.floor(rnd() * 29)) : factor(depth);
       parts.push(o, rhs);
     }
     return parts.join(" ");
   };
+  // Top level: an arithmetic expression, or (40%) a comparison of two of them.
+  const expr = () => (rnd() < 0.4 ? `${arith(0)} ${cmp()} ${arith(0)}` : arith(0));
   let checked = 0;
   for (let i = 0; i < n; i++) {
-    const e = expr(0);
+    const e = expr();
     let ref;
     try { ref = eval(e); } catch { continue; }
-    if (!Number.isInteger(ref)) continue;         // guard: % by a paren that reduced to 0 → NaN
-    ref = String(ref);
+    if (typeof ref === "number" && !Number.isInteger(ref)) continue; // % 0 → NaN guard
+    ref = String(ref); // number → "N", boolean → "true"/"false"
     const got = ours(e);
     if (got !== ref) fails.push(`jsEval(${JSON.stringify(e)}): ours=${got} node=${ref}`);
     checked++;
   }
-  if (!fails.length) console.log(`PASS jsint-arith: ${checked} expressions (with parens) agree with Node eval (seed ${seed})`);
+  if (!fails.length) console.log(`PASS jsint: ${checked} expressions (arith + parens + comparisons) agree with Node eval (seed ${seed})`);
 }
-if (fails.length) { for (const f of fails.slice(0, 20)) console.error("FAIL jsint-arith: " + f); process.exit(1); }
+if (fails.length) { for (const f of fails.slice(0, 20)) console.error("FAIL jsint: " + f); process.exit(1); }
