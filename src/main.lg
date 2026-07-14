@@ -9,6 +9,8 @@
 ## To native substringAfter (s: Text, sep: Text) -> Text
 ## To native compareText (a: Text, b: Text) -> Int
 ## To native isDigits (s: Text) -> Bool
+## To native startsWith (s: Text, prefix: Text) -> Bool
+## To native toText (n: Int) -> Text
 ## To native parseInt (s: Text) -> Int
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
@@ -109,6 +111,73 @@
         Otherwise:
             Return 0.
 
+## To cmpNum (a: Text, b: Text) -> Int:
+    Return orderingToInt(compareVersions(a, b)).
+
+## To versionString (m: Int, n: Int, p: Int) -> Text:
+    Return toText(m) + "." + toText(n) + "." + toText(p).
+
+## To testCaret (version: Text, spec: Text) -> Bool:
+    If cmpNum(version, spec) is greater than or equal to 0:
+        Let m be major(spec).
+        Let n be minor(spec).
+        Let p be patch(spec).
+        If m is greater than 0:
+            Return cmpNum(version, versionString(m + 1, 0, 0)) is less than 0.
+        If n is greater than 0:
+            Return cmpNum(version, versionString(0, n + 1, 0)) is less than 0.
+        Return cmpNum(version, versionString(0, 0, p + 1)) is less than 0.
+    Return false.
+
+## To testTilde (version: Text, spec: Text) -> Bool:
+    If cmpNum(version, spec) is greater than or equal to 0:
+        Return cmpNum(version, versionString(major(spec), minor(spec) + 1, 0)) is less than 0.
+    Return false.
+
+## To testComparator (version: Text, token: Text) -> Bool:
+    If token is equal to "":
+        Return true.
+    If token is equal to "*":
+        Return true.
+    If startsWith(token, ">="):
+        Return cmpNum(version, substringAfter(token, "=")) is greater than or equal to 0.
+    If startsWith(token, "<="):
+        Return cmpNum(version, substringAfter(token, "=")) is less than or equal to 0.
+    If startsWith(token, ">"):
+        Return cmpNum(version, substringAfter(token, ">")) is greater than 0.
+    If startsWith(token, "<"):
+        Return cmpNum(version, substringAfter(token, "<")) is less than 0.
+    If startsWith(token, "="):
+        Return cmpNum(version, substringAfter(token, "=")) is equal to 0.
+    If startsWith(token, "^"):
+        Return testCaret(version, substringAfter(token, "^")).
+    If startsWith(token, "~"):
+        Return testTilde(version, substringAfter(token, "~")).
+    Return cmpNum(version, token) is equal to 0.
+
+## To testSet (version: Text, setStr: Text) -> Bool:
+    Let hyphenParts be split(setStr, " - ").
+    If length of hyphenParts is equal to 2:
+        If cmpNum(version, item 1 of hyphenParts) is greater than or equal to 0:
+            Return cmpNum(version, item 2 of hyphenParts) is less than or equal to 0.
+        Return false.
+    Let tokens be split(setStr, " ").
+    Repeat for i from 1 to length of tokens:
+        If not testComparator(version, item i of tokens):
+            Return false.
+    Return true.
+
+## To satisfies (version: Text, range: Text) -> Bool:
+    If range is equal to "":
+        Return true.
+    If range is equal to "*":
+        Return true.
+    Let sets be split(range, "||").
+    Repeat for i from 1 to length of sets:
+        If testSet(version, item i of sets):
+            Return true.
+    Return false.
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -139,6 +208,13 @@ Otherwise If cmd is equal to "__semver-compare":
     Let versionA be item 3 of arguments.
     Let versionB be item 4 of arguments.
     Show orderingToInt(compareVersions(versionA, versionB)).
+Otherwise If cmd is equal to "__semver-satisfies":
+    Let theVersion be item 3 of arguments.
+    Let theRange be item 4 of arguments.
+    If satisfies(theVersion, theRange):
+        Show "true".
+    Otherwise:
+        Show "false".
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

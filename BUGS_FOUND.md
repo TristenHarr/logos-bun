@@ -297,21 +297,36 @@ increment. **Status:** **FIXED** (toolchain af97110) — locked by a new `text::
 string toolkit. Added `substringAfter`/`compareText`/`isDigits` to LOGOS as native builtins — the
 parser's bread and butter. (n/a — our toolchain.)
 
+### BUG-26 · TOOLCHAIN · 2026-07-14 · gap (FIXED)
+**What:** semver range/`satisfies` parsing needed two more primitives: `startsWith(s, prefix)`
+(the comparator-operator sniff — `^ ~ >= <= > < =`) and `toText(n)` (Int→decimal, inverse of
+`parseInt`, to rebuild a version bound like `^1.2.3`'s `<2.0.0` upper). **Where:**
+`logicaffeine_system::text` + `map_native_function`. **Found by:** the `satisfies` increment.
+**Status:** **FIXED** (toolchain 08e6c04) — locked by `text::tests`. **Tweet:** (n/a — toolchain.)
+
+### BUG-12 · BUN · REPRODUCED + OUR PORT IS CORRECT (2026-07-14)
+**Update:** the campaign's thesis, demonstrated concretely. `Bun.semver.satisfies("2.0.0",
+">1.0.0 3.0.0")` returns **true** (bun DROPS the trailing `3.0.0` exact-version conjunct);
+node-semver and our LOGOS port both return the correct **false** (the set is `>1.0.0 AND =3.0.0`;
+2.0.0 fails `=3.0.0`). **The reimplementation is more correct than the original.** Pinned as a
+regression lock in `fuzz/semver/satisfies-diff.mjs`. **Tweet:** Ported bun's semver to LOGOS and
+found it's *more* correct than bun: `satisfies("2.0.0", ">1.0.0 3.0.0")` — bun says yes (it drops
+the `3.0.0` requirement!), our rewrite + node-semver say no. Verified against both.
+
 ---
 
-_Live count: 25 (⭐×6 BUN [semver + 5 TOML], 12 toolchain [**7 FIXED**, 1 open + BUG-11 recurring],
+_Live count: 26 (⭐×6 BUN [semver + 5 TOML], 13 toolchain [**8 FIXED**, 1 open + BUG-11 recurring],
 7 ours). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct). bun's TOML
-parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table) — materially
-spec-incomplete. Fuzz lanes: fuzz/semver/ (port-diff + diff), fuzz/toml/, fuzz/json/ (clean),
-fuzz/stringwidth/ (ruled out). **P2.1 SEMVER — FULL SemVer §11 PRECEDENCE PORTED + GREEN:**
-`compareVersions` (Ordering + split-parse + numeric triple + prerelease ordering + build-metadata
-ignored) in `src/main.lg` via `bun __semver-compare`, differential-verified vs node-semver —
-**~15.6k pairs across 7 seeds, 0 diffs** (fuzz/semver/port-diff.mjs, now WITH prereleases +
-build), incl. the full spec chain `1.0.0-alpha < …-alpha.1 < …-alpha.beta < …-beta < …-beta.2 <
-…-beta.11 < …-rc.1 < 1.0.0` and the lexicographic traps 1.2.10>1.2.9 / 0.10.1>0.9.17. Toolchain
-fixes this campaign: exitWith/eputs (592ec80), split (b9f9928), comparative-identifiers (6e36198),
-worded `>=`/`<=` (9763a91), worded negations (e425b28), substringAfter/compareText/isDigits
-(af97110). Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER + range
-max-satisfying, not core/compare), atomics (install), BUG-11 preamble robustness. **Next:
-`satisfies`/range parsing** (^, ~, ||, hyphen, x-ranges — where bun's BUG-12 is a trap our port
-must NOT replicate)._
+parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table); bun's semver
+`satisfies` drops trailing exact conjuncts (BUG-12). Fuzz lanes: fuzz/semver/ (port-diff +
+satisfies-diff + diff), fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out). **P2.1
+SEMVER — compareVersions (full SemVer §11) + satisfies (RANGE grammar) PORTED + GREEN:** in
+`src/main.lg` via `bun __semver-compare` / `__semver-satisfies`, differential-verified vs
+node-semver — **compare ~17k pairs / satisfies ~9.3k pairs (^ ~ >= <= > < =, exact, `*`, AND, OR
+`||`, hyphen ranges), 0 diffs**, incl. the full §11 prerelease chain AND the BUG-12 lock (we're
+correct where bun is wrong). Toolchain fixes this campaign: exitWith/eputs (592ec80), split
+(b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded negations
+(e425b28), substringAfter/compareText/isDigits (af97110), startsWith/toText (08e6c04). Remaining
+gaps: cross-module functions (BUG-24), sort (semver RESOLVER max-satisfying, not compare/satisfies),
+atomics (install), BUG-11 preamble robustness. **Next: partial x-ranges (`1.x`, `1.2.x`, `^1.x`) +
+prerelease-version-in-range special rule** → then the resolver (needs G-SORT)._
