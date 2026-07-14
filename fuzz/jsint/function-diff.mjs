@@ -24,16 +24,29 @@ if (OURS) {
     (N) => [`function f(n){if(n<=0){return 1};return 2*f(n-1)}`, `f(${N})`],        // power of 2
     (N) => [`function f(n){if(n<=0){return 0};return f(n-1)+2}`, `f(${N})`],        // 2n
   ];
+  // Multi-parameter functions (2-3 params), recursive and non-recursive.
+  const multiTemplates = [
+    (a, b) => [`function f(a,b){return a+b}`, `f(${a},${b})`],
+    (a, b) => [`function f(a,b){return a*b}`, `f(${a},${b})`],
+    (a, b) => [`function f(a,b){if(a>b){return a};return b}`, `f(${a},${b})`],       // max
+    (a, b) => [`function f(a,b){if(a<b){return a};return b}`, `f(${a},${b})`],       // min
+    (a, b) => [`function f(a,b,c){return a*b+c}`, `f(${a},${b},${(a + b) % 7})`],    // 3-param
+    (b, e) => [`function f(b,e){if(e<=0){return 1};return b*f(b,e-1)}`, `f(${1 + (b % 3)},${e % 6})`], // pow (recursive multi-param)
+  ];
   const program = () => {
-    if (rnd() < 0.6) {
-      const N = 1 + Math.floor(rnd() * 8);                     // small so it terminates + fits i64
+    const k = rnd();
+    if (k < 0.45) {
+      const N = 1 + Math.floor(rnd() * 8);
       const [def, call] = pick(recTemplates)(N);
       const post = rnd() < 0.3 ? `+${Math.floor(rnd() * 10)}` : "";
       return `${def};${call}${post}`;
     }
-    // non-recursive: return an arithmetic expr of the param, called (maybe twice).
-    const op = pick(["+", "*", "-"]), k = Math.floor(rnd() * 9);
-    const def = `function g(x){return x${op}${k + 1}}`;
+    if (k < 0.8) {
+      const [def, call] = pick(multiTemplates)(Math.floor(rnd() * 12), Math.floor(rnd() * 8));
+      return `${def};${call}`;
+    }
+    const op = pick(["+", "*", "-"]), c = Math.floor(rnd() * 9);
+    const def = `function g(x){return x${op}${c + 1}}`;
     const a = Math.floor(rnd() * 12), b = Math.floor(rnd() * 12);
     const call = rnd() < 0.5 ? `g(${a})` : `g(${a})+g(${b})`;
     return `${def};${call}`;

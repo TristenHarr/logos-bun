@@ -711,11 +711,19 @@
 ## To hasReturn (env: Text) -> Bool:
     Return envGet(env, "__ret") is not equal to "".
 
-## To callFn (fnVal: Text, argVal: Text, env: Text) -> Text:
+## To bindParams (params: Seq of Text, args: Seq of Text, i: Int, callerEnv: Text, acc: Text) -> Text:
+    If i is greater than length of params:
+        Return acc.
+    Let pname be trim(item i of params).
+    Let aval be jsEvalIn(item i of args, callerEnv).
+    Return bindParams(params, args, i + 1, callerEnv, envSet(acc, pname, aval)).
+
+## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     Let afterMark be substringAfter(fnVal, chr(1)).
-    Let param be substringBefore(afterMark, chr(1)).
+    Let paramStr be substringBefore(afterMark, chr(1)).
     Let body be replaceAll(substringAfter(afterMark, chr(1)), chr(2), ";").
-    Let doneEnv be runBlockStr(body, envSet(env, param, argVal)).
+    Let localEnv be bindParams(split(paramStr, ","), split(argsText, ","), 1, env, env).
+    Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
 
 ## To resolveCalls (expr: Text, env: Text) -> Text:
@@ -731,8 +739,7 @@
     Let lastTok be item (length of ptoks) of ptoks.
     Let fnVal be envGet(env, lastTok).
     If startsWith(fnVal, chr(1)):
-        Let argVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
-        Let result be callFn(fnVal, argVal, env).
+        Let result be callFn(fnVal, inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
