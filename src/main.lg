@@ -685,11 +685,71 @@
 ## To substitute (expr: Text, env: Text) -> Text:
     Return substTokens(split(expr, " "), 1, env, "").
 
+## To joinAll (parts: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
+    If i is greater than length of parts:
+        Return acc.
+    If i is equal to 1:
+        Let firstPiece be item 1 of parts.
+        Return joinAll(parts, 2, sep, firstPiece).
+    Let piece be item i of parts.
+    Let nextAcc be concat(concat(acc, sep), piece).
+    Return joinAll(parts, i + 1, sep, nextAcc).
+
+## To replaceAll (s: Text, pat: Text, rep: Text) -> Text:
+    Return joinAll(split(s, pat), 1, rep, "").
+
+## To joinRange (parts: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
+    If i is greater than upto:
+        Return acc.
+    If i is equal to 1:
+        Let firstPiece be item 1 of parts.
+        Return joinRange(parts, 2, upto, firstPiece).
+    Let piece be item i of parts.
+    Let nextAcc be concat(concat(acc, " "), piece).
+    Return joinRange(parts, i + 1, upto, nextAcc).
+
+## To hasReturn (env: Text) -> Bool:
+    Return envGet(env, "__ret") is not equal to "".
+
+## To callFn (fnVal: Text, argVal: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let param be substringBefore(afterMark, chr(1)).
+    Let body be replaceAll(substringAfter(afterMark, chr(1)), chr(2), ";").
+    Let doneEnv be runBlockStr(body, envSet(env, param, argVal)).
+    Return envGet(doneEnv, "__ret").
+
+## To resolveCalls (expr: Text, env: Text) -> Text:
+    If substringBefore(expr, "(") is equal to expr:
+        Return expr.
+    Let leftOfClose be substringBefore(expr, ")").
+    Let rest be substringAfter(expr, ")").
+    Let pieces be split(leftOfClose, "(").
+    Let np be length of pieces.
+    Let inner be trim(item np of pieces).
+    Let prefix be trim(joinPieces(pieces, 1, np - 1, "")).
+    Let ptoks be split(prefix, " ").
+    Let lastTok be item (length of ptoks) of ptoks.
+    Let fnVal be envGet(env, lastTok).
+    If startsWith(fnVal, chr(1)):
+        Let argVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
+        Let result be callFn(fnVal, argVal, env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
+    Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
-    Return jsEvalTernary(substitute(trim(expr), env)).
+    Return jsEvalTernary(substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env)).
 
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
+
+## To defineFn (stmt: Text, env: Text) -> Text:
+    Let name be trim(substringBefore(substringAfter(stmt, "function "), "(")).
+    Let param be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let body be trim(braceBody(substringAfter(stmt, chr(123)), 1, 0, "")).
+    Let stored be concat(concat(concat(chr(1), param), chr(1)), replaceAll(body, ";", chr(2))).
+    Return envSet(env, name, stored).
 
 ## To bindAssign (assign: Text, env: Text) -> Text:
     Let name be trim(substringBefore(assign, " = ")).
@@ -739,6 +799,10 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If startsWith(s, "function "):
+        Return defineFn(s, env).
+    If startsWith(s, "return"):
+        Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
     If startsWith(s, "while "):
         Return execWhile(s, env).
     If startsWith(s, "if "):
@@ -752,10 +816,14 @@
 ## To runBlock (stmts: Seq of Text, i: Int, env: Text) -> Text:
     If i is greater than length of stmts:
         Return env.
+    If hasReturn(env):
+        Return env.
     Let st be item i of stmts.
     Return runBlock(stmts, i + 1, execStmt(st, env)).
 
 ## To execWhile (stmt: Text, env: Text) -> Text:
+    If hasReturn(env):
+        Return env.
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
     If boolOf(jsEvalIn(cond, env)):
