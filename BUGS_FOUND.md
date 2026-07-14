@@ -429,7 +429,7 @@ with correct operator precedence + left-to-right associativity + PARENTHESIZED s
 TERNARY conditional (? : right-associative) in pure LOGOS — the COMPLETE JS expression operator
 ladder (recursion-threaded two-tier
 evaluator, no parser stack). Exposed via `bun __js-eval`; differential-fuzzed vs Node's
-own `eval()`: **~48k expressions (arith + nested parens + comparisons + && || + ternary) across 23 seeds, 0 diffs** (fuzz/jsint/arith-diff.mjs). The full JS EXPRESSION grammar evaluates correctly. Next: a real tokenizer (unspaced input) → statements/variables → control flow → functions. This is the
+own `eval()`: **~48k expressions (arith + nested parens + comparisons + && || + ternary) across 23 seeds, 0 diffs** (fuzz/jsint/arith-diff.mjs). **INTERPRETER MILESTONE: jsRun is now a real PROGRAM interpreter** — `let` bindings + variables + sequential statements (`;`), threading an environment; variable references resolve inside any expression (arith/comparison/logical/ternary). Differential-fuzzed vs Node eval: ~7.5k whole programs across 5 seeds, 0 diffs (fuzz/jsint/program-diff.mjs). Same loop-var shadowing gotcha bit the substitution pass — fixed by branching the recursion. Next: a real tokenizer (unspaced input), control flow (if/while), functions. This is the
 seed the Futamura projections will eventually specialize into a JIT. Next: parens, a real tokenizer
 (drop the space requirement), comparisons/booleans, variables → statements. Remaining toolchain
 gaps: cross-module functions (BUG-24), TCE nested-concat (BUG-29), atomics._

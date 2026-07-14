@@ -662,6 +662,49 @@
         Return jsEvalTernary(elsePart).
     Return jsEvalLogic(expr).
 
+## To envScan (pairs: Seq of Text, i: Int, name: Text) -> Text:
+    If i is greater than length of pairs:
+        Return "".
+    Let pair be item i of pairs.
+    If substringBefore(pair, "=") is equal to name:
+        Return substringAfter(pair, "=").
+    Return envScan(pairs, i + 1, name).
+
+## To envGet (env: Text, name: Text) -> Text:
+    Return envScan(split(env, ";"), 1, name).
+
+## To substTokens (tokens: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of tokens:
+        Return trim(acc).
+    Let tok be item i of tokens.
+    Let val be envGet(env, tok).
+    If val is not equal to "":
+        Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), val)).
+    Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), tok)).
+
+## To substitute (expr: Text, env: Text) -> Text:
+    Return substTokens(split(expr, " "), 1, env, "").
+
+## To jsEvalIn (expr: Text, env: Text) -> Text:
+    Return jsEvalTernary(substitute(trim(expr), env)).
+
+## To bindLet (stmt: Text, env: Text) -> Text:
+    Let afterLet be substringAfter(stmt, "let ").
+    Let name be trim(substringBefore(afterLet, "=")).
+    Let value be jsEvalIn(substringAfter(afterLet, "="), env).
+    Return concat(concat(concat(concat(env, name), "="), value), ";").
+
+## To runStmts (stmts: Seq of Text, i: Int, env: Text) -> Text:
+    Let stmt be trim(item i of stmts).
+    If i is equal to length of stmts:
+        Return jsEvalIn(stmt, env).
+    If startsWith(stmt, "let "):
+        Return runStmts(stmts, i + 1, bindLet(stmt, env)).
+    Return runStmts(stmts, i + 1, env).
+
+## To jsRun (program: Text) -> Text:
+    Return runStmts(split(program, ";"), 1, "").
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -725,6 +768,8 @@ Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
     Show jsEvalTernary(item 3 of arguments).
+Otherwise If cmd is equal to "__js-run":
+    Show jsRun(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
