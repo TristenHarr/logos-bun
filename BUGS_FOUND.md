@@ -380,7 +380,12 @@ filesystem rules, not fnmatch): **~17.5k pairs across 12 seeds, ~55% match, 0 di
 `**` may match zero; a TRAILING `**` requires ≥1 — the fuzz caught that exact rule, `a/**` matches
 `a/b` not `a`), non-`**` segments match one via the single-segment core, `*` never crosses `/`.
 ~7.3k pairs across 6 seeds vs minimatch, 0 diffs (fuzz/glob/path-diff.mjs). The full practical glob
-grammar (`* ? [...] **`) is LOGOS-native; only brace expansion `{a,b}` remains. Remaining toolchain
-gaps: cross-module functions (BUG-24), atomics (install parallelism), BUG-11 preamble robustness.
-**Next: P1.3 bunfig (pure-.lg TOML parser — also lets us NOT replicate bun's 5 TOML bugs), or the
-BUG-24/BUG-11 toolchain fixes, or glob brace expansion.**_
+grammar (`* ? [...] **`) is LOGOS-native; only brace expansion `{a,b}` remains. **P1.3 BUNFIG TOML
+(value extractor) STARTED + GREEN:** a pure-`.lg` `tomlGet(doc, dottedKey)` — top-level + `[table]`
++ `[a.b]` nested sections, string/int/bool values, table-scoped dotted-key lookup (recursion-
+threaded table state) — PURE LOGOS (startsWith/substringAfter/split/chr, no new natives). Exposed
+via `bun __toml-get`; differential-fuzzed vs @iarna/toml (the same reference that found bun's 5 TOML
+bugs): **~26k lookups across 5 seeds, 0 diffs** (fuzz/toml/get-diff.mjs). Correctly scopes keys to
+their table (`port` under `[install.cache]` ≠ top-level). Subset: arrays/inline-tables/floats/
+comments deferred. Remaining toolchain gaps: cross-module functions (BUG-24), atomics (install
+parallelism). **Next: TOML arrays + comments, glob brace expansion, or the next P2 leaf (url/base64).**_
