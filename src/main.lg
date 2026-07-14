@@ -297,6 +297,34 @@
             Return true.
     Return false.
 
+## To maxSatFrom (candidates: Seq of Text, range: Text, i: Int, best: Text) -> Text:
+    If i is greater than length of candidates:
+        Return best.
+    Let cand be item i of candidates.
+    If satisfies(cand, range):
+        If best is equal to "":
+            Return maxSatFrom(candidates, range, i + 1, cand).
+        If cmpNum(cand, best) is greater than 0:
+            Return maxSatFrom(candidates, range, i + 1, cand).
+    Return maxSatFrom(candidates, range, i + 1, best).
+
+## To maxSatisfying (versionsCsv: Text, range: Text) -> Text:
+    Return maxSatFrom(split(versionsCsv, ","), range, 1, "").
+
+## To minSatFrom (candidates: Seq of Text, range: Text, i: Int, best: Text) -> Text:
+    If i is greater than length of candidates:
+        Return best.
+    Let cand be item i of candidates.
+    If satisfies(cand, range):
+        If best is equal to "":
+            Return minSatFrom(candidates, range, i + 1, cand).
+        If cmpNum(cand, best) is less than 0:
+            Return minSatFrom(candidates, range, i + 1, cand).
+    Return minSatFrom(candidates, range, i + 1, best).
+
+## To minSatisfying (versionsCsv: Text, range: Text) -> Text:
+    Return minSatFrom(split(versionsCsv, ","), range, 1, "").
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -334,6 +362,10 @@ Otherwise If cmd is equal to "__semver-satisfies":
         Show "true".
     Otherwise:
         Show "false".
+Otherwise If cmd is equal to "__semver-max":
+    Show maxSatisfying(item 3 of arguments, item 4 of arguments).
+Otherwise If cmd is equal to "__semver-min":
+    Show minSatisfying(item 3 of arguments, item 4 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

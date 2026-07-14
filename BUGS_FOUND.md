@@ -339,6 +339,12 @@ the prerelease-version-in-range special rule), 0 diffs**, incl. the full §11 pr
 the BUG-12 lock (we're correct where bun is wrong). Toolchain fixes this campaign: exitWith/eputs
 (592ec80), split (b9f9928), comparative-identifiers (6e36198), worded `>=`/`<=` (9763a91), worded
 negations (e425b28), substringAfter/compareText/isDigits (af97110), startsWith/toText (08e6c04).
-Remaining gaps: cross-module functions (BUG-24), sort (semver RESOLVER max-satisfying, NOT
-compare/satisfies), atomics (install), BUG-11 preamble robustness. **Next: the version RESOLVER
-(pick max-satisfying from a list — needs G-SORT), or P1.3 bunfig (pure-.lg TOML).**_
+The version RESOLVER (`maxSatisfying`/`minSatisfying`) is ALSO ported + green: a single-pass
+fold over `satisfies` (recursion-threaded to dodge loop-var shadowing) — so it needs NO sort
+(G-SORT is NOT on the semver critical path after all). Differential-verified vs node-semver:
+2500 candidate lists × (max+min) across 5 seeds, 0 diffs (fuzz/semver/resolve-diff.mjs), incl.
+prerelease-exclusion (`1.0.0-alpha` not picked for `^1.0.0`). **The whole semver module bun's
+installer needs — compare, satisfies, maxSatisfying, minSatisfying — is now LOGOS-native and
+node-semver-faithful.** Remaining toolchain gaps: cross-module functions (BUG-24), atomics
+(install parallelism), BUG-11 preamble robustness. **Next: P2.2 leaf (glob or url), or P1.3
+bunfig (pure-.lg TOML parser).**_
