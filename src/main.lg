@@ -769,7 +769,11 @@
     Let c be item i of s.
     If c is equal to chr(123):
         Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to "(":
+        Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
     If c is equal to chr(125):
+        Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
+    If c is equal to ")":
         Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
     If c is equal to ";":
         If depth is equal to 0:
@@ -812,6 +816,8 @@
         Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
     If startsWith(s, "while "):
         Return execWhile(s, env).
+    If startsWith(s, "for "):
+        Return execFor(s, env).
     If startsWith(s, "if "):
         Return execIf(s, env).
     If startsWith(s, "let "):
@@ -836,6 +842,23 @@
     If boolOf(jsEvalIn(cond, env)):
         Return execWhile(stmt, runBlockStr(body, env)).
     Return env.
+
+## To forStmt (stmt: Text, env: Text) -> Text:
+    If hasReturn(env):
+        Return env.
+    Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
+    Let cond be trim(item 2 of parts).
+    If boolOf(jsEvalIn(cond, env)):
+        Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+        Let update be trim(item 3 of parts).
+        Let afterBody be runBlockStr(body, env).
+        Let afterUpdate be execStmt(update, afterBody).
+        Return forStmt(stmt, afterUpdate).
+    Return env.
+
+## To execFor (stmt: Text, env: Text) -> Text:
+    Let init be trim(item 1 of split(substringBefore(substringAfter(stmt, "("), ")"), ";")).
+    Return forStmt(stmt, execStmt(init, env)).
 
 ## To runProgram (stmts: Seq of Text, i: Int, env: Text) -> Text:
     Let stmt be trim(item i of stmts).
