@@ -241,10 +241,17 @@ See BUGS_FOUND.md BUG-20..BUG-23 (all FIXED).
 - BUG-11 recurred: link-less / multi-line / backtick-laden prose abstracts before the first `##`
   are parsed as code — forces canary-shaped or title-only headers. Preamble-robustness fix pending.
 
-**Next increments (semver ladder):** prerelease/build ORDERING (alpha<beta<rc, the `-`/`+`
-grammar) → `satisfies`/range parsing (^, ~, ||, hyphen, x-ranges; BUG-12 is bun's range bug our
-port must NOT replicate) → then the resolver (needs G-SORT). The semver CORE (parse/compare)
-needs no sort; the RESOLVER (max-satisfying) does.
+**Prerelease ORDERING DONE (2026-07-14, commit 113643e):** full SemVer §11 precedence —
+`compareVersions` now orders prereleases (numeric-vs-alphanumeric, numeric-compares-numerically,
+longer-set-wins, `1.0.0-alpha < 1.0.0`) with build metadata ignored. On three new text natives
+(`substringAfter`/`compareText`/`isDigits`, toolchain af97110, BUG-25). port-diff.mjs now fuzzes
+prereleases + build: **~15.6k pairs × 7 seeds, 0 diffs** vs node-semver incl. the full spec chain.
+First LOGOS early-return counted loop (`Repeat for i from 1 to shared`, INCLUSIVE) over parallel
+lists; `Let x be x+1` SHADOWS (use `Push`/mutation or a helper for min, not re-`Let`).
+
+**Next increments (semver ladder):** `satisfies`/range parsing (^, ~, ||, hyphen, x-ranges;
+BUG-12 is bun's range bug our port must NOT replicate) → then the resolver (needs G-SORT). The
+semver CORE (parse/compare, now incl. prerelease) needs no sort; the RESOLVER (max-satisfying) does.
 
 ## Deferred user decisions
 
