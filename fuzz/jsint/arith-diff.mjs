@@ -45,8 +45,17 @@ if (OURS) {
     for (let i = 1; i < terms; i++) parts.push(pick(["&&", "||"]), compExpr());
     return parts.join(" ");
   };
-  // Top level: arithmetic (35%), a comparison (25%), or a logical expression (40%).
-  const expr = () => { const k = rnd(); return k < 0.35 ? arith(0) : k < 0.6 ? compExpr() : logicExpr(); };
+  // A ternary cond ? then : else — right-associative chains (nesting only in the
+  // else branch, which the evaluator handles via recursion; nested-in-then needs
+  // paren-matching and is a later increment).
+  const ternaryExpr = (chain) => {
+    const cond = rnd() < 0.5 ? compExpr() : logicExpr();
+    const thenB = arith(0);
+    const elseB = chain > 0 && rnd() < 0.5 ? ternaryExpr(chain - 1) : arith(0);
+    return `${cond} ? ${thenB} : ${elseB}`;
+  };
+  // Top level: arithmetic / comparison / logical / ternary.
+  const expr = () => { const k = rnd(); return k < 0.3 ? arith(0) : k < 0.5 ? compExpr() : k < 0.75 ? logicExpr() : ternaryExpr(2); };
   let checked = 0;
   for (let i = 0; i < n; i++) {
     const e = expr();
