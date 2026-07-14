@@ -423,7 +423,7 @@
     Return "".
 
 ## To isSubcommand (cmd: Text) -> Bool:
-    Let subcommands be ["install", "i", "add", "remove", "rm", "update", "upgrade", "outdated", "link", "unlink", "pm", "patch", "publish", "audit", "why", "info", "run", "test", "build", "x", "create", "init", "repl", "exec", "completions", "discord"].
+    Let subcommands be ["install", "i", "add", "a", "remove", "rm", "update", "upgrade", "outdated", "link", "unlink", "pm", "patch", "publish", "audit", "why", "info", "run", "test", "build", "x", "bunx", "create", "c", "init", "repl", "exec", "lint", "feedback", "completions", "discord"].
     If subcommands contains cmd:
         Return true.
     Return false.

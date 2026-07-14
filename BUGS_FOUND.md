@@ -331,10 +331,27 @@ flow through `testSet`, which applies the special rule (`testSet` already handle
 **Tweet:** Fuzzing our own semver rewrite against node-semver caught a bug the moment we added
 prereleases: `1.2.3-alpha` should NOT match `*`. Differential fuzzing is the gift that keeps giving.
 
+### BUG-28 · BUN · 2026-07-14 · finding (non-determinism — rescopes "byte-exact --help")
+**What:** `bun --help` (and no-args) is **non-deterministic** — it randomizes the EXAMPLE package
+/binary names on each run (`bun x prettier` one run, `bun x vite` the next; `bun add hono` /
+`bun add react` / `bun add @zarfjs/zarf`). Two runs in different seconds differ; same-second runs
+match, so it's a wall-clock-seeded random pick from a bundled package list. **Impact on the port:**
+a "byte-exact --help" conformance target is **impossible by design** — the oracle's own output
+isn't stable, so no reimplementation could match it byte-for-byte. P1 conformance is therefore
+scoped to the DETERMINISTIC surface (version flags byte-exact, unknown-command byte-exact, subcommand
+NOTIMPL→stderr+exit1, help-banner structural match) — all green in `red/p1/cli-surface.test.mjs`.
+**Where:** bun help renderer (random example selection). **Found by:** capturing `--help` for a
+golden and seeing it change between captures. **Tweet:** TIL `bun --help` is non-deterministic — it
+rolls random example package names every run (`bun add react` vs `bun add hono`). Cute, but it means
+you literally cannot snapshot-test bun's help output. Found this while rebuilding bun's CLI in LOGOS.
+
 ---
 
-_Live count: 27 (⭐×6 BUN [semver + 5 TOML], 13 toolchain [**8 FIXED**, 1 open + BUG-11 recurring],
-8 ours [all fixed]). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct).
+_Live count: 28 (⭐⭐×1 [BUG-12 generalized] + ⭐×6 BUN [semver + 5 TOML] + 1 finding [--help
+non-determinism], 13 toolchain [**8 FIXED**; BUG-11 is module-path-only — single-file prose
+abstracts WORK], 8 ours [all fixed]). P1 CLI conformance COMPLETE for the deterministic surface
+(31-command dispatch + NOTIMPL→stderr+exit1 + byte-exact version/unknown-command; byte-exact --help
+is impossible per BUG-28). bun's JSON parser fuzzed CLEAN (4000 edge cases, 0 diffs — spec-correct).
 bun's TOML parser: 5 bugs (\U escape, multiline-ws, inf/nan, no-dates, duplicate-table); bun's
 semver `satisfies` drops trailing exact conjuncts (BUG-12). Fuzz lanes: fuzz/semver/ (port-diff +
 satisfies-diff + diff), fuzz/toml/, fuzz/json/ (clean), fuzz/stringwidth/ (ruled out). **P2.1
