@@ -625,6 +625,32 @@
         Return cmpResult(evalParens(item 1 of parts) is greater than evalParens(item 2 of parts)).
     Return toText(evalParens(expr)).
 
+## To boolOf (t: Text) -> Bool:
+    Return t is equal to "true".
+
+## To jsAndAll (parts: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of parts:
+        Return true.
+    Let part be trim(item i of parts).
+    If boolOf(jsEvalCmp(part)):
+        Return jsAndAll(parts, i + 1).
+    Return false.
+
+## To jsOrAll (groups: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of groups:
+        Return false.
+    Let group be item i of groups.
+    If jsAndAll(split(group, " && "), 1):
+        Return true.
+    Return jsOrAll(groups, i + 1).
+
+## To jsEvalLogic (expr: Text) -> Text:
+    If hasSep(expr, " || "):
+        Return cmpResult(jsOrAll(split(expr, " || "), 1)).
+    If hasSep(expr, " && "):
+        Return cmpResult(jsAndAll(split(expr, " && "), 1)).
+    Return jsEvalCmp(expr).
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -687,7 +713,7 @@ Otherwise If cmd is equal to "__hex":
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
-    Show jsEvalCmp(item 3 of arguments).
+    Show jsEvalLogic(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

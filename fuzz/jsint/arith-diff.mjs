@@ -35,8 +35,18 @@ if (OURS) {
     }
     return parts.join(" ");
   };
-  // Top level: an arithmetic expression, or (40%) a comparison of two of them.
-  const expr = () => (rnd() < 0.4 ? `${arith(0)} ${cmp()} ${arith(0)}` : arith(0));
+  const compExpr = () => `${arith(0)} ${cmp()} ${arith(0)}`;
+  // A logical expression joins comparisons with && / || (below comparison
+  // precedence). Operands are comparisons — booleans — so no JS truthiness /
+  // operand-returning divergence (numeric && is a value-model increment).
+  const logicExpr = () => {
+    const terms = 2 + Math.floor(rnd() * 3);
+    let parts = [compExpr()];
+    for (let i = 1; i < terms; i++) parts.push(pick(["&&", "||"]), compExpr());
+    return parts.join(" ");
+  };
+  // Top level: arithmetic (35%), a comparison (25%), or a logical expression (40%).
+  const expr = () => { const k = rnd(); return k < 0.35 ? arith(0) : k < 0.6 ? compExpr() : logicExpr(); };
   let checked = 0;
   for (let i = 0; i < n; i++) {
     const e = expr();
