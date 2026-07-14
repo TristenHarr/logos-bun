@@ -892,7 +892,7 @@
 ## To litToStr (tok: Text) -> Text:
     If startsWith(tok, chr(34)):
         Let content be item 1 of split(substringAfter(tok, chr(34)), chr(34)).
-        Return concat(chr(3), replaceAll(content, chr(4), " ")).
+        Return concat(chr(3), content).
     Return tok.
 
 ## To concatTerms (terms: Seq of Text, i: Int, acc: Text) -> Text:
@@ -1123,7 +1123,7 @@
     Return joinNonEmpty(split(normJs(s, 1, false, ""), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
-    Return materialize(jsRun(normalizeJs(program))).
+    Return replaceAll(materialize(jsRun(normalizeJs(program))), chr(4), " ").
 
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
@@ -1187,9 +1187,9 @@ Otherwise If cmd is equal to "__hex":
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
-    Show jsEvalTernary(item 3 of arguments).
+    Show replaceAll(materialize(jsEvalTernary(item 3 of arguments)), chr(4), " ").
 Otherwise If cmd is equal to "__js-run":
-    Show jsRun(item 3 of arguments).
+    Show replaceAll(materialize(jsRun(item 3 of arguments)), chr(4), " ").
 Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
