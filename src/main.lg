@@ -816,7 +816,7 @@
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If isGlobalFn(lastTok):
-        Let av be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
+        Let av be jsEvalIn(inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, av)), rest), env).
     Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
