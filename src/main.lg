@@ -1307,6 +1307,34 @@
         Return objval.
     Return concat(concat(tagObj (), dedupEmit(splitObjEntriesDepth(content, 1, 0, ""), 1, "", "")), tagObjEnd ()).
 
+# Member/index write. objSet appends key=val then dedupes (first-position, last-value),
+# so an existing key is updated in place and a new key is appended. arrSetIdx replaces
+# the element at idx. Both return a NEW container value; the caller rebinds the variable
+# (value semantics — correct for `o.p = v; use o` on the same variable, but an aliased
+# `p = o; p.p = v` won't be seen through o — that needs true reference semantics).
+## To objSet (objval: Text, key: Text, newval: Text) -> Text:
+    Let inner be substringAfter(objval, tagObj ()).
+    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let newEntry be concat(concat(key, tagObjKV ()), newval).
+    If content is equal to "":
+        Return concat(concat(tagObj (), newEntry), tagObjEnd ()).
+    Return dedupObj(concat(concat(tagObj (), concat(concat(content, tagObjSep ()), newEntry)), tagObjEnd ())).
+
+## To arrSetLoop (els: Seq of Text, i: Int, idx: Int, newval: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    If i is equal to (idx + 1):
+        If acc is equal to "":
+            Return arrSetLoop(els, i + 1, idx, concat(newval, ""), newval).
+        Return arrSetLoop(els, i + 1, idx, concat(newval, ""), concat(concat(acc, tagArrSep ()), newval)).
+    Let el be item i of els.
+    If acc is equal to "":
+        Return arrSetLoop(els, i + 1, idx, newval, el).
+    Return arrSetLoop(els, i + 1, idx, newval, concat(concat(acc, tagArrSep ()), el)).
+
+## To arrSetIdx (arrval: Text, idx: Int, newval: Text) -> Text:
+    Return concat(concat(tagArr (), arrSetLoop(arrElements(arrval), 1, idx, newval, "")), tagArrEnd ()).
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return dedupObj(concat(concat(tagObj (), acc), tagObjEnd ())).
@@ -2494,6 +2522,19 @@
     If hasSep(s, " ??= "):
         Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
     If hasSep(s, " = "):
+        Let lhs be trim(substringBefore(s, " = ")).
+        If hasSep(lhs, " . "):
+            Let mVar be trim(substringBefore(lhs, " . ")).
+            Let mProp be trim(substringAfter(lhs, " . ")).
+            Let mNew be jsEvalIn(substringAfter(s, " = "), concat(env, "")).
+            Let mCur be envGet(concat(env, ""), concat(mVar, "")).
+            Return envSet(env, mVar, objSet(mCur, mProp, mNew)).
+        If hasSep(lhs, chr(91)):
+            Let iVar be trim(substringBefore(lhs, chr(91))).
+            Let iIdx be parseInt(jsEvalIn(trim(substringBefore(substringAfter(lhs, chr(91)), chr(93))), concat(env, ""))).
+            Let iNew be jsEvalIn(substringAfter(s, " = "), concat(env, "")).
+            Let iCur be envGet(concat(env, ""), concat(iVar, "")).
+            Return envSet(env, iVar, arrSetIdx(iCur, iIdx, iNew)).
         Return bindAssign(s, env).
     Return env.
 
