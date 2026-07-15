@@ -1442,8 +1442,14 @@
     Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(trim(expr), env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
+## To resolveAccess (expr: Text) -> Text:
+    Let once be resolveArrays(resolveObjDot(expr)).
+    If once is equal to expr:
+        Return once.
+    Return resolveAccess(once).
+
 ## To evalResolved (expr: Text) -> Text:
-    Return jsEvalTernary(resolveTypeof(resolveObjDot(resolveProps(resolveArrays(resolveObjects(expr)))))).
+    Return jsEvalTernary(resolveTypeof(resolveProps(resolveAccess(resolveObjects(expr))))).
 
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
