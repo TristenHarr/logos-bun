@@ -1061,6 +1061,10 @@
         Return execIf(s, env).
     If startsWith(s, "let "):
         Return bindAssign(substringAfter(s, "let "), env).
+    If hasSep(s, "++"):
+        Return envSet(env, trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), jsEvalIn(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1"), env)).
+    If hasSep(s, "--"):
+        Return envSet(env, trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), jsEvalIn(concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " - 1"), env)).
     If hasSep(s, " += "):
         Return envSet(env, trim(substringBefore(s, " += ")), jsEvalIn(concat(concat(trim(substringBefore(s, " += ")), " + "), substringAfter(s, " += ")), env)).
     If hasSep(s, " -= "):
@@ -1146,6 +1150,10 @@
     If t is equal to "-=":
         Return true.
     If t is equal to "*=":
+        Return true.
+    If t is equal to "++":
+        Return true.
+    If t is equal to "--":
         Return true.
     Return false.
 
