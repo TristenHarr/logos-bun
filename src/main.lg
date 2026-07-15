@@ -2476,6 +2476,40 @@
         Return env.
     Return runBlockStr(substringBefore(switchFallStmts(split(marked, chr(10)), di, ""), "break"), env).
 
+## To isMemberTarget (lhs: Text) -> Bool:
+    If hasSep(lhs, " . "):
+        Return true.
+    If hasSep(lhs, chr(91)):
+        Return true.
+    Return false.
+
+## To memberCompoundRewrite (s: Text) -> Text:
+    If hasSep(s, "++"):
+        If isMemberTarget(trim(concat(substringBefore(s, "++"), substringAfter(s, "++")))):
+            Return concat(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " = "), concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1")).
+    If hasSep(s, "--"):
+        If isMemberTarget(trim(concat(substringBefore(s, "--"), substringAfter(s, "--")))):
+            Return concat(concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " = "), concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " - 1")).
+    If hasSep(s, " += "):
+        If isMemberTarget(trim(substringBefore(s, " += "))):
+            Return concat(concat(trim(substringBefore(s, " += ")), " = "), concat(concat(trim(substringBefore(s, " += ")), " + "), trim(substringAfter(s, " += ")))).
+    If hasSep(s, " -= "):
+        If isMemberTarget(trim(substringBefore(s, " -= "))):
+            Return concat(concat(trim(substringBefore(s, " -= ")), " = "), concat(concat(trim(substringBefore(s, " -= ")), " - "), trim(substringAfter(s, " -= ")))).
+    If hasSep(s, " *= "):
+        If isMemberTarget(trim(substringBefore(s, " *= "))):
+            Return concat(concat(trim(substringBefore(s, " *= ")), " = "), concat(concat(trim(substringBefore(s, " *= ")), " * "), trim(substringAfter(s, " *= ")))).
+    If hasSep(s, " ||= "):
+        If isMemberTarget(trim(substringBefore(s, " ||= "))):
+            Return concat(concat(trim(substringBefore(s, " ||= ")), " = "), concat(concat(trim(substringBefore(s, " ||= ")), " || "), trim(substringAfter(s, " ||= ")))).
+    If hasSep(s, " &&= "):
+        If isMemberTarget(trim(substringBefore(s, " &&= "))):
+            Return concat(concat(trim(substringBefore(s, " &&= ")), " = "), concat(concat(trim(substringBefore(s, " &&= ")), " && "), trim(substringAfter(s, " &&= ")))).
+    If hasSep(s, " ??= "):
+        If isMemberTarget(trim(substringBefore(s, " ??= "))):
+            Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
+    Return "".
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If startsWith(s, "function "):
@@ -2505,6 +2539,9 @@
     If hasSep(s, " . pop ("):
         Let ov be trim(substringBefore(s, " . pop (")).
         Return envSet(env, ov, arrPop(envGet(env, ov))).
+    Let mcr be memberCompoundRewrite(concat(s, "")).
+    If hasSep(mcr, " = "):
+        Return execStmt(mcr, env).
     If hasSep(s, "++"):
         Return envSet(env, trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), jsEvalIn(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1"), env)).
     If hasSep(s, "--"):
