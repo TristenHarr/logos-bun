@@ -648,7 +648,21 @@
     Return evalValue(expr).
 
 ## To boolOf (t: Text) -> Bool:
-    Return t is equal to "true".
+    If t is equal to "true":
+        Return true.
+    If t is equal to "false":
+        Return false.
+    If t is equal to "0":
+        Return false.
+    If t is equal to "":
+        Return false.
+    If t is equal to chr(3):
+        Return false.
+    If t is equal to "null":
+        Return false.
+    If t is equal to "undefined":
+        Return false.
+    Return true.
 
 ## To jsAndAll (parts: Seq of Text, i: Int) -> Bool:
     If i is greater than length of parts:
