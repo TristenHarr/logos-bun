@@ -1095,6 +1095,25 @@
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
 
+## To arrSliceLoop (els: Seq of Text, i: Int, endEx: Int, acc: Text) -> Text:
+    If i is greater than endEx:
+        Return acc.
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    If acc is equal to "":
+        Return arrSliceLoop(els, i + 1, endEx, el).
+    Let nextAcc be concat(concat(acc, chr(6)), el).
+    Return arrSliceLoop(els, i + 1, endEx, nextAcc).
+
+## To arrSlice (arrval: Text, a: Int, b: Int) -> Text:
+    Return concat(chr(5), arrSliceLoop(split(substringAfter(arrval, chr(5)), chr(6)), a + 1, b, "")).
+
+## To sliceOf (raw: Text, a: Int, b: Int) -> Text:
+    If startsWith(raw, chr(5)):
+        Return arrSlice(raw, a, b).
+    Return strSlice(materialize(raw), a, b).
+
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
@@ -1238,9 +1257,9 @@
         Let btoks be split(bef, " ").
         Let recv be item (length of btoks) of btoks.
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
-        Let sval be materialize(jsEvalIn(recv, env)).
+        Let raw be jsEvalIn(recv, env).
         Let args be split(substringBefore(aft, ")"), ",").
-        Let sliced be strSlice(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
     If substringBefore(expr, " . toUpperCase (") is not equal to expr:
         Let bef be substringBefore(expr, " . toUpperCase (").

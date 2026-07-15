@@ -25,7 +25,8 @@ if (OURS) {
     if (k < 0.65) { const i = Math.floor(rnd() * len), j = Math.floor(rnd() * len); return `let a=${a};a[${i}]+a[${j}]`; }
     if (k < 0.72) return `let s=0;let a=${a};for(let i=0;i<${len};i=i+1){s=s+a[i]};s`;  // sum loop
     if (k < 0.82) { const els = a.slice(1, -1).split(",").map(Number); const target = rnd() < 0.7 ? els[Math.floor(rnd() * els.length)] : Math.floor(rnd() * 40); return `let a=${a};a.indexOf(${target})`; } // array indexOf (element-based)
-    if (k < 0.9) { const els = a.slice(1, -1).split(",").map(Number); const target = rnd() < 0.7 ? els[Math.floor(rnd() * els.length)] : Math.floor(rnd() * 40); return `let a=${a};a.includes(${target})`; } // array includes
+    if (k < 0.86) { const els = a.slice(1, -1).split(",").map(Number); const target = rnd() < 0.7 ? els[Math.floor(rnd() * els.length)] : Math.floor(rnd() * 40); return `let a=${a};a.includes(${target})`; } // array includes
+    if (k < 0.94) { const b = 1 + Math.floor(rnd() * len), a0 = Math.floor(rnd() * b); return `let a=${a};a.slice(${a0},${b})`; } // array slice (element sub-array)
     const i = Math.floor(rnd() * len), j = Math.floor(rnd() * len); return `let a=${a};a[${i}]>a[${j}]?a[${i}]:a[${j}]`; // ternary
   };
   let checked = 0;
