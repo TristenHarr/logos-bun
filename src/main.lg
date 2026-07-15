@@ -1114,6 +1114,20 @@
         Return arrSlice(raw, a, b).
     Return strSlice(materialize(raw), a, b).
 
+## To arrReverseLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is less than 1:
+        Return acc.
+    Let el be item i of els.
+    If acc is equal to "":
+        Return arrReverseLoop(els, i - 1, el).
+    Let nextAcc be concat(concat(acc, chr(6)), el).
+    Return arrReverseLoop(els, i - 1, nextAcc).
+
+## To arrReverse (arrval: Text) -> Text:
+    Let els be split(substringAfter(arrval, chr(5)), chr(6)).
+    Let n be length of els.
+    Return concat(chr(5), arrReverseLoop(els, n, "")).
+
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
@@ -1230,6 +1244,15 @@
         Let rst be substringAfter(aft, ")").
         Let ab be absInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
+    If substringBefore(expr, " . reverse (") is not equal to expr:
+        Let bef be substringBefore(expr, " . reverse (").
+        Let aft be substringAfter(expr, " . reverse (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReverse(raw)), rst)), env).
     If substringBefore(expr, " . charAt (") is not equal to expr:
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
