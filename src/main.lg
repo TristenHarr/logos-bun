@@ -680,11 +680,27 @@
         Return true.
     Return jsOrAll(groups, i + 1).
 
+## To jsAndVal (parts: Seq of Text, i: Int) -> Text:
+    Let v be jsEvalCmp(trim(item i of parts)).
+    If i is equal to length of parts:
+        Return v.
+    If boolOf(v):
+        Return jsAndVal(parts, i + 1).
+    Return v.
+
+## To jsOrVal (groups: Seq of Text, i: Int) -> Text:
+    Let v be jsAndVal(split(trim(item i of groups), " && "), 1).
+    If i is equal to length of groups:
+        Return v.
+    If boolOf(v):
+        Return v.
+    Return jsOrVal(groups, i + 1).
+
 ## To jsEvalLogic (expr: Text) -> Text:
     If hasSep(expr, " || "):
-        Return cmpResult(jsOrAll(split(expr, " || "), 1)).
+        Return jsOrVal(split(expr, " || "), 1).
     If hasSep(expr, " && "):
-        Return cmpResult(jsAndAll(split(expr, " && "), 1)).
+        Return jsAndVal(split(expr, " && "), 1).
     Return jsEvalCmp(expr).
 
 ## To jsEvalTernary (expr: Text) -> Text:
