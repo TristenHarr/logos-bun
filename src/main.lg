@@ -2288,6 +2288,41 @@
 ## To runBlockStr (body: Text, env: Text) -> Text:
     Return runBlock(split(splitTop(body, 1, 0, ""), chr(10)), 1, env).
 
+## To switchMatchIdx (clauses: Seq of Text, i: Int, disc: Text, env: Text) -> Int:
+    If i is greater than length of clauses:
+        Return 0.
+    Let clause be item i of clauses.
+    If startsWith(clause, "case "):
+        If jsEvalIn(trim(substringBefore(substringAfter(clause, "case "), ":")), concat(env, "")) is equal to disc:
+            Return i.
+    Return switchMatchIdx(clauses, i + 1, disc, env).
+
+## To switchDefaultIdx (clauses: Seq of Text, i: Int) -> Int:
+    If i is greater than length of clauses:
+        Return 0.
+    Let c be item i of clauses.
+    If startsWith(c, "default "):
+        Return i.
+    Return switchDefaultIdx(clauses, i + 1).
+
+## To switchFallStmts (clauses: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of clauses:
+        Return acc.
+    Let stmts be substringAfter(item i of clauses, ":").
+    Return switchFallStmts(clauses, i + 1, concat(concat(acc, " "), stmts)).
+
+## To execSwitch (stmt: Text, env: Text) -> Text:
+    Let disc be jsEvalIn(trim(methodArg(substringAfter(stmt, "("))), concat(env, "")).
+    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Let marked be replaceAll(replaceAll(body, "case ", concat(chr(10), "case ")), "default ", concat(chr(10), "default ")).
+    Let mi be switchMatchIdx(split(marked, chr(10)), 1, disc, concat(env, "")).
+    If mi is greater than 0:
+        Return runBlockStr(substringBefore(switchFallStmts(split(marked, chr(10)), mi, ""), "break"), env).
+    Let di be switchDefaultIdx(split(marked, chr(10)), 1).
+    If di is equal to 0:
+        Return env.
+    Return runBlockStr(substringBefore(switchFallStmts(split(marked, chr(10)), di, ""), "break"), env).
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If startsWith(s, "function "):
@@ -2302,6 +2337,8 @@
         Return execFor(s, env).
     If startsWith(s, "if "):
         Return execIf(s, env).
+    If startsWith(s, "switch "):
+        Return execSwitch(s, env).
     If startsWith(s, "let "):
         Return bindAssign(substringAfter(s, "let "), env).
     If startsWith(s, "const "):
