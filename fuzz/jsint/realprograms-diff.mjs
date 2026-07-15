@@ -56,6 +56,8 @@ const PROGRAMS = [
   `let a=[1,2,3,4,5];let c=0;for(let i=0;i<a.length;i++){if(a[i]%2==1){c++}};c`,
   `let words=["the","quick","brown","fox"];let total=0;for(const w of words){total+=w.length};total`,
   `let evens=[];for(let i=1;i<=10;i++){if(i%2==0){evens.push(i)}};evens.join(",")`,
+  `let scores={alice:90,bob:75,carol:88};Object.values(scores).reduce((s,x)=>s+x,0)`,
+  `let o={a:1,b:2,c:3};let ks="";for(const k of Object.keys(o)){ks+=k};ks`,
   // strings — real method chains
   `"Hello World".toUpperCase().indexOf("WORLD")`,
   `"  padded  ".trim().length`,

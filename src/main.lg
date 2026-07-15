@@ -954,6 +954,49 @@
         Return "undefined".
     Return objScan(split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)), 1, key).
 
+## To objKeysLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let k be concat(chr(3), substringBefore(entry, chr(8))).
+    If i is equal to 1:
+        Return objKeysLoop(entries, i + 1, k).
+    Return objKeysLoop(entries, i + 1, concat(concat(acc, chr(6)), k)).
+
+## To objValuesLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let v be substringAfter(entry, chr(8)).
+    If i is equal to 1:
+        Return objValuesLoop(entries, i + 1, v).
+    Return objValuesLoop(entries, i + 1, concat(concat(acc, chr(6)), v)).
+
+## To objEntriesLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let pair be concat(concat(chr(5), concat(concat(concat(chr(3), substringBefore(entry, chr(8))), chr(6)), substringAfter(entry, chr(8)))), chr(15)).
+    If i is equal to 1:
+        Return objEntriesLoop(entries, i + 1, pair).
+    Return objEntriesLoop(entries, i + 1, concat(concat(acc, chr(6)), pair)).
+
+## To objEntrySeq (objVal: Text) -> Seq of Text:
+    Let inner be substringAfter(objVal, chr(7)).
+    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    If content is equal to "":
+        Return [] of Text.
+    Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
+
+## To objKeys (objVal: Text) -> Text:
+    Return concat(concat(chr(5), objKeysLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+
+## To objValues (objVal: Text) -> Text:
+    Return concat(concat(chr(5), objValuesLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+
+## To objEntries (objVal: Text) -> Text:
+    Return concat(concat(chr(5), objEntriesLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return concat(concat(chr(7), acc), chr(14)).
@@ -1421,6 +1464,21 @@
         Let rst be substringAfter(aft, ")").
         Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
+    If substringBefore(expr, "Object . keys (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . keys (").
+        Let aft be substringAfter(expr, "Object . keys (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
+    If substringBefore(expr, "Object . values (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . values (").
+        Let aft be substringAfter(expr, "Object . values (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, objValues(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
+    If substringBefore(expr, "Object . entries (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . entries (").
+        Let aft be substringAfter(expr, "Object . entries (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
