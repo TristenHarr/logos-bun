@@ -73,7 +73,7 @@ const PROGRAMS = [
   `let inv={apple:3,banana:5};let total=inv.apple+inv.banana;total>7?"lots":"few"`,
   `let nums="10,20,30".split(",");let t=0;for(let i=0;i<nums.length;i++){t+=parseInt(nums[i])};t`,
   `let grid=[[1,2],[3,4]];grid[0][0]+grid[0][1]+grid[1][0]+grid[1][1]`,
-  `let ab=Math.abs(-8);let cd=Math.abs(3);Math.max(ab,cd)`,
+  `Math.max(Math.abs(-8),Math.min(3,10))`,
 ];
 if (OURS) {
   let checked = 0;

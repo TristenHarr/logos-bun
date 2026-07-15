@@ -1508,6 +1508,48 @@
         Return balancedArg(s, i + 1, depth - 1, concat(acc, c)).
     Return balancedArg(s, i + 1, depth, concat(acc, c)).
 
+## To methodArg (aft: Text) -> Text:
+    Return balancedArg(aft, 1, 0, "").
+
+## To methodRest (aft: Text) -> Text:
+    Return strSliceLoop(aft, (length of balancedArg(aft, 1, 0, "")) + 2, length of aft, "").
+
+## To topCommaIdx (s: Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of s:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to "(":
+        Return topCommaIdx(s, i + 1, depth + 1, concat(g, c)).
+    If c is equal to ")":
+        Return topCommaIdx(s, i + 1, depth - 1, concat(g, c)).
+    If c is equal to ",":
+        If depth is equal to 0:
+            Return i.
+    Return topCommaIdx(s, i + 1, depth, concat(g, c)).
+
+## To splitArgs2 (argStr: Text) -> Seq of Text:
+    Let idx be topCommaIdx(argStr, 1, 0, "").
+    If idx is equal to 0:
+        Return [argStr, ""].
+    Return [strSliceLoop(argStr, 1, idx - 1, ""), strSliceLoop(argStr, idx + 1, length of argStr, "")].
+
+## To commaDepthSplit (s: Text, i: Int, depth: Int, g: Text) -> Text:
+    If i is greater than length of s:
+        Return g.
+    Let c be item i of s.
+    If c is equal to "(":
+        Return commaDepthSplit(s, i + 1, depth + 1, concat(g, c)).
+    If c is equal to ")":
+        Return commaDepthSplit(s, i + 1, depth - 1, concat(g, c)).
+    If c is equal to ",":
+        If depth is equal to 0:
+            Return commaDepthSplit(s, i + 1, 0, concat(g, chr(10))).
+        Return commaDepthSplit(s, i + 1, depth, concat(g, c)).
+    Return commaDepthSplit(s, i + 1, depth, concat(g, c)).
+
+## To splitArgsN (argStr: Text) -> Seq of Text:
+    Return split(commaDepthSplit(argStr, 1, 0, ""), chr(10)).
+
 ## To fnArgVal (s: Text, env: Text) -> Text:
     If startsWith(s, "function ("):
         Return funcValueOf(substitute(s, env)).
@@ -1712,59 +1754,59 @@
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
-        Let rst be substringAfter(aft, ")").
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
         Let mx be maxInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(mx)), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . min (").
         Let aft be substringAfter(expr, "Math . min (").
-        Let rst be substringAfter(aft, ")").
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
         Let mn be minInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(mn)), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . abs (").
         Let aft be substringAfter(expr, "Math . abs (").
-        Let rst be substringAfter(aft, ")").
-        Let ab be absInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Let rst be methodRest(aft).
+        Let ab be absInt(parseInt(jsEvalIn(trim(methodArg(aft)), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
     If substringBefore(expr, "Math . pow (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . pow (").
         Let aft be substringAfter(expr, "Math . pow (").
-        Let rst be substringAfter(aft, ")").
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
         Let pw be powInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env)), 1).
         Return resolveMethods(trim(concat(concat(bef, toText(pw)), rst)), env).
     If substringBefore(expr, "Math . sign (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . sign (").
         Let aft be substringAfter(expr, "Math . sign (").
-        Let rst be substringAfter(aft, ")").
-        Let sg be signInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Let rst be methodRest(aft).
+        Let sg be signInt(parseInt(jsEvalIn(trim(methodArg(aft)), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(sg)), rst)), env).
     If substringBefore(expr, "Math . floor (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . floor (").
         Let aft be substringAfter(expr, "Math . floor (").
-        Let rst be substringAfter(aft, ")").
-        Let fl be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let rst be methodRest(aft).
+        Let fl be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(fl)), rst)), env).
     If substringBefore(expr, "Math . ceil (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . ceil (").
         Let aft be substringAfter(expr, "Math . ceil (").
-        Let rst be substringAfter(aft, ")").
-        Let cl be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let rst be methodRest(aft).
+        Let cl be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(cl)), rst)), env).
     If substringBefore(expr, "Math . round (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . round (").
         Let aft be substringAfter(expr, "Math . round (").
-        Let rst be substringAfter(aft, ")").
-        Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let rst be methodRest(aft).
+        Let rd be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
     If substringBefore(expr, "Array . isArray (") is not equal to expr:
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(substringBefore(aft, ")")), env), tagArr ()))), rst)), env).
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(methodArg(aft)), env), tagArr ()))), rst)), env).
     If substringBefore(expr, "JSON . parse (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . parse (").
         Let aft be substringAfter(expr, "JSON . parse (").
@@ -1780,23 +1822,23 @@
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(split(substringBefore(aft, ")"), ","), 1, env, "")), rst)), env).
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
     If substringBefore(expr, "Object . keys (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . keys (").
         Let aft be substringAfter(expr, "Object . keys (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . values (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . values (").
         Let aft be substringAfter(expr, "Object . values (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, objValues(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objValues(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . entries (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . entries (").
         Let aft be substringAfter(expr, "Object . entries (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(substringBefore(aft, ")")), env))), rst)), env).
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
@@ -1846,15 +1888,15 @@
     If lm is equal to " . at (":
         Let bef be substringBefore(expr, " . at (").
         Let aft be substringAfter(expr, " . at (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), atOf(raw, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), atOf(raw, parseInt(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If lm is equal to " . flat (":
         Let bef be substringBefore(expr, " . flat (").
         Let aft be substringAfter(expr, " . flat (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -1892,7 +1934,7 @@
     If lm is equal to " . reverse (":
         Let bef be substringBefore(expr, " . reverse (").
         Let aft be substringAfter(expr, " . reverse (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -1900,35 +1942,35 @@
     If lm is equal to " . charAt (":
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), ch), rst)), env).
     If lm is equal to " . indexOf (":
         Let bef be substringBefore(expr, " . indexOf (").
         Let aft be substringAfter(expr, " . indexOf (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Let subEval be jsEvalIn(trim(methodArg(aft)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
     If lm is equal to " . slice (":
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let args be splitArgs2(methodArg(aft)).
         Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
     If lm is equal to " . toUpperCase (":
         Let bef be substringBefore(expr, " . toUpperCase (").
         Let aft be substringAfter(expr, " . toUpperCase (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
@@ -1936,7 +1978,7 @@
     If lm is equal to " . toLowerCase (":
         Let bef be substringBefore(expr, " . toLowerCase (").
         Let aft be substringAfter(expr, " . toLowerCase (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
@@ -1944,42 +1986,42 @@
     If lm is equal to " . includes (":
         Let bef be substringBefore(expr, " . includes (").
         Let aft be substringAfter(expr, " . includes (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Let subEval be jsEvalIn(trim(methodArg(aft)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(idxOf(raw, subEval) is not equal to -1)), rst)), env).
     If lm is equal to " . startsWith (":
         Let bef be substringBefore(expr, " . startsWith (").
         Let aft be substringAfter(expr, " . startsWith (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let subv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(startsWith(sval, subv))), rst)), env).
     If lm is equal to " . endsWith (":
         Let bef be substringBefore(expr, " . endsWith (").
         Let aft be substringAfter(expr, " . endsWith (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let subv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(strEndsWith(sval, subv))), rst)), env).
     If lm is equal to " . repeat (":
         Let bef be substringBefore(expr, " . repeat (").
         Let aft be substringAfter(expr, " . repeat (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strRepeat(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)), ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strRepeat(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env)), ""))), rst)), env).
     If lm is equal to " . trim (":
         Let bef be substringBefore(expr, " . trim (").
         Let aft be substringAfter(expr, " . trim (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
@@ -1987,68 +2029,68 @@
     If lm is equal to " . padStart (":
         Let bef be substringBefore(expr, " . padStart (").
         Let aft be substringAfter(expr, " . padStart (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let args be splitArgs2(methodArg(aft)).
         Let padded be strPadStart(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
     If lm is equal to " . padEnd (":
         Let bef be substringBefore(expr, " . padEnd (").
         Let aft be substringAfter(expr, " . padEnd (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let args be splitArgs2(methodArg(aft)).
         Let padded be strPadEnd(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
     If lm is equal to " . substring (":
         Let bef be substringBefore(expr, " . substring (").
         Let aft be substringAfter(expr, " . substring (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let args be splitArgs2(methodArg(aft)).
         Let subbed be strSubstring(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), subbed), rst)), env).
     If lm is equal to " . charCodeAt (":
         Let bef be substringBefore(expr, " . charCodeAt (").
         Let aft be substringAfter(expr, " . charCodeAt (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let cc be strCharCodeAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Let cc be strCharCodeAt(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(cc)), rst)), env).
     If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let sepv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strSplit(sval, sepv)), rst)), env).
     If lm is equal to " . join (":
         Let bef be substringBefore(expr, " . join (").
         Let aft be substringAfter(expr, " . join (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let aval be jsEvalIn(recv, env).
-        Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Let sepv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrJoin(aval, sepv)), rst)), env).
     If lm is equal to " . replace (":
         Let bef be substringBefore(expr, " . replace (").
         Let aft be substringAfter(expr, " . replace (").
-        Let rst be substringAfter(aft, ")").
+        Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let args be split(substringBefore(aft, ")"), ",").
+        Let args be splitArgs2(methodArg(aft)).
         Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
         Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, av, bv)), rst)), env).
