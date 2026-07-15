@@ -1156,6 +1156,31 @@
 ## To objEntries (objVal: Text) -> Text:
     Return concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
 
+## To fromEntriesLoop (pairs: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of pairs:
+        Return acc.
+    Let pair be item i of pairs.
+    Let pk be materialize(arrGet(concat(pair, ""), 0)).
+    Return fromEntriesLoop(pairs, i + 1, objSet(acc, pk, arrGet(concat(pair, ""), 1))).
+
+## To objFromEntries (arrval: Text) -> Text:
+    Return fromEntriesLoop(arrElements(arrval), 1, concat(tagObj (), tagObjEnd ())).
+
+## To assignMergeEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Return assignMergeEntries(entries, i + 1, objSet(acc, substringBefore(entry, tagObjKV ()), substringAfter(entry, tagObjKV ()))).
+
+## To assignLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let src be jsEvalIn(trim(item i of args), concat(env, "")).
+    Return assignLoop(args, i + 1, env, assignMergeEntries(objEntrySeq(concat(src, "")), 1, acc)).
+
+## To objAssign (argStr: Text, env: Text) -> Text:
+    Return assignLoop(patFields(argStr), 1, env, concat(tagObj (), tagObjEnd ())).
+
 ## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -2090,6 +2115,16 @@
         Let aft be substringAfter(expr, "Object . entries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Object . fromEntries (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . fromEntries (").
+        Let aft be substringAfter(expr, "Object . fromEntries (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objFromEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Object . assign (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . assign (").
+        Let aft be substringAfter(expr, "Object . assign (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objAssign(methodArg(aft), env)), rst)), env).
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
