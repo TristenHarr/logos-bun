@@ -797,7 +797,7 @@
 ## To arrGet (arrVal: Text, idx: Int) -> Text:
     Let els be split(substringAfter(arrVal, chr(5)), chr(6)).
     If idx + 1 is greater than length of els:
-        Return "".
+        Return "undefined".
     Return item (idx + 1) of els.
 
 ## To resolveArrays (expr: Text) -> Text:
@@ -824,7 +824,7 @@
 
 ## To objScan (entries: Seq of Text, i: Int, key: Text) -> Text:
     If i is greater than length of entries:
-        Return concat(chr(3), "undefined").
+        Return "undefined".
     Let entry be item i of entries.
     If substringBefore(entry, chr(8)) is equal to key:
         Return substringAfter(entry, chr(8)).
@@ -833,7 +833,7 @@
 ## To objGet (objVal: Text, key: Text) -> Text:
     Let content be substringAfter(objVal, chr(7)).
     If content is equal to "":
-        Return concat(chr(3), "undefined").
+        Return "undefined".
     Return objScan(split(content, chr(6)), 1, key).
 
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
@@ -919,6 +919,10 @@
         Return "true".
     If trim(expr) is equal to "false":
         Return "false".
+    If trim(expr) is equal to "null":
+        Return "null".
+    If trim(expr) is equal to "undefined":
+        Return "undefined".
     If hasStr(expr):
         Return concat(chr(3), concatTerms(split(expr, " + "), 1, "")).
     Return toText(evalParens(expr)).
@@ -937,6 +941,10 @@
         Return concat(chr(3), "boolean").
     If v is equal to "false":
         Return concat(chr(3), "boolean").
+    If v is equal to "null":
+        Return concat(chr(3), "object").
+    If v is equal to "undefined":
+        Return concat(chr(3), "undefined").
     Return concat(chr(3), "number").
 
 ## To resolveTypeof (expr: Text) -> Text:
