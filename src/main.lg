@@ -2433,9 +2433,44 @@
     Let name be trim(substringBefore(substringAfter(stmt, "function "), "(")).
     Return envSet(env, name, funcValueOf(stmt)).
 
+## To destructObjLoop (fields: Seq of Text, i: Int, objval: Text, env: Text) -> Text:
+    If i is greater than length of fields:
+        Return env.
+    Let field be trim(item i of fields).
+    If field is equal to "":
+        Return destructObjLoop(fields, i + 1, objval, env).
+    If hasSep(field, ":"):
+        Let k be trim(substringBefore(field, ":")).
+        Let vn be trim(substringAfter(field, ":")).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, vn, objGet(concat(objval, ""), k))).
+    Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, concat(field, ""), objGet(concat(objval, ""), field))).
+
+## To destructArrLoop (fields: Seq of Text, i: Int, arrval: Text, env: Text) -> Text:
+    If i is greater than length of fields:
+        Return env.
+    Let field be trim(item i of fields).
+    If field is equal to "":
+        Return destructArrLoop(fields, i + 1, arrval, env).
+    If startsWith(field, "..."):
+        Let rv be trim(substringAfter(field, "...")).
+        Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, rv, arrSlice(concat(arrval, ""), i - 1, 1000000))).
+    Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, concat(field, ""), arrGet(concat(arrval, ""), i - 1))).
+
+## To destructureObj (pattern: Text, objval: Text, env: Text) -> Text:
+    Let inner be trim(substringBefore(substringAfter(pattern, chr(123)), chr(125))).
+    Return destructObjLoop(splitArgsN(inner), 1, objval, env).
+
+## To destructureArr (pattern: Text, arrval: Text, env: Text) -> Text:
+    Let inner be trim(substringBefore(substringAfter(pattern, chr(91)), chr(93))).
+    Return destructArrLoop(splitArgsN(inner), 1, arrval, env).
+
 ## To bindAssign (assign: Text, env: Text) -> Text:
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
+    If startsWith(name, chr(123)):
+        Return destructureObj(name, jsEvalIn(rhs, env), env).
+    If startsWith(name, chr(91)):
+        Return destructureArr(name, jsEvalIn(rhs, env), env).
     If startsWith(rhs, "function ("):
         Return envSet(env, name, funcValueOf(substitute(rhs, env))).
     Return envSet(env, name, jsEvalIn(rhs, env)).
