@@ -1761,6 +1761,8 @@
         Return true.
     If t is equal to "--":
         Return true.
+    If t is equal to "=>":
+        Return true.
     Return false.
 
 ## To isOp1 (c: Text) -> Bool:
@@ -1810,8 +1812,112 @@
         Return joinNonEmpty(parts, i + 1, piece).
     Return joinNonEmpty(parts, i + 1, concat(concat(acc, " "), piece)).
 
+## To isBodyTerm (c: Text) -> Bool:
+    If c is equal to ",":
+        Return true.
+    If c is equal to ";":
+        Return true.
+    If c is equal to ")":
+        Return true.
+    If c is equal to chr(93):
+        Return true.
+    If c is equal to chr(125):
+        Return true.
+    Return false.
+
+## To isOpenGrp (c: Text) -> Bool:
+    If c is equal to "(":
+        Return true.
+    If c is equal to chr(91):
+        Return true.
+    If c is equal to chr(123):
+        Return true.
+    Return false.
+
+## To isCloseGrp (c: Text) -> Bool:
+    If c is equal to ")":
+        Return true.
+    If c is equal to chr(93):
+        Return true.
+    If c is equal to chr(125):
+        Return true.
+    Return false.
+
+## To matchOpenLeft (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is less than 1:
+        Return 0.
+    Let c be item i of toks.
+    If c is equal to ")":
+        Return matchOpenLeft(toks, i - 1, depth + 1, concat(g, c)).
+    If c is equal to "(":
+        If depth is equal to 1:
+            Return i.
+        Return matchOpenLeft(toks, i - 1, depth - 1, concat(g, c)).
+    Return matchOpenLeft(toks, i - 1, depth, concat(g, c)).
+
+## To exprBodyEnd (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return i.
+    Let c be item i of toks.
+    If depth is equal to 0:
+        If isBodyTerm(c):
+            Return i.
+    If isOpenGrp(c):
+        Return exprBodyEnd(toks, i + 1, depth + 1, concat(g, c)).
+    If isCloseGrp(c):
+        Return exprBodyEnd(toks, i + 1, depth - 1, concat(g, c)).
+    Return exprBodyEnd(toks, i + 1, depth, concat(g, c)).
+
+## To blockEndIdx (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return i.
+    Let c be item i of toks.
+    If c is equal to chr(123):
+        Return blockEndIdx(toks, i + 1, depth + 1, concat(g, c)).
+    If c is equal to chr(125):
+        If depth is equal to 1:
+            Return i.
+        Return blockEndIdx(toks, i + 1, depth - 1, concat(g, c)).
+    Return blockEndIdx(toks, i + 1, depth, concat(g, c)).
+
+## To fnForm (params: Text, bodyText: Text) -> Text:
+    Let head be concat(concat("function ( ", params), " ) ").
+    Let withOpen be concat(concat(head, chr(123)), concat(" ", bodyText)).
+    Return concat(concat(withOpen, " "), chr(125)).
+
+## To joinFour (pre: Text, fn: Text, rest: Text) -> Text:
+    Return concat(concat(concat(concat(pre, " "), fn), " "), rest).
+
+## To buildArrow (preParams: Text, params: Text, right: Text) -> Text:
+    Let rt be split(right, " ").
+    Let firstR be item 1 of rt.
+    Let nR be length of rt.
+    If firstR is equal to chr(123):
+        Let bEnd be blockEndIdx(rt, 1, 0, "").
+        Let bodyInner be joinRange(rt, 2, bEnd - 1, "").
+        Let rest be joinRange(rt, bEnd + 1, nR, "").
+        Return joinFour(preParams, fnForm(params, bodyInner), rest).
+    Let eEnd be exprBodyEnd(rt, 1, 0, "").
+    Let body be joinRange(rt, 1, eEnd - 1, "").
+    Let rest be joinRange(rt, eEnd, nR, "").
+    Return joinFour(preParams, fnForm(params, concat("return ", body)), rest).
+
+## To desugarArrows (expr: Text) -> Text:
+    If substringBefore(expr, " => ") is equal to expr:
+        Return expr.
+    Let left be substringBefore(expr, " => ").
+    Let right be substringAfter(expr, " => ").
+    Let lt be split(left, " ").
+    Let nL be length of lt.
+    Let lastL be item nL of lt.
+    If lastL is equal to ")":
+        Let openIdx be matchOpenLeft(lt, nL, 0, "").
+        Return desugarArrows(buildArrow(joinRange(lt, 1, openIdx - 1, ""), joinRange(lt, openIdx + 1, nL - 1, ""), right)).
+    Return desugarArrows(buildArrow(joinRange(lt, 1, nL - 1, ""), lastL, right)).
+
 ## To normalizeJs (s: Text) -> Text:
-    Return joinNonEmpty(split(normJs(s, 1, false, ""), " "), 1, "").
+    Let normed be joinNonEmpty(split(normJs(s, 1, false, ""), " "), 1, "").
+    Return joinNonEmpty(split(desugarArrows(normed), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
     Return replaceAll(materialize(jsRun(normalizeJs(program))), chr(4), " ").
