@@ -801,7 +801,8 @@
     Let pieces be split(leftOfClose, chr(91)).
     Let np be length of pieces.
     Let inner be trim(item np of pieces).
-    Let prefix be trim(joinUpto(pieces, 1, np - 1, chr(91), "")).
+    Let rawPrefix be joinUpto(pieces, 1, np - 1, chr(91), "").
+    Let prefix be trim(rawPrefix).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
     If startsWith(lastTok, chr(5)):
@@ -812,7 +813,7 @@
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
-    Return resolveArrays(trim(concat(concat(prefix, buildArr(split(inner, ","), 1, "")), rest))).
+    Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(split(inner, ","), 1, "")), rest))).
 
 ## To objScan (entries: Seq of Text, i: Int, key: Text) -> Text:
     If i is greater than length of entries:
@@ -907,9 +908,39 @@
         Return trim(expr).
     If startsWith(trim(expr), chr(7)):
         Return trim(expr).
+    If trim(expr) is equal to "true":
+        Return "true".
+    If trim(expr) is equal to "false":
+        Return "false".
     If hasStr(expr):
         Return concat(chr(3), concatTerms(split(expr, " + "), 1, "")).
     Return toText(evalParens(expr)).
+
+## To typeOfTag (tok: Text) -> Text:
+    If startsWith(tok, chr(1)):
+        Return concat(chr(3), "function").
+    Let v be evalValue(litToStr(tok)).
+    If startsWith(v, chr(3)):
+        Return concat(chr(3), "string").
+    If startsWith(v, chr(5)):
+        Return concat(chr(3), "object").
+    If startsWith(v, chr(7)):
+        Return concat(chr(3), "object").
+    If v is equal to "true":
+        Return concat(chr(3), "boolean").
+    If v is equal to "false":
+        Return concat(chr(3), "boolean").
+    Return concat(chr(3), "number").
+
+## To resolveTypeof (expr: Text) -> Text:
+    If substringBefore(expr, "typeof ") is equal to expr:
+        Return expr.
+    Let before be substringBefore(expr, "typeof ").
+    Let after be substringAfter(expr, "typeof ").
+    Let atoks be split(after, " ").
+    Let tok be item 1 of atoks.
+    Let restToks be joinRange(atoks, 2, length of atoks, "").
+    Return resolveTypeof(trim(concat(concat(before, typeOfTag(tok)), restToks))).
 
 ## To cmpVals (a: Text, b: Text) -> Int:
     If startsWith(a, chr(3)):
@@ -920,7 +951,7 @@
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let subd be substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env).
-    Return jsEvalTernary(resolveObjDot(resolveProps(resolveArrays(resolveObjects(subd))))).
+    Return jsEvalTernary(resolveTypeof(resolveObjDot(resolveProps(resolveArrays(resolveObjects(subd)))))).
 
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
