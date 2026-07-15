@@ -876,7 +876,7 @@
         Return concat(chr(7), acc).
     Let entry be trim(item i of entries).
     Let k be materialize(litToStr(trim(substringBefore(entry, " : ")))).
-    Let v be evalValue(trim(substringAfter(entry, " : "))).
+    Let v be evalResolved(trim(substringAfter(entry, " : "))).
     Let pair be concat(concat(k, chr(8)), v).
     If i is equal to 1:
         Return buildObj(entries, i + 1, pair).
@@ -1011,7 +1011,10 @@
             Return jsEvalIn(substringBefore(rest, " : "), env).
         Return jsEvalIn(substringAfter(rest, " : "), env).
     Let subd be substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env).
-    Return jsEvalTernary(resolveTypeof(resolveObjDot(resolveProps(resolveArrays(resolveObjects(subd)))))).
+    Return evalResolved(subd).
+
+## To evalResolved (expr: Text) -> Text:
+    Return jsEvalTernary(resolveTypeof(resolveObjDot(resolveProps(resolveArrays(resolveObjects(expr)))))).
 
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
