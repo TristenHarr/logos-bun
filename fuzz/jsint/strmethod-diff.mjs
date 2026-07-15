@@ -35,7 +35,9 @@ if (OURS) {
     if (k < 0.87) { const sub = rnd() < 0.6 ? w.slice(0, 2) : "x"; return `${JSON.stringify(w)}.startsWith(${JSON.stringify(sub)})`; } // startsWith
     if (k < 0.92) { const sub = rnd() < 0.6 ? w.slice(-2) : "x"; return `${JSON.stringify(w)}.endsWith(${JSON.stringify(sub)})`; } // endsWith
     if (k < 0.96) return `${JSON.stringify(w.slice(0, 2))}.repeat(${1 + Math.floor(rnd() * 4)})`;                     // repeat
-    if (k < 0.98) return `${JSON.stringify("  " + w + "  ")}.trim()`;                                                 // trim
+    if (k < 0.96) return `${JSON.stringify("  " + w + "  ")}.trim()`;                                                 // trim
+    if (k < 0.98) { const sep = pick([",", "-", "x"]); const arr = [w, w.slice(0, 2), w.slice(1)].filter(Boolean); return `${JSON.stringify(arr.join(sep))}.split(${JSON.stringify(sep)})`; } // split (whole array → toString)
+    if (k < 0.99) { const sep = pick([",", "-"]); const parts = [w.slice(0, 2), w.slice(2), w[0]]; return `${JSON.stringify(parts.join(sep))}.split(${JSON.stringify(sep)})[${Math.floor(rnd() * parts.length)}]`; } // split then index
     const i = Math.floor(rnd() * (w.length - 1)); return `let s=${JSON.stringify(w)};s.charAt(${i})+s.charAt(${i + 1})`; // charAt into concat
   };
   let checked = 0;
