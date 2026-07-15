@@ -1004,6 +1004,12 @@
     Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
+    If hasSep(trim(expr), " ? "):
+        Let cond be substringBefore(trim(expr), " ? ").
+        Let rest be substringAfter(trim(expr), " ? ").
+        If boolOf(jsEvalIn(cond, env)):
+            Return jsEvalIn(substringBefore(rest, " : "), env).
+        Return jsEvalIn(substringAfter(rest, " : "), env).
     Let subd be substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env).
     Return jsEvalTernary(resolveTypeof(resolveObjDot(resolveProps(resolveArrays(resolveObjects(subd)))))).
 
