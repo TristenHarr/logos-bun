@@ -1001,6 +1001,14 @@
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
+    If c is equal to chr(127):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
+    If c is equal to chr(30):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
+    If c is equal to chr(31):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "n"))).
+    If c is equal to chr(9):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "t"))).
     If c is equal to chr(34):
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
     If c is equal to chr(92):
@@ -2234,7 +2242,10 @@
     Let d be replaceAll(c, chr(26), chr(123)).
     Let e be replaceAll(d, chr(27), chr(125)).
     Let f be replaceAll(e, chr(28), "(").
-    Return replaceAll(f, chr(29), ")").
+    Let g be replaceAll(f, chr(29), ")").
+    Let h be replaceAll(g, chr(127), chr(34)).
+    Let ii be replaceAll(h, chr(30), chr(92)).
+    Return replaceAll(ii, chr(31), chr(10)).
 
 ## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
@@ -2243,6 +2254,19 @@
     If c is equal to chr(34):
         Return normJs(s, i + 1, inStr is equal to false, concat(acc, c)).
     If inStr:
+        If c is equal to chr(92):
+            If i is less than length of s:
+                Let nx be item (i + 1) of s.
+                If nx is equal to chr(34):
+                    Return normJs(s, i + 2, inStr, concat(acc, chr(127))).
+                If nx is equal to chr(92):
+                    Return normJs(s, i + 2, inStr, concat(acc, chr(30))).
+                If nx is equal to "n":
+                    Return normJs(s, i + 2, inStr, concat(acc, chr(31))).
+                If nx is equal to "t":
+                    Return normJs(s, i + 2, inStr, concat(acc, chr(9))).
+                Return normJs(s, i + 2, inStr, concat(acc, nx)).
+            Return normJs(s, i + 1, inStr, concat(acc, c)).
         If c is equal to " ":
             Return normJs(s, i + 1, inStr, concat(acc, chr(4))).
         If c is equal to chr(91):
