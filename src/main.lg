@@ -1056,6 +1056,16 @@
         Return compareText(materialize(a), materialize(b)).
     Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
 
+## To maxInt (a: Int, b: Int) -> Int:
+    If a is greater than b:
+        Return a.
+    Return b.
+
+## To absInt (a: Int) -> Int:
+    If a is less than 0:
+        Return 0 - a.
+    Return a.
+
 ## To strCharAt (s: Text, i: Int) -> Text:
     If i is less than 0:
         Return chr(3).
@@ -1165,6 +1175,26 @@
     Return strLowerLoop(s, i + 1, concat(acc, c)).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
+    If substringBefore(expr, "Math . max (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . max (").
+        Let aft be substringAfter(expr, "Math . max (").
+        Let rst be substringAfter(aft, ")").
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let mx be maxInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(bef, toText(mx)), rst)), env).
+    If substringBefore(expr, "Math . min (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . min (").
+        Let aft be substringAfter(expr, "Math . min (").
+        Let rst be substringAfter(aft, ")").
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let mn be minInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(bef, toText(mn)), rst)), env).
+    If substringBefore(expr, "Math . abs (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . abs (").
+        Let aft be substringAfter(expr, "Math . abs (").
+        Let rst be substringAfter(aft, ")").
+        Let ab be absInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
     If substringBefore(expr, " . charAt (") is not equal to expr:
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
