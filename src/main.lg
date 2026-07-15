@@ -874,20 +874,33 @@
 ## To hasReturn (env: Text) -> Bool:
     Return envGet(env, "__ret") is not equal to "".
 
+## To argAt (args: Seq of Text, i: Int, callerEnv: Text) -> Text:
+    If i is greater than length of args:
+        Return "undefined".
+    Return jsEvalIn(item i of args, callerEnv).
+
 ## To bindParams (params: Seq of Text, args: Seq of Text, i: Int, callerEnv: Text, acc: Text) -> Text:
     If i is greater than length of params:
         Return acc.
     Let pname be trim(item i of params).
     If pname is equal to "":
         Return bindParams(params, args, i + 1, callerEnv, acc).
-    Let aval be jsEvalIn(item i of args, callerEnv).
+    Let aval be argAt(args, i, callerEnv).
+    If startsWith(pname, chr(123)):
+        Return bindParams(params, args, i + 1, callerEnv, destructureObj(pname, aval, acc)).
+    If startsWith(pname, chr(91)):
+        Return bindParams(params, args, i + 1, callerEnv, destructureArr(pname, aval, acc)).
+    If hasSep(pname, " = "):
+        Let dpn be trim(substringBefore(pname, " = ")).
+        Let ddf be trim(substringAfter(pname, " = ")).
+        Return bindParams(params, args, i + 1, callerEnv, envSet(acc, dpn, defaultOr(aval, ddf, concat(acc, "")))).
     Return bindParams(params, args, i + 1, callerEnv, envSet(acc, pname, aval)).
 
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     Let afterMark be substringAfter(fnVal, chr(1)).
     Let paramStr be decFn(substringBefore(afterMark, chr(1))).
     Let body be decFn(substringAfter(afterMark, chr(1))).
-    Let localEnv be bindParams(split(paramStr, ","), split(argsText, ","), 1, env, env).
+    Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
     Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
 
@@ -895,7 +908,7 @@
     Let afterMark be substringAfter(fnVal, chr(1)).
     Let paramStr be decFn(substringBefore(afterMark, chr(1))).
     Let body be decFn(substringAfter(afterMark, chr(1))).
-    Let params be split(paramStr, ",").
+    Let params be patFields(paramStr).
     Let e1 be envSet(env, trim(item 1 of params), v1).
     Let e2 be envSet(e1, trim(item 2 of params), v2).
     Let doneEnv be runBlockStr(body, e2).
@@ -2425,8 +2438,10 @@
     Return replaceAll(x8, chr(2), ";").
 
 ## To funcValueOf (text: Text) -> Text:
-    Let param be trim(substringBefore(substringAfter(text, "("), ")")).
-    Let body be trim(braceBody(substringAfter(text, chr(123)), 1, 0, "")).
+    Let afterOpen be substringAfter(text, "(").
+    Let param be trim(substringBefore(concat(afterOpen, ""), ")")).
+    Let afterParams be substringAfter(concat(afterOpen, ""), ")").
+    Let body be trim(braceBody(substringAfter(afterParams, chr(123)), 1, 0, "")).
     Return concat(concat(concat(chr(1), encFn(param)), chr(1)), encFn(body)).
 
 ## To defineFn (stmt: Text, env: Text) -> Text:
