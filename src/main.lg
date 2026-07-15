@@ -1799,6 +1799,17 @@
 ## To arrFind (arrval: Text, fnval: Text, env: Text) -> Text:
     Return arrFindLoop(arrElements(arrval), 1, fnval, env).
 
+## To arrFindIndexLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Int:
+    If i is greater than length of els:
+        Return -1.
+    Let el be item i of els.
+    If boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))):
+        Return i - 1.
+    Return arrFindIndexLoop(els, i + 1, fnval, env).
+
+## To arrFindIndex (arrval: Text, fnval: Text, env: Text) -> Int:
+    Return arrFindIndexLoop(arrElements(arrval), 1, fnval, env).
+
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
@@ -1913,6 +1924,15 @@
     Let tail be substringAfter(s, a).
     Return concat(tagStr (), concat(concat(bef, b), tail)).
 
+## To strReplaceAllLoop (s: Text, a: Text, b: Text, acc: Text) -> Text:
+    Let bef be substringBefore(s, a).
+    If bef is equal to s:
+        Return concat(acc, s).
+    Return strReplaceAllLoop(substringAfter(s, a), concat(a, ""), concat(b, ""), concat(concat(acc, bef), b)).
+
+## To strReplaceAll (s: Text, a: Text, b: Text) -> Text:
+    Return concat(tagStr (), strReplaceAllLoop(s, a, b, "")).
+
 ## To strUpperLoop (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -1979,7 +1999,7 @@
     Return sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ())).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . sort (", betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . replaceAll (", betterMarker(concat(expr, ""), " . findIndex (", betterMarker(concat(expr, ""), " . sort (", betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -2337,6 +2357,27 @@
         Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
         Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, av, bv)), rst)), env).
+    If lm is equal to " . replaceAll (":
+        Let bef be substringBefore(expr, " . replaceAll (").
+        Let aft be substringAfter(expr, " . replaceAll (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be splitArgs2(methodArg(aft)).
+        Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
+        Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplaceAll(sval, av, bv)), rst)), env).
+    If lm is equal to " . findIndex (":
+        Let bef be substringBefore(expr, " . findIndex (").
+        Let aft be substringAfter(expr, " . findIndex (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be fnArgVal(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(arrFindIndex(raw, fnval, env))), rst)), env).
     Return expr.
 
 ## To topTernaryQ (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
