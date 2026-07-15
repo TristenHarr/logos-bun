@@ -780,6 +780,21 @@
     Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
 
+## To isGlobalFn (name: Text) -> Bool:
+    Let names be ["parseInt", "String", "Number", "Boolean"].
+    Return names contains name.
+
+## To globalCall (name: Text, av: Text) -> Text:
+    If name is equal to "parseInt":
+        Return toText(parseInt(materialize(av))).
+    If name is equal to "Number":
+        Return toText(parseInt(materialize(av))).
+    If name is equal to "String":
+        Return concat(chr(3), materialize(av)).
+    If name is equal to "Boolean":
+        Return cmpResult(boolOf(av)).
+    Return av.
+
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
         Return expr.
@@ -800,6 +815,10 @@
         Let result be callFn(fnVal, inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If isGlobalFn(lastTok):
+        Let av be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, av)), rest), env).
     Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
 
