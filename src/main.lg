@@ -1118,6 +1118,13 @@
 ## To arrJoin (arrval: Text, sep: Text) -> Text:
     Return concat(chr(3), arrJoinLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, sep, "")).
 
+## To strReplace (s: Text, a: Text, b: Text) -> Text:
+    Let bef be substringBefore(s, a).
+    If bef is equal to s:
+        Return concat(chr(3), s).
+    Let tail be substringAfter(s, a).
+    Return concat(chr(3), concat(concat(bef, b), tail)).
+
 ## To strUpperLoop (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -1256,6 +1263,18 @@
         Let aval be jsEvalIn(recv, env).
         Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrJoin(aval, sepv)), rst)), env).
+    If substringBefore(expr, " . replace (") is not equal to expr:
+        Let bef be substringBefore(expr, " . replace (").
+        Let aft be substringAfter(expr, " . replace (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
+        Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, av, bv)), rst)), env).
     Return expr.
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:

@@ -38,7 +38,8 @@ if (OURS) {
     if (k < 0.96) return `${JSON.stringify("  " + w + "  ")}.trim()`;                                                 // trim
     if (k < 0.98) { const sep = pick([",", "-", "x"]); const arr = [w, w.slice(0, 2), w.slice(1)].filter(Boolean); return `${JSON.stringify(arr.join(sep))}.split(${JSON.stringify(sep)})`; } // split (whole array → toString)
     if (k < 0.985) { const sep = pick([",", "-"]); const parts = [w.slice(0, 2), w.slice(2), w[0]]; return `${JSON.stringify(parts.join(sep))}.split(${JSON.stringify(sep)})[${Math.floor(rnd() * parts.length)}]`; } // split then index
-    if (k < 0.995) { const s1 = pick([",", "-", "x"]), s2 = pick(["_", "|", ""]); const parts = [w.slice(0, 2), w.slice(2)]; return `${JSON.stringify(parts.join(s1))}.split(${JSON.stringify(s1)}).join(${JSON.stringify(s2)})`; } // split().join() (chained, variable-array via split)
+    if (k < 0.98) { const s1 = pick([",", "-", "x"]), s2 = pick(["_", "|", ""]); const parts = [w.slice(0, 2), w.slice(2)]; return `${JSON.stringify(parts.join(s1))}.split(${JSON.stringify(s1)}).join(${JSON.stringify(s2)})`; } // split().join() (chained)
+    if (k < 0.995) { const a = rnd() < 0.7 ? w.slice(0, 1 + Math.floor(rnd() * 2)) : "zz"; const b = pick(["X", "__", ""]); return `${JSON.stringify(w)}.replace(${JSON.stringify(a)},${JSON.stringify(b)})`; } // replace (first occurrence, found or not)
     const i = Math.floor(rnd() * (w.length - 1)); return `let s=${JSON.stringify(w)};s.charAt(${i})+s.charAt(${i + 1})`; // charAt into concat
   };
   let checked = 0;
