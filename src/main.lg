@@ -605,7 +605,22 @@
 ## To hasSep (expr: Text, sep: Text) -> Bool:
     Return substringBefore(expr, sep) is not equal to expr.
 
+## To notOf (b: Text) -> Text:
+    If b is equal to "false":
+        Return "true".
+    If b is equal to "0":
+        Return "true".
+    If b is equal to "":
+        Return "true".
+    If b is equal to "null":
+        Return "true".
+    If b is equal to "undefined":
+        Return "true".
+    Return "false".
+
 ## To jsEvalCmp (expr: Text) -> Text:
+    If startsWith(trim(expr), "! "):
+        Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
