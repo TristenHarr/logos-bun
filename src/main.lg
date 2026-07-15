@@ -1308,6 +1308,22 @@
         Return arrval.
     Return concat(concat(chr(5), joinChr6(els, 1, (length of els) - 1, "")), chr(15)).
 
+## To arrConcat (a: Text, b: Text) -> Text:
+    Let ea be arrElements(a).
+    Let eb be arrElements(b).
+    Let na be length of ea.
+    Let nb be length of eb.
+    If na is less than 1:
+        Return concat(concat(chr(5), joinChr6(eb, 1, nb, "")), chr(15)).
+    If nb is less than 1:
+        Return concat(concat(chr(5), joinChr6(ea, 1, na, "")), chr(15)).
+    Return concat(concat(chr(5), concat(concat(joinChr6(ea, 1, na, ""), chr(6)), joinChr6(eb, 1, nb, ""))), chr(15)).
+
+## To concatOf (a: Text, b: Text) -> Text:
+    If startsWith(a, chr(5)):
+        Return arrConcat(a, b).
+    Return concat(chr(3), concat(materialize(a), materialize(b))).
+
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -1518,7 +1534,7 @@
     Return b.
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -1572,6 +1588,11 @@
         Let rst be substringAfter(aft, ")").
         Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
+    If substringBefore(expr, "Array . isArray (") is not equal to expr:
+        Let bef be substringBefore(expr, "Array . isArray (").
+        Let aft be substringAfter(expr, "Array . isArray (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(substringBefore(aft, ")")), env), chr(5)))), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . stringify (").
         Let aft be substringAfter(expr, "JSON . stringify (").
@@ -1633,6 +1654,16 @@
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgVal(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
+    If lm is equal to " . concat (":
+        Let bef be substringBefore(expr, " . concat (").
+        Let aft be substringAfter(expr, " . concat (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let other be jsEvalIn(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concatOf(raw, other)), rst)), env).
     If lm is equal to " . some (":
         Let bef be substringBefore(expr, " . some (").
         Let aft be substringAfter(expr, " . some (").
