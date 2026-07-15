@@ -1146,11 +1146,37 @@
         Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
     Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
 
+# JSON permits insignificant whitespace between tokens; in the encoded content that
+# is encSpace/encNewline. encTrim strips it from a value's ends (whitespace INSIDE a
+# string is significant and lies between the encQuote delimiters, so it is untouched).
+## To encTrimHead (s: Text, i: Int) -> Int:
+    If i is greater than length of s:
+        Return i.
+    Let c be item i of s.
+    If c is equal to encSpace ():
+        Return encTrimHead(s, i + 1).
+    If c is equal to encNewline ():
+        Return encTrimHead(s, i + 1).
+    Return i.
+
+## To encTrimTail (s: Text, i: Int) -> Int:
+    If i is less than 1:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to encSpace ():
+        Return encTrimTail(s, i - 1).
+    If c is equal to encNewline ():
+        Return encTrimTail(s, i - 1).
+    Return i.
+
+## To encTrim (s: Text) -> Text:
+    Return strSliceLoop(s, encTrimHead(s, 1), encTrimTail(s, length of s), "").
+
 ## To jsonBuildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return concat(concat(tagObj (), acc), tagObjEnd ()).
     Let entry be item i of entries.
-    Let keyRaw be substringBefore(entry, ":").
+    Let keyRaw be encTrim(substringBefore(entry, ":")).
     Let k be strSliceLoop(keyRaw, 2, (length of keyRaw) - 1, "").
     Let val be jsonParse(substringAfter(entry, ":")).
     Let pair be concat(concat(k, tagObjKV ()), val).
@@ -1167,19 +1193,20 @@
     Return jsonBuildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), val)).
 
 ## To jsonParse (v: Text) -> Text:
-    If startsWith(v, encBraceL ()):
-        Let innerO be strSliceLoop(v, 2, (length of v) - 1, "").
+    Let t be encTrim(v).
+    If startsWith(t, encBraceL ()):
+        Let innerO be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
         If innerO is equal to "":
             Return concat(tagObj (), tagObjEnd ()).
         Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, ""), chr(10)), 1, "").
-    If startsWith(v, encBrkL ()):
-        Let innerA be strSliceLoop(v, 2, (length of v) - 1, "").
+    If startsWith(t, encBrkL ()):
+        Let innerA be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
         If innerA is equal to "":
             Return concat(tagArr (), tagArrEnd ()).
         Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
-    If startsWith(v, encQuote ()):
-        Return concat(tagStr (), strSliceLoop(v, 2, (length of v) - 1, "")).
-    Return v.
+    If startsWith(t, encQuote ()):
+        Return concat(tagStr (), strSliceLoop(t, 2, (length of t) - 1, "")).
+    Return t.
 
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:

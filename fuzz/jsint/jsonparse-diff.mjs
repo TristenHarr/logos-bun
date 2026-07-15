@@ -26,9 +26,10 @@ if (OURS) {
   const nested = () => `{"a":${arr()},"b":${flatObj()}}`;
   const jsonVal = () => { const k = ri(4); return k === 0 ? scalar() : k === 1 ? arr() : k === 2 ? flatObj() : nested(); };
   const program = () => {
-    const json = jsonVal();                                    // a canonical JSON string
+    let json = jsonVal();                                      // a canonical JSON string
+    if (ri(2) === 0) json = json.replace(/:/g, " : ").replace(/,/g, " , ").replace(/{/g, "{ ").replace(/}/g, " }").replace(/\[/g, "[ ").replace(/]/g, " ]");  // inject insignificant whitespace
     const srcLit = JSON.stringify(json);                       // that JSON as an escaped JS string literal
-    return `JSON.stringify(JSON.parse(${srcLit}))`;            // parse then re-serialize
+    return `JSON.stringify(JSON.parse(${srcLit}))`;            // parse then re-serialize (canonical for both)
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {
