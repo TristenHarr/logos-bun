@@ -1349,6 +1349,45 @@
     Let b be trimTailIdx(s, length of s).
     Return strSliceLoop(s, a, b, "").
 
+## To strSubstring (s: Text, a: Int, b: Int) -> Text:
+    If a is greater than b:
+        Return strSlice(s, b, a).
+    Return strSlice(s, a, b).
+
+## To strPadStart (s: Text, target: Int, pad: Text) -> Text:
+    If length of s is greater than or equal to target:
+        Return concat(chr(3), s).
+    If pad is equal to "":
+        Return concat(chr(3), s).
+    Let need be target - (length of s).
+    Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
+    Return concat(chr(3), concat(padding, s)).
+
+## To strPadEnd (s: Text, target: Int, pad: Text) -> Text:
+    If length of s is greater than or equal to target:
+        Return concat(chr(3), s).
+    If pad is equal to "":
+        Return concat(chr(3), s).
+    Let need be target - (length of s).
+    Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
+    Return concat(chr(3), concat(s, padding)).
+
+## To strCharCodeAt (s: Text, i: Int) -> Int:
+    If i + 1 is greater than length of s:
+        Return 0.
+    Let c be item (i + 1) of s.
+    If c is equal to chr(4):
+        Return 32.
+    Return ord(c).
+
+## To fromCharCodeLoop (codes: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of codes:
+        Return concat(chr(3), acc).
+    Let code be parseInt(jsEvalIn(trim(item i of codes), env)).
+    If code is equal to 32:
+        Return fromCharCodeLoop(codes, i + 1, env, concat(acc, chr(4))).
+    Return fromCharCodeLoop(codes, i + 1, env, concat(acc, chr(code))).
+
 ## To splitToArr (pieces: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of pieces:
         Return acc.
@@ -1410,7 +1449,7 @@
     Return b.
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -1464,6 +1503,11 @@
         Let rst be substringAfter(aft, ")").
         Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
+    If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
+        Let bef be substringBefore(expr, "String . fromCharCode (").
+        Let aft be substringAfter(expr, "String . fromCharCode (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(split(substringBefore(aft, ")"), ","), 1, env, "")), rst)), env).
     If substringBefore(expr, "Object . keys (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . keys (").
         Let aft be substringAfter(expr, "Object . keys (").
@@ -1624,6 +1668,49 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strTrim(sval))), rst)), env).
+    If lm is equal to " . padStart (":
+        Let bef be substringBefore(expr, " . padStart (").
+        Let aft be substringAfter(expr, " . padStart (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let padded be strPadStart(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
+    If lm is equal to " . padEnd (":
+        Let bef be substringBefore(expr, " . padEnd (").
+        Let aft be substringAfter(expr, " . padEnd (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let padded be strPadEnd(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
+    If lm is equal to " . substring (":
+        Let bef be substringBefore(expr, " . substring (").
+        Let aft be substringAfter(expr, " . substring (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let subbed be strSubstring(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), subbed), rst)), env).
+    If lm is equal to " . charCodeAt (":
+        Let bef be substringBefore(expr, " . charCodeAt (").
+        Let aft be substringAfter(expr, " . charCodeAt (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let cc be strCharCodeAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(cc)), rst)), env).
     If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
