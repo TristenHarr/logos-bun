@@ -28,9 +28,14 @@ if (OURS) {
     if (k < 0.5) { const i = Math.floor(rnd() * w.length); return `let s=${JSON.stringify(w)};s.charAt(${i})`; }       // variable charAt
     if (k < 0.55) { const sub = w.slice(Math.floor(rnd() * w.length), Math.floor(rnd() * w.length) + 1 + Math.floor(rnd() * 2)); return `${JSON.stringify(w)}.indexOf(${JSON.stringify(sub || w[0])})`; } // indexOf (found)
     if (k < 0.65) return `${JSON.stringify(w)}.indexOf(${JSON.stringify(pick(["zzz", "qq", "_"]))})`;                 // indexOf (not found → -1)
-    if (k < 0.8) { const a = Math.floor(rnd() * w.length), b = a + 1 + Math.floor(rnd() * (w.length + 1 - a)); return `${JSON.stringify(w)}.slice(${a},${b})`; } // slice (b may exceed length)
-    if (k < 0.9) return `${JSON.stringify(w)}.toUpperCase()`;                                                         // toUpperCase
-    if (k < 0.96) return `${JSON.stringify(w.toUpperCase())}.toLowerCase()`;                                          // toLowerCase
+    if (k < 0.62) { const a = Math.floor(rnd() * w.length), b = a + 1 + Math.floor(rnd() * (w.length + 1 - a)); return `${JSON.stringify(w)}.slice(${a},${b})`; } // slice (b may exceed length)
+    if (k < 0.7) return `${JSON.stringify(w)}.toUpperCase()`;                                                         // toUpperCase
+    if (k < 0.76) return `${JSON.stringify(w.toUpperCase())}.toLowerCase()`;                                          // toLowerCase
+    if (k < 0.82) { const sub = rnd() < 0.6 ? w.slice(1, 3) : pick(["zz", "q"]); return `${JSON.stringify(w)}.includes(${JSON.stringify(sub)})`; } // includes
+    if (k < 0.87) { const sub = rnd() < 0.6 ? w.slice(0, 2) : "x"; return `${JSON.stringify(w)}.startsWith(${JSON.stringify(sub)})`; } // startsWith
+    if (k < 0.92) { const sub = rnd() < 0.6 ? w.slice(-2) : "x"; return `${JSON.stringify(w)}.endsWith(${JSON.stringify(sub)})`; } // endsWith
+    if (k < 0.96) return `${JSON.stringify(w.slice(0, 2))}.repeat(${1 + Math.floor(rnd() * 4)})`;                     // repeat
+    if (k < 0.98) return `${JSON.stringify("  " + w + "  ")}.trim()`;                                                 // trim
     const i = Math.floor(rnd() * (w.length - 1)); return `let s=${JSON.stringify(w)};s.charAt(${i})+s.charAt(${i + 1})`; // charAt into concat
   };
   let checked = 0;
