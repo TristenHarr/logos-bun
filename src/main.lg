@@ -2297,8 +2297,26 @@
     Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(te, env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
+# Optional chaining `a ?. b`: if the receiver is null/undefined the whole access is
+# undefined (and `undefined ?. x` stays undefined, short-circuiting the rest of the
+# chain); otherwise it behaves like `.` — so we rewrite `?.` to `.` and let the normal
+# member/index resolution take over on the next fixpoint pass.
+## To resolveOptChain (expr: Text) -> Text:
+    If substringBefore(expr, " ?. ") is equal to expr:
+        Return expr.
+    Let lhs be substringBefore(expr, " ?. ").
+    Let tail be substringAfter(expr, " ?. ").
+    Let lhsToks be split(lhs, " ").
+    Let recv be item (length of lhsToks) of lhsToks.
+    If isNullish(recv):
+        Let tailToks be split(tail, " ").
+        Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+        Let restToks be joinRange(tailToks, 2, length of tailToks, "").
+        Return trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks)).
+    Return concat(concat(lhs, " . "), tail).
+
 ## To resolveAccess (expr: Text) -> Text:
-    Let once be resolveArrays(resolveObjDot(expr)).
+    Let once be resolveOptChain(resolveArrays(resolveObjDot(expr))).
     If once is equal to expr:
         Return once.
     Return resolveAccess(once).
@@ -2569,6 +2587,8 @@
     If t is equal to "**":
         Return true.
     If t is equal to "??":
+        Return true.
+    If t is equal to "?.":
         Return true.
     If t is equal to "==":
         Return true.
