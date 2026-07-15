@@ -39,7 +39,8 @@ if (OURS) {
     if (k < 0.80) { const c = 2 + Math.floor(rnd() * 2); const o = objLit(c, false); return `let o=${o};o.k0+o.k1`; }                        // arithmetic on fields
     if (k < 0.88) { const v = num(); return `let v=${v};let o={k0:v,k1:${num()}};o.k0`; }                                                     // value from variable
     if (k < 0.9) { const a = num(), b = num(); return `let o={k0:${a},k1:{k2:${b}}};o.k1.k2`; }                                              // nested object
-    if (k < 0.95) { const a = num(), b = num(); return `let o={k0:${a}};let o2={k0:o.k0+${b}};o2.k0`; }                                       // COMPUTED value (member access + arith)
+    if (k < 0.93) { const a = num(), b = num(); return `let o={k0:${a}};let o2={k0:o.k0+${b}};o2.k0`; }                                       // COMPUTED value (member access + arith)
+    if (k < 0.96) { const a = num(), b = num(), c = num(); return `let o={k0:[${a},${b},${c}],k1:${num()}};o.k0`; }                            // ARRAY-valued field (read whole array)
     const a = num(), b = num(), i = rnd() < 0.5 ? 0 : 1; return `let a=[{k0:${a}},{k0:${b}}];a[${i}].k0`;                                     // object in array
   };
   let checked = 0;

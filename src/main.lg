@@ -869,7 +869,7 @@
     Let content be substringAfter(objVal, chr(7)).
     If content is equal to "":
         Return "undefined".
-    Return objScan(split(content, chr(6)), 1, key).
+    Return objScan(split(content, chr(11)), 1, key).
 
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
@@ -880,7 +880,25 @@
     Let pair be concat(concat(k, chr(8)), v).
     If i is equal to 1:
         Return buildObj(entries, i + 1, pair).
-    Return buildObj(entries, i + 1, concat(concat(acc, chr(6)), pair)).
+    Return buildObj(entries, i + 1, concat(concat(acc, chr(11)), pair)).
+
+## To splitObjEntries (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(91):
+        Return splitObjEntries(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(123):
+        Return splitObjEntries(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(93):
+        Return splitObjEntries(s, i + 1, depth - 1, concat(acc, c)).
+    If c is equal to chr(125):
+        Return splitObjEntries(s, i + 1, depth - 1, concat(acc, c)).
+    If c is equal to ",":
+        If depth is equal to 0:
+            Return splitObjEntries(s, i + 1, 0, concat(acc, chr(10))).
+        Return splitObjEntries(s, i + 1, depth, concat(acc, c)).
+    Return splitObjEntries(s, i + 1, depth, concat(acc, c)).
 
 ## To resolveObjects (expr: Text) -> Text:
     If substringBefore(expr, chr(123)) is equal to expr:
@@ -893,7 +911,7 @@
     Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
     If inner is equal to "":
         Return resolveObjects(trim(concat(concat(prefix, chr(7)), rest))).
-    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(inner, " , "), 1, "")), rest))).
+    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, ""), chr(10)), 1, "")), rest))).
 
 ## To dotSep () -> Text:
     Return concat(concat(" ", chr(46)), " ").
