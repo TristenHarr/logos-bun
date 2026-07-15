@@ -2469,6 +2469,12 @@
         Return envSet(env, trim(substringBefore(s, " -= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " -= ")), " - "), substringAfter(s, " -= ")), env)).
     If hasSep(s, " *= "):
         Return envSet(env, trim(substringBefore(s, " *= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " *= ")), " * "), substringAfter(s, " *= ")), env)).
+    If hasSep(s, " ||= "):
+        Return envSet(env, trim(substringBefore(s, " ||= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ||= ")), " || "), substringAfter(s, " ||= ")), env)).
+    If hasSep(s, " &&= "):
+        Return envSet(env, trim(substringBefore(s, " &&= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " &&= ")), " && "), substringAfter(s, " &&= ")), env)).
+    If hasSep(s, " ??= "):
+        Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
     If hasSep(s, " = "):
         Return bindAssign(s, env).
     Return env.
@@ -2550,6 +2556,12 @@
     If t is equal to "!==":
         Return true.
     If t is equal to "...":
+        Return true.
+    If t is equal to "||=":
+        Return true.
+    If t is equal to "&&=":
+        Return true.
+    If t is equal to "??=":
         Return true.
     Return false.
 
