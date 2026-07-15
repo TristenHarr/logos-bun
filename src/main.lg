@@ -1060,7 +1060,10 @@
         Return runBlockStr(thenBlock, env).
     Let afterClose be trim(substringAfter(substringAfter(afterBrace, thenBlock), chr(125))).
     If startsWith(afterClose, "else"):
-        Let elseBlock be braceBody(substringAfter(afterClose, chr(123)), 1, 0, "").
+        Let afterElse be trim(substringAfter(afterClose, "else")).
+        If startsWith(afterElse, "if "):
+            Return execIf(afterElse, env).
+        Let elseBlock be braceBody(substringAfter(afterElse, chr(123)), 1, 0, "").
         Return runBlockStr(elseBlock, env).
     Return env.
 
