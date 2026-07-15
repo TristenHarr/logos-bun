@@ -1390,6 +1390,11 @@
 ## To arrSetIdx (arrval: Text, idx: Int, newval: Text) -> Text:
     Return concat(concat(tagArr (), arrSetLoop(arrElements(arrval), 1, idx, newval, "")), tagArrEnd ()).
 
+## To objKeyOf (keyPart: Text) -> Text:
+    If startsWith(keyPart, chr(91)):
+        Return materialize(evalResolved(trim(substringBefore(substringAfter(keyPart, chr(91)), chr(93))))).
+    Return materialize(litToStr(keyPart)).
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return dedupObj(concat(concat(tagObj (), acc), tagObjEnd ())).
@@ -1402,30 +1407,36 @@
         If acc is equal to "":
             Return buildObj(entries, i + 1, sJoined).
         Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), sJoined)).
-    Let k be materialize(litToStr(trim(substringBefore(entry, " : ")))).
+    Let k be objKeyOf(trim(substringBefore(entry, " : "))).
     Let v be evalResolved(trim(substringAfter(entry, " : "))).
     Let pair be concat(concat(k, tagObjKV ()), v).
     If acc is equal to "":
         Return buildObj(entries, i + 1, pair).
     Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), pair)).
 
-## To splitObjEntries (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+## To splitObjEntries (s: Text, i: Int, depth: Int, q: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
+    If c is equal to chr(34):
+        If q is equal to 0:
+            Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth, 0, concat(acc, c)).
+    If q is equal to 1:
+        Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c)).
     If c is equal to chr(91):
-        Return splitObjEntries(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c)).
     If c is equal to chr(123):
-        Return splitObjEntries(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c)).
     If c is equal to chr(93):
-        Return splitObjEntries(s, i + 1, depth - 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c)).
     If c is equal to chr(125):
-        Return splitObjEntries(s, i + 1, depth - 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c)).
     If c is equal to ",":
         If depth is equal to 0:
-            Return splitObjEntries(s, i + 1, 0, concat(acc, chr(10))).
-        Return splitObjEntries(s, i + 1, depth, concat(acc, c)).
-    Return splitObjEntries(s, i + 1, depth, concat(acc, c)).
+            Return splitObjEntries(s, i + 1, 0, q, concat(acc, chr(10))).
+        Return splitObjEntries(s, i + 1, depth, q, concat(acc, c)).
+    Return splitObjEntries(s, i + 1, depth, q, concat(acc, c)).
 
 ## To resolveObjects (expr: Text) -> Text:
     If substringBefore(expr, chr(123)) is equal to expr:
@@ -1438,7 +1449,7 @@
     Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
     If inner is equal to "":
         Return resolveObjects(trim(concat(concat(prefix, concat(tagObj (), tagObjEnd ())), rest))).
-    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, ""), chr(10)), 1, "")), rest))).
+    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, 0, ""), chr(10)), 1, "")), rest))).
 
 ## To dotSep () -> Text:
     Return concat(concat(" ", chr(46)), " ").
@@ -2699,30 +2710,36 @@
         Return jsEvalIn(defExpr, env).
     Return cur.
 
-## To patFieldSplit (s: Text, i: Int, depth: Int, g: Text) -> Text:
+## To patFieldSplit (s: Text, i: Int, depth: Int, q: Int, g: Text) -> Text:
     If i is greater than length of s:
         Return g.
     Let c be item i of s.
+    If c is equal to chr(34):
+        If q is equal to 0:
+            Return patFieldSplit(s, i + 1, depth, 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth, 0, concat(g, c)).
+    If q is equal to 1:
+        Return patFieldSplit(s, i + 1, depth, 1, concat(g, c)).
     If c is equal to chr(123):
-        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
     If c is equal to chr(91):
-        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
     If c is equal to "(":
-        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
     If c is equal to chr(125):
-        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
     If c is equal to chr(93):
-        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
     If c is equal to ")":
-        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
     If c is equal to ",":
         If depth is equal to 0:
-            Return patFieldSplit(s, i + 1, 0, concat(g, chr(10))).
-        Return patFieldSplit(s, i + 1, depth, concat(g, c)).
-    Return patFieldSplit(s, i + 1, depth, concat(g, c)).
+            Return patFieldSplit(s, i + 1, 0, q, concat(g, chr(10))).
+        Return patFieldSplit(s, i + 1, depth, q, concat(g, c)).
+    Return patFieldSplit(s, i + 1, depth, q, concat(g, c)).
 
 ## To patFields (inner: Text) -> Seq of Text:
-    Return split(patFieldSplit(inner, 1, 0, ""), chr(10)).
+    Return split(patFieldSplit(inner, 1, 0, 0, ""), chr(10)).
 
 ## To topEqIdx (s: Text, i: Int, depth: Int) -> Int:
     If i is greater than length of s:
@@ -2791,7 +2808,7 @@
     Let inner be trim(substringBefore(substringAfter(pattern, chr(91)), chr(93))).
     Return destructArrLoop(patFields(inner), 1, arrval, env).
 
-## To bindAssign (assign: Text, env: Text) -> Text:
+## To bindOne (assign: Text, env: Text) -> Text:
     Let trimmed be trim(assign).
     If startsWith(trimmed, chr(123)):
         Let eqAt be topEqIdx(concat(trimmed, ""), 1, 0).
@@ -2808,6 +2825,18 @@
     If startsWith(rhs, "function ("):
         Return envSet(env, name, funcValueOf(substitute(rhs, env))).
     Return envSet(env, name, jsEvalIn(rhs, env)).
+
+## To bindDeclList (decls: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of decls:
+        Return env.
+    Let e2 be bindOne(trim(item i of decls), env).
+    Return bindDeclList(decls, i + 1, e2).
+
+## To bindAssign (assign: Text, env: Text) -> Text:
+    Let decls be patFields(concat(assign, "")).
+    If length of decls is greater than 1:
+        Return bindDeclList(decls, 1, env).
+    Return bindOne(assign, env).
 
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
