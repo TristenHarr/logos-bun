@@ -1029,20 +1029,20 @@
         Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c)).
     Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c)).
 
-## To objScan (entries: Seq of Text, i: Int, key: Text) -> Text:
+## To objScanLast (entries: Seq of Text, i: Int, key: Text, found: Text) -> Text:
     If i is greater than length of entries:
-        Return "undefined".
+        Return found.
     Let entry be item i of entries.
     If substringBefore(entry, tagObjKV ()) is equal to key:
-        Return substringAfter(entry, tagObjKV ()).
-    Return objScan(entries, i + 1, key).
+        Return objScanLast(entries, i + 1, key, substringAfter(entry, tagObjKV ())).
+    Return objScanLast(entries, i + 1, key, found).
 
 ## To objGet (objVal: Text, key: Text) -> Text:
     Let inner be substringAfter(objVal, tagObj ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return "undefined".
-    Return objScan(split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)), 1, key).
+    Return objScanLast(split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)), 1, key, "undefined").
 
 ## To objKeysLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
@@ -1217,14 +1217,56 @@
         Return concat(tagStr (), strSliceLoop(t, 2, (length of t) - 1, "")).
     Return t.
 
+## To joinObjSep (entries: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
+    If i is greater than upto:
+        Return acc.
+    If i is equal to 1:
+        Let f be item 1 of entries.
+        Return joinObjSep(entries, 2, upto, f).
+    Let e be item i of entries.
+    Return joinObjSep(entries, i + 1, upto, concat(concat(acc, tagObjSep ()), e)).
+
+# JS objects dedupe by key: a repeated key (from a duplicate literal entry or a
+# {...spread, override}) keeps its FIRST position but its LAST value. dedupObj
+# applies that once an object is built, so access, iteration, and serialization all
+# agree. (Re-splits a fresh Seq per step to avoid the Seq-parameter codegen bug.)
+## To keyMember (seen: Text, key: Text) -> Bool:
+    Return split(seen, chr(10)) contains key.
+
+## To dedupEmit (allStr: Text, i: Int, seen: Text, acc: Text) -> Text:
+    If i is greater than length of split(allStr, chr(10)):
+        Return acc.
+    Let key be substringBefore(item i of split(allStr, chr(10)), tagObjKV ()).
+    If keyMember(seen, key):
+        Return dedupEmit(allStr, i + 1, seen, acc).
+    Let pair be concat(concat(key, tagObjKV ()), objScanLast(split(allStr, chr(10)), 1, key, "undefined")).
+    If acc is equal to "":
+        Return dedupEmit(allStr, i + 1, concat(concat(seen, chr(10)), key), pair).
+    Return dedupEmit(allStr, i + 1, concat(concat(seen, chr(10)), key), concat(concat(acc, tagObjSep ()), pair)).
+
+## To dedupObj (objval: Text) -> Text:
+    Let inner be substringAfter(objval, tagObj ()).
+    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    If content is equal to "":
+        Return objval.
+    Return concat(concat(tagObj (), dedupEmit(splitObjEntriesDepth(content, 1, 0, ""), 1, "", "")), tagObjEnd ()).
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
-        Return concat(concat(tagObj (), acc), tagObjEnd ()).
+        Return dedupObj(concat(concat(tagObj (), acc), tagObjEnd ())).
     Let entry be trim(item i of entries).
+    If startsWith(entry, "..."):
+        Let sE be objEntrySeq(evalResolved(trim(substringAfter(entry, "...")))).
+        If length of sE is less than 1:
+            Return buildObj(entries, i + 1, acc).
+        Let sJoined be joinObjSep(sE, 1, length of sE, "").
+        If acc is equal to "":
+            Return buildObj(entries, i + 1, sJoined).
+        Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), sJoined)).
     Let k be materialize(litToStr(trim(substringBefore(entry, " : ")))).
     Let v be evalResolved(trim(substringAfter(entry, " : "))).
     Let pair be concat(concat(k, tagObjKV ()), v).
-    If i is equal to 1:
+    If acc is equal to "":
         Return buildObj(entries, i + 1, pair).
     Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), pair)).
 
