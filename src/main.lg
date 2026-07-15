@@ -2212,8 +2212,34 @@
         Return desugarArrows(buildArrow(joinRange(lt, 1, openIdx - 1, ""), joinRange(lt, openIdx + 1, nL - 1, ""), right)).
     Return desugarArrows(buildArrow(joinRange(lt, 1, nL - 1, ""), lastL, right)).
 
+## To desugarTemplates (s: Text, i: Int, mode: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If mode is equal to 0:
+        If c is equal to chr(96):
+            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, chr(34))).
+        Return desugarTemplates(s, i + 1, 0, 0, concat(acc, c)).
+    If mode is equal to 1:
+        If c is equal to chr(96):
+            Return desugarTemplates(s, i + 1, 0, 0, concat(acc, chr(34))).
+        If c is equal to "$":
+            If i is less than length of s:
+                If item (i + 1) of s is equal to chr(123):
+                    Return desugarTemplates(s, i + 2, 2, 1, concat(acc, concat(chr(34), " + ("))).
+            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
+        Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
+    If c is equal to chr(123):
+        Return desugarTemplates(s, i + 1, 2, depth + 1, concat(acc, c)).
+    If c is equal to chr(125):
+        If depth is equal to 1:
+            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, concat(") + ", chr(34)))).
+        Return desugarTemplates(s, i + 1, 2, depth - 1, concat(acc, c)).
+    Return desugarTemplates(s, i + 1, 2, depth, concat(acc, c)).
+
 ## To normalizeJs (s: Text) -> Text:
-    Let normed be joinNonEmpty(split(normJs(s, 1, false, ""), " "), 1, "").
+    Let templated be desugarTemplates(s, 1, 0, 0, "").
+    Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
     Return joinNonEmpty(split(desugarArrows(normed), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:

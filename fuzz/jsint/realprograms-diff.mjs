@@ -57,6 +57,7 @@ const PROGRAMS = [
   `let words=["the","quick","brown","fox"];let total=0;for(const w of words){total+=w.length};total`,
   `let evens=[];for(let i=1;i<=10;i++){if(i%2==0){evens.push(i)}};evens.join(",")`,
   `let scores={alice:90,bob:75,carol:88};Object.values(scores).reduce((s,x)=>s+x,0)`,
+  "let user={name:\"ada\",age:36};`${user.name} is ${user.age}`",
   `let o={a:1,b:2,c:3};let ks="";for(const k of Object.keys(o)){ks+=k};ks`,
   `let parts=[];for(let n of [5,42,7]){parts.push((""+n).padStart(3,"0"))};parts.join(":")`,
   // strings — real method chains
