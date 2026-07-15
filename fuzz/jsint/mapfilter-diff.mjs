@@ -38,9 +38,11 @@ if (OURS) {
     if (k < 0.22) return `let f=function(x){return x*2};let a=${a};a.map(f)`;
     if (k < 0.42) { const c = 1 + Math.floor(rnd() * 5); return `let f=function(x){return x+${c}};let a=${a};a.map(f)`; }
     if (k < 0.55) return `let f=function(x){return x*x};let a=${a};a.map(f)`;
-    if (k < 0.72) return `let f=function(x){return x%2==0};let a=${a};a.filter(f)`;
-    if (k < 0.88) { const t = 1 + Math.floor(rnd() * 8); return `let f=function(x){return x>${t}};let a=${a};a.filter(f)`; }
-    const c = 1 + Math.floor(rnd() * 4); return `let f=function(x){return x+${c}};let a=${a};a.map(f).join("-")`; // map then join
+    if (k < 0.6) return `let f=function(x){return x%2==0};let a=${a};a.filter(f)`;
+    if (k < 0.72) { const t = 1 + Math.floor(rnd() * 8); return `let f=function(x){return x>${t}};let a=${a};a.filter(f)`; }
+    if (k < 0.82) { const m = 1 + Math.floor(rnd() * 5); return `let a=${a};a.map(function(x){return x*${m}})`; }   // INLINE function map
+    if (k < 0.92) { const t = 1 + Math.floor(rnd() * 8); return `let a=${a};a.filter(function(x){return x>${t}})`; } // INLINE function filter
+    const c = 1 + Math.floor(rnd() * 4); return `let a=${a};a.map(function(x){return x+${c}}).join("-")`; // inline map then join
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {
