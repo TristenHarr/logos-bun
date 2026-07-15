@@ -22,10 +22,13 @@ if (OURS) {
     if (k < 0.22) return `Math.max(${sn()},${sn()})`;
     if (k < 0.44) return `Math.min(${sn()},${sn()})`;
     if (k < 0.6) return `Math.abs(${sn()})`;
-    if (k < 0.72) return `Math.max(${sn()},${sn()})+${Math.floor(rnd() * 10)}`;          // into arithmetic
-    if (k < 0.84) { const a = sn(), b = sn(); return `let x=${a};let y=${b};Math.max(x,y)`; } // variable args
-    if (k < 0.94) return `Math.abs(${sn()}-${sn()})`;                                     // expression arg
-    return `Math.min(Math.max(${sn()},${sn()}),${sn()})`;                                 // nested
+    if (k < 0.62) return `Math.max(${sn()},${sn()})+${Math.floor(rnd() * 10)}`;          // into arithmetic
+    if (k < 0.7) { const a = sn(), b = sn(); return `let x=${a};let y=${b};Math.max(x,y)`; } // variable args
+    if (k < 0.78) return `Math.abs(${sn()}-${sn()})`;                                     // expression arg
+    if (k < 0.85) return `Math.pow(${1 + Math.floor(rnd() * 6)},${Math.floor(rnd() * 6)})`; // pow (kept small for i64)
+    if (k < 0.91) return `Math.sign(${sn()})`;                                            // sign
+    if (k < 0.97) { const fn = ["Math.floor", "Math.ceil", "Math.round"][Math.floor(rnd() * 3)]; return `${fn}(${sn()})`; } // floor/ceil/round (identity on ints)
+    return `Math.min(Math.max(${sn()},${sn()}),${sn()})`;                                 // nested (same-fn family)
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {

@@ -1097,6 +1097,18 @@
         Return 0 - a.
     Return a.
 
+## To powInt (a: Int, b: Int, acc: Int) -> Int:
+    If b is less than or equal to 0:
+        Return acc.
+    Return powInt(a, b - 1, acc * a).
+
+## To signInt (a: Int) -> Int:
+    If a is greater than 0:
+        Return 1.
+    If a is less than 0:
+        Return 0 - 1.
+    Return 0.
+
 ## To strCharAt (s: Text, i: Int) -> Text:
     If i is less than 0:
         Return chr(3).
@@ -1320,6 +1332,37 @@
         Let rst be substringAfter(aft, ")").
         Let ab be absInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
+    If substringBefore(expr, "Math . pow (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . pow (").
+        Let aft be substringAfter(expr, "Math . pow (").
+        Let rst be substringAfter(aft, ")").
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let pw be powInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env)), 1).
+        Return resolveMethods(trim(concat(concat(bef, toText(pw)), rst)), env).
+    If substringBefore(expr, "Math . sign (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . sign (").
+        Let aft be substringAfter(expr, "Math . sign (").
+        Let rst be substringAfter(aft, ")").
+        Let sg be signInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Return resolveMethods(trim(concat(concat(bef, toText(sg)), rst)), env).
+    If substringBefore(expr, "Math . floor (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . floor (").
+        Let aft be substringAfter(expr, "Math . floor (").
+        Let rst be substringAfter(aft, ")").
+        Let fl be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Return resolveMethods(trim(concat(concat(bef, toText(fl)), rst)), env).
+    If substringBefore(expr, "Math . ceil (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . ceil (").
+        Let aft be substringAfter(expr, "Math . ceil (").
+        Let rst be substringAfter(aft, ")").
+        Let cl be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Return resolveMethods(trim(concat(concat(bef, toText(cl)), rst)), env).
+    If substringBefore(expr, "Math . round (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . round (").
+        Let aft be substringAfter(expr, "Math . round (").
+        Let rst be substringAfter(aft, ")").
+        Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
     If substringBefore(expr, " . map (") is not equal to expr:
         Let bef be substringBefore(expr, " . map (").
         Let aft be substringAfter(expr, " . map (").
