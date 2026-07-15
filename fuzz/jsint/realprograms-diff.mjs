@@ -30,8 +30,8 @@ const nodeRun = (p) => {
 // a value; use a variable receiver), and (b) nested Math with a DIFFERENT inner fn
 // (`Math.max(Math.abs(...))` — needs balanced-arg extraction). Both are avoided here.
 const PROGRAMS = [
-  // higher-order pipelines — real chains + arrow functions on variable receivers
-  `let a=[1,2,3,4,5,6];a.filter(x=>x%2==0).map(x=>x*x).join("-")`,
+  // higher-order pipelines — real chains + arrows, on array-LITERAL and variable receivers
+  `[1,2,3,4,5,6].filter(x=>x%2==0).map(x=>x*x).join("-")`,
   `"a,b,c,d".split(",").map(s=>s.toUpperCase()).join("|")`,
   `"one two three".split(" ").filter(w=>w.length>3).length`,
   `"5,3,8,1,9".split(",").map(s=>parseInt(s)).filter(n=>n>4).join(",")`,
@@ -58,7 +58,7 @@ const PROGRAMS = [
   `let evens=[];for(let i=1;i<=10;i++){if(i%2==0){evens.push(i)}};evens.join(",")`,
   `let scores={alice:90,bob:75,carol:88};Object.values(scores).reduce((s,x)=>s+x,0)`,
   `let o={a:1,b:2,c:3};let ks="";for(const k of Object.keys(o)){ks+=k};ks`,
-  `let parts=[];for(let n of [5,42,7]){let s=""+n;parts.push(s.padStart(3,"0"))};parts.join(":")`,
+  `let parts=[];for(let n of [5,42,7]){parts.push((""+n).padStart(3,"0"))};parts.join(":")`,
   // strings — real method chains
   `"Hello World".toUpperCase().indexOf("WORLD")`,
   `"  padded  ".trim().length`,

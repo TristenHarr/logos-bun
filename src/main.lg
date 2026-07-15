@@ -1531,9 +1531,8 @@
         Let aft be substringAfter(expr, " . reduce (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let atoks be split(argStr, " ").
         Let cIdx be exprBodyEnd(atoks, 1, 0, "").
@@ -1545,9 +1544,8 @@
         Let aft be substringAfter(expr, " . map (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgVal(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrMap(raw, fnval, env)), rst)), env).
@@ -1556,9 +1554,8 @@
         Let aft be substringAfter(expr, " . filter (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgVal(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
@@ -1566,18 +1563,16 @@
         Let bef be substringBefore(expr, " . reverse (").
         Let aft be substringAfter(expr, " . reverse (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReverse(raw)), rst)), env).
     If lm is equal to " . charAt (":
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), ch), rst)), env).
@@ -1585,9 +1580,8 @@
         Let bef be substringBefore(expr, " . indexOf (").
         Let aft be substringAfter(expr, " . indexOf (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
@@ -1595,9 +1589,8 @@
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let args be split(substringBefore(aft, ")"), ",").
         Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
@@ -1606,27 +1599,24 @@
         Let bef be substringBefore(expr, " . toUpperCase (").
         Let aft be substringAfter(expr, " . toUpperCase (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strUpperLoop(sval, 1, ""))), rst)), env).
     If lm is equal to " . toLowerCase (":
         Let bef be substringBefore(expr, " . toLowerCase (").
         Let aft be substringAfter(expr, " . toLowerCase (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strLowerLoop(sval, 1, ""))), rst)), env).
     If lm is equal to " . includes (":
         Let bef be substringBefore(expr, " . includes (").
         Let aft be substringAfter(expr, " . includes (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(idxOf(raw, subEval) is not equal to -1)), rst)), env).
@@ -1634,9 +1624,8 @@
         Let bef be substringBefore(expr, " . startsWith (").
         Let aft be substringAfter(expr, " . startsWith (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(startsWith(sval, subv))), rst)), env).
@@ -1644,9 +1633,8 @@
         Let bef be substringBefore(expr, " . endsWith (").
         Let aft be substringAfter(expr, " . endsWith (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(strEndsWith(sval, subv))), rst)), env).
@@ -1654,27 +1642,24 @@
         Let bef be substringBefore(expr, " . repeat (").
         Let aft be substringAfter(expr, " . repeat (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strRepeat(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)), ""))), rst)), env).
     If lm is equal to " . trim (":
         Let bef be substringBefore(expr, " . trim (").
         Let aft be substringAfter(expr, " . trim (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strTrim(sval))), rst)), env).
     If lm is equal to " . padStart (":
         Let bef be substringBefore(expr, " . padStart (").
         Let aft be substringAfter(expr, " . padStart (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be split(substringBefore(aft, ")"), ",").
         Let padded be strPadStart(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
@@ -1683,9 +1668,8 @@
         Let bef be substringBefore(expr, " . padEnd (").
         Let aft be substringAfter(expr, " . padEnd (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be split(substringBefore(aft, ")"), ",").
         Let padded be strPadEnd(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
@@ -1694,9 +1678,8 @@
         Let bef be substringBefore(expr, " . substring (").
         Let aft be substringAfter(expr, " . substring (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be split(substringBefore(aft, ")"), ",").
         Let subbed be strSubstring(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
@@ -1705,9 +1688,8 @@
         Let bef be substringBefore(expr, " . charCodeAt (").
         Let aft be substringAfter(expr, " . charCodeAt (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let cc be strCharCodeAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(cc)), rst)), env).
@@ -1715,9 +1697,8 @@
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strSplit(sval, sepv)), rst)), env).
@@ -1725,9 +1706,8 @@
         Let bef be substringBefore(expr, " . join (").
         Let aft be substringAfter(expr, " . join (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let aval be jsEvalIn(recv, env).
         Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrJoin(aval, sepv)), rst)), env).
@@ -1735,9 +1715,8 @@
         Let bef be substringBefore(expr, " . replace (").
         Let aft be substringAfter(expr, " . replace (").
         Let rst be substringAfter(aft, ")").
-        Let btoks be split(bef, " ").
-        Let recv be item (length of btoks) of btoks.
-        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be split(substringBefore(aft, ")"), ",").
         Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
@@ -2112,6 +2091,54 @@
     If c is equal to chr(125):
         Return true.
     Return false.
+
+## To matchGroupLeft (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is less than 1:
+        Return 1.
+    Let c be item i of toks.
+    If isCloseGrp(c):
+        Return matchGroupLeft(toks, i - 1, depth + 1, concat(g, c)).
+    If isOpenGrp(c):
+        If depth is equal to 1:
+            Return i.
+        Return matchGroupLeft(toks, i - 1, depth - 1, concat(g, c)).
+    Return matchGroupLeft(toks, i - 1, depth, concat(g, c)).
+
+## To isStopTok (c: Text) -> Bool:
+    Let stops be ["+", "-", "*", "/", "%", "<", ">", "=", "!", "?", ":", ",", ";", "(", ".", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "++", "--", "=>", "===", "!==", "&", "|"].
+    If stops contains c:
+        Return true.
+    If c is equal to chr(91):
+        Return true.
+    If c is equal to chr(123):
+        Return true.
+    Return false.
+
+## To recvStart (btoks: Seq of Text, i: Int) -> Int:
+    If i is less than 1:
+        Return 1.
+    Let c be item i of btoks.
+    If isCloseGrp(c):
+        Let openIdx be matchGroupLeft(btoks, i, 0, "").
+        If openIdx is less than 2:
+            Return openIdx.
+        If isStopTok(item (openIdx - 1) of btoks):
+            Return openIdx.
+        Return recvStart(btoks, openIdx - 1).
+    If i is greater than 1:
+        If item (i - 1) of btoks is equal to ".":
+            Return recvStart(btoks, i - 2).
+    Return i.
+
+## To recvExpr (bef: Text) -> Text:
+    Let btoks be split(bef, " ").
+    Let n be length of btoks.
+    Return joinRange(btoks, recvStart(btoks, n), n, "").
+
+## To recvPrefix (bef: Text) -> Text:
+    Let btoks be split(bef, " ").
+    Let n be length of btoks.
+    Return joinRange(btoks, 1, recvStart(btoks, n) - 1, "").
 
 ## To matchOpenLeft (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
     If i is less than 1:
