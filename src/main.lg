@@ -2961,10 +2961,35 @@
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
     Return forOfLoop(arrElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
 
+## To arrIndexKeys (n: Int, i: Int, acc: Text) -> Text:
+    If i is greater than n:
+        Return acc.
+    Let k be concat(tagStr (), toText(i - 1)).
+    If acc is equal to "":
+        Return arrIndexKeys(n, i + 1, k).
+    Return arrIndexKeys(n, i + 1, concat(concat(acc, tagArrSep ()), k)).
+
+## To forInKeys (v: Text) -> Text:
+    If startsWith(v, tagObj ()):
+        Return objKeys(v).
+    If startsWith(v, tagArr ()):
+        Return concat(concat(tagArr (), arrIndexKeys(length of arrElements(v), 1, "")), tagArrEnd ()).
+    Return concat(tagArr (), tagArrEnd ()).
+
+## To execForIn (stmt: Text, env: Text) -> Text:
+    Let hdr be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let afterKw be trim(substringAfter(hdr, " ")).
+    Let varName be trim(substringBefore(afterKw, " in ")).
+    Let objExpr be trim(substringAfter(afterKw, " in ")).
+    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Return forOfLoop(arrElements(forInKeys(jsEvalIn(objExpr, env))), 1, varName, body, env).
+
 ## To execFor (stmt: Text, env: Text) -> Text:
     Let hdr be substringBefore(substringAfter(stmt, "("), ")").
     If hasSep(hdr, " of "):
         Return execForOf(stmt, env).
+    If hasSep(hdr, " in "):
+        Return execForIn(stmt, env).
     Let init be trim(item 1 of split(hdr, ";")).
     Return forStmt(stmt, execStmt(init, env)).
 
