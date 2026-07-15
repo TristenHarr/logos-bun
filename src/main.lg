@@ -699,6 +699,13 @@
         Return "true".
     Return "false".
 
+## To eitherNaN (a: Text, b: Text) -> Bool:
+    If a is equal to "NaN":
+        Return true.
+    If b is equal to "NaN":
+        Return true.
+    Return false.
+
 ## To jsEvalCmp (expr: Text) -> Text:
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
@@ -710,15 +717,23 @@
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
     If hasSep(expr, " !== "):
         Let parts be split(expr, " !== ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "true".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
     If hasSep(expr, " == "):
         Let parts be split(expr, " == ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
     If hasSep(expr, " != "):
         Let parts be split(expr, " != ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "true".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
@@ -742,6 +757,8 @@
     If t is equal to "null":
         Return false.
     If t is equal to "undefined":
+        Return false.
+    If t is equal to "NaN":
         Return false.
     Return true.
 
@@ -1472,6 +1489,62 @@
         Return concatTerms(terms, i + 1, concat(acc, materialize(lit))).
     Return concatTerms(terms, i + 1, concat(acc, materialize(evalValue(t)))).
 
+## To allDigits (t: Text, i: Int) -> Bool:
+    If i is greater than length of t:
+        Return true.
+    Let o be ord(item i of t).
+    If o is less than 48:
+        Return false.
+    If o is greater than 57:
+        Return false.
+    Return allDigits(t, i + 1).
+
+## To isIntStr (t: Text) -> Bool:
+    If t is equal to "":
+        Return false.
+    If startsWith(t, "-"):
+        If substringAfter(t, "-") is equal to "":
+            Return false.
+        Return allDigits(substringAfter(t, "-"), 1).
+    Return allDigits(t, 1).
+
+## To isArithOp (t: Text) -> Bool:
+    Let ops be ["+", "-", "*", "%", "/", "**", "(", ")"].
+    Return ops contains t.
+
+## To coerceNumTok (t: Text) -> Text:
+    If t is equal to "null":
+        Return "0".
+    If t is equal to "true":
+        Return "1".
+    If t is equal to "false":
+        Return "0".
+    Return t.
+
+## To coerceNumToks (toks: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return acc.
+    Let t be coerceNumTok(item i of toks).
+    If i is equal to 1:
+        Return coerceNumToks(toks, 2, t).
+    Return coerceNumToks(toks, i + 1, concat(concat(acc, " "), t)).
+
+## To arithBadTok (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    Let t be item i of toks.
+    If isArithOp(concat(t, "")):
+        Return arithBadTok(toks, i + 1).
+    If isIntStr(concat(t, "")):
+        Return arithBadTok(toks, i + 1).
+    Return true.
+
+## To arithValue (expr: Text) -> Text:
+    Let coerced be coerceNumToks(split(expr, " "), 1, "").
+    If arithBadTok(split(concat(coerced, ""), " "), 1):
+        Return "NaN".
+    Return toText(evalParens(coerced)).
+
 ## To evalValue (expr: Text) -> Text:
     If startsWith(trim(expr), chr(1)):
         Return trim(expr).
@@ -1489,7 +1562,7 @@
         Return "undefined".
     If hasStr(expr):
         Return concat(tagStr (), concatTerms(split(expr, " + "), 1, "")).
-    Return toText(evalParens(expr)).
+    Return arithValue(expr).
 
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
@@ -1526,7 +1599,10 @@
         Return compareText(materialize(a), materialize(b)).
     If startsWith(b, tagStr ()):
         Return compareText(materialize(a), materialize(b)).
-    Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
+    If isIntStr(concat(a, "")):
+        If isIntStr(concat(b, "")):
+            Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
+    Return compareText(concat(a, ""), concat(b, "")).
 
 ## To maxInt (a: Int, b: Int) -> Int:
     If a is greater than b:
