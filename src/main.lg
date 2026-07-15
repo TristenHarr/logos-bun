@@ -922,8 +922,10 @@
     If i is greater than length of terms:
         Return acc.
     Let t be trim(item i of terms).
-    Let val be materialize(litToStr(t)).
-    Return concatTerms(terms, i + 1, concat(acc, val)).
+    Let lit be litToStr(t).
+    If startsWith(lit, chr(3)):
+        Return concatTerms(terms, i + 1, concat(acc, materialize(lit))).
+    Return concatTerms(terms, i + 1, concat(acc, materialize(evalValue(t)))).
 
 ## To evalValue (expr: Text) -> Text:
     If startsWith(trim(expr), chr(5)):

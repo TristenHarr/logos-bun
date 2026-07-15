@@ -21,9 +21,16 @@ if (OURS) {
   const strLit = () => `"${word()}"`;
   const program = () => {
     const k = rnd();
-    if (k < 0.3) { // concat chain (maybe with a number for coercion)
+    if (k < 0.3) { // concat chain with coercion: strings, +/- numbers, (arith), bool, array
+      const coerce = () => pick([
+        String(Math.floor(rnd() * 20)),
+        String(-(1 + Math.floor(rnd() * 9))),
+        `(${Math.floor(rnd() * 6)}*${1 + Math.floor(rnd() * 4)})`,
+        pick(["true", "false"]),
+        `[${Math.floor(rnd() * 5)},${Math.floor(rnd() * 5)}]`,
+      ]);
       const parts = [strLit()]; const m = 1 + Math.floor(rnd() * 3);
-      for (let i = 0; i < m; i++) parts.push(rnd() < 0.8 ? strLit() : String(Math.floor(rnd() * 20)));
+      for (let i = 0; i < m; i++) parts.push(rnd() < 0.6 ? strLit() : coerce());
       return parts.join("+");
     }
     if (k < 0.5) return `${strLit()}${pick(["==", "!=", "===", "<", ">"])}${strLit()}`;
