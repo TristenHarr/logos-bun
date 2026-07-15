@@ -737,13 +737,15 @@
     If i is greater than length of params:
         Return acc.
     Let pname be trim(item i of params).
+    If pname is equal to "":
+        Return bindParams(params, args, i + 1, callerEnv, acc).
     Let aval be jsEvalIn(item i of args, callerEnv).
     Return bindParams(params, args, i + 1, callerEnv, envSet(acc, pname, aval)).
 
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be substringBefore(afterMark, chr(1)).
-    Let body be replaceAll(substringAfter(afterMark, chr(1)), chr(2), ";").
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
     Let localEnv be bindParams(split(paramStr, ","), split(argsText, ","), 1, env, env).
     Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
@@ -759,6 +761,10 @@
     Let prefix be trim(joinPieces(pieces, 1, np - 1, "")).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
+    If startsWith(lastTok, chr(1)):
+        Let result be callFn(lastTok, inner, env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     Let fnVal be envGet(env, lastTok).
     If startsWith(fnVal, chr(1)):
         Let result be callFn(fnVal, inner, env).
@@ -928,6 +934,8 @@
     Return concatTerms(terms, i + 1, concat(acc, materialize(evalValue(t)))).
 
 ## To evalValue (expr: Text) -> Text:
+    If startsWith(trim(expr), chr(1)):
+        Return trim(expr).
     If startsWith(trim(expr), chr(5)):
         Return trim(expr).
     If startsWith(trim(expr), chr(7)):
@@ -988,10 +996,32 @@
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), val), ";"), env).
 
+## To encFn (s: Text) -> Text:
+    Let x1 be replaceAll(s, " ", chr(16)).
+    Let x2 be replaceAll(x1, chr(123), chr(17)).
+    Let x3 be replaceAll(x2, chr(125), chr(18)).
+    Let x4 be replaceAll(x3, "(", chr(19)).
+    Let x5 be replaceAll(x4, ")", chr(20)).
+    Let x6 be replaceAll(x5, chr(91), chr(21)).
+    Let x7 be replaceAll(x6, chr(93), chr(22)).
+    Let x8 be replaceAll(x7, ",", chr(23)).
+    Return replaceAll(x8, ";", chr(2)).
+
+## To decFn (s: Text) -> Text:
+    Let x1 be replaceAll(s, chr(16), " ").
+    Let x2 be replaceAll(x1, chr(17), chr(123)).
+    Let x3 be replaceAll(x2, chr(18), chr(125)).
+    Let x4 be replaceAll(x3, chr(19), "(").
+    Let x5 be replaceAll(x4, chr(20), ")").
+    Let x6 be replaceAll(x5, chr(21), chr(91)).
+    Let x7 be replaceAll(x6, chr(22), chr(93)).
+    Let x8 be replaceAll(x7, chr(23), ",").
+    Return replaceAll(x8, chr(2), ";").
+
 ## To funcValueOf (text: Text) -> Text:
     Let param be trim(substringBefore(substringAfter(text, "("), ")")).
     Let body be trim(braceBody(substringAfter(text, chr(123)), 1, 0, "")).
-    Return concat(concat(concat(chr(1), param), chr(1)), replaceAll(body, ";", chr(2))).
+    Return concat(concat(concat(chr(1), encFn(param)), chr(1)), encFn(body)).
 
 ## To defineFn (stmt: Text, env: Text) -> Text:
     Let name be trim(substringBefore(substringAfter(stmt, "function "), "(")).
@@ -1001,7 +1031,7 @@
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
     If startsWith(rhs, "function ("):
-        Return envSet(env, name, funcValueOf(rhs)).
+        Return envSet(env, name, funcValueOf(substitute(rhs, env))).
     Return envSet(env, name, jsEvalIn(rhs, env)).
 
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
@@ -1054,6 +1084,8 @@
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
+        If startsWith(trim(substringAfter(s, "return")), "function ("):
+            Return envSet(env, "__ret", funcValueOf(substitute(trim(substringAfter(s, "return")), env))).
         Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
     If startsWith(s, "while "):
         Return execWhile(s, env).
