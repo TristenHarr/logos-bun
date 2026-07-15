@@ -26,8 +26,11 @@ if (OURS) {
     const k = rnd();
     if (k < 0.25) { const i = Math.floor(rnd() * (w.length + 2)); return `${JSON.stringify(w)}.charAt(${i})`; }        // literal charAt (may be OOB)
     if (k < 0.5) { const i = Math.floor(rnd() * w.length); return `let s=${JSON.stringify(w)};s.charAt(${i})`; }       // variable charAt
-    if (k < 0.7) { const sub = w.slice(Math.floor(rnd() * w.length), Math.floor(rnd() * w.length) + 1 + Math.floor(rnd() * 2)); return `${JSON.stringify(w)}.indexOf(${JSON.stringify(sub || w[0])})`; } // indexOf (found)
-    if (k < 0.85) return `${JSON.stringify(w)}.indexOf(${JSON.stringify(pick(["zzz", "qq", "_"]))})`;                 // indexOf (not found → -1)
+    if (k < 0.55) { const sub = w.slice(Math.floor(rnd() * w.length), Math.floor(rnd() * w.length) + 1 + Math.floor(rnd() * 2)); return `${JSON.stringify(w)}.indexOf(${JSON.stringify(sub || w[0])})`; } // indexOf (found)
+    if (k < 0.65) return `${JSON.stringify(w)}.indexOf(${JSON.stringify(pick(["zzz", "qq", "_"]))})`;                 // indexOf (not found → -1)
+    if (k < 0.8) { const a = Math.floor(rnd() * w.length), b = a + 1 + Math.floor(rnd() * (w.length + 1 - a)); return `${JSON.stringify(w)}.slice(${a},${b})`; } // slice (b may exceed length)
+    if (k < 0.9) return `${JSON.stringify(w)}.toUpperCase()`;                                                         // toUpperCase
+    if (k < 0.96) return `${JSON.stringify(w.toUpperCase())}.toLowerCase()`;                                          // toLowerCase
     const i = Math.floor(rnd() * (w.length - 1)); return `let s=${JSON.stringify(w)};s.charAt(${i})+s.charAt(${i + 1})`; // charAt into concat
   };
   let checked = 0;

@@ -1050,6 +1050,37 @@
         Return -1.
     Return length of bef.
 
+## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
+    If i is greater than endEx:
+        Return acc.
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    Return strSliceLoop(s, i + 1, endEx, concat(acc, c)).
+
+## To strSlice (s: Text, a: Int, b: Int) -> Text:
+    Return concat(chr(3), strSliceLoop(s, a + 1, b, "")).
+
+## To strUpperLoop (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    Let o be ord(c).
+    If o is greater than or equal to 97:
+        If o is less than or equal to 122:
+            Return strUpperLoop(s, i + 1, concat(acc, chr(o - 32))).
+    Return strUpperLoop(s, i + 1, concat(acc, c)).
+
+## To strLowerLoop (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    Let o be ord(c).
+    If o is greater than or equal to 65:
+        If o is less than or equal to 90:
+            Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32))).
+    Return strLowerLoop(s, i + 1, concat(acc, c)).
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, " . charAt (") is not equal to expr:
         Let bef be substringBefore(expr, " . charAt (").
@@ -1071,6 +1102,35 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(strIndexOf(sval, subv))), rst)), env).
+    If substringBefore(expr, " . slice (") is not equal to expr:
+        Let bef be substringBefore(expr, " . slice (").
+        Let aft be substringAfter(expr, " . slice (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be split(substringBefore(aft, ")"), ",").
+        Let sliced be strSlice(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
+    If substringBefore(expr, " . toUpperCase (") is not equal to expr:
+        Let bef be substringBefore(expr, " . toUpperCase (").
+        Let aft be substringAfter(expr, " . toUpperCase (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strUpperLoop(sval, 1, ""))), rst)), env).
+    If substringBefore(expr, " . toLowerCase (") is not equal to expr:
+        Let bef be substringBefore(expr, " . toLowerCase (").
+        Let aft be substringAfter(expr, " . toLowerCase (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strLowerLoop(sval, 1, ""))), rst)), env).
     Return expr.
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
