@@ -921,6 +921,8 @@
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
+    If inner is equal to "":
+        Return resolveArrays(trim(concat(concat(rawPrefix, concat(chr(5), chr(15))), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(split(inner, ","), 1, "")), rest))).
 
 ## To splitObjEntriesDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
@@ -1205,6 +1207,27 @@
 
 ## To arrReduce (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
     Return arrReduceLoop(arrElements(arrval), 1, fnval, env, init).
+
+## To joinChr6 (els: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
+    If i is greater than upto:
+        Return acc.
+    If i is equal to 1:
+        Let f be item 1 of els.
+        Return joinChr6(els, 2, upto, f).
+    Let e be item i of els.
+    Return joinChr6(els, i + 1, upto, concat(concat(acc, chr(6)), e)).
+
+## To arrPush (arrval: Text, val: Text) -> Text:
+    Let els be arrElements(arrval).
+    If length of els is less than 1:
+        Return concat(concat(chr(5), val), chr(15)).
+    Return concat(concat(chr(5), concat(concat(joinChr6(els, 1, length of els, ""), chr(6)), val)), chr(15)).
+
+## To arrPop (arrval: Text) -> Text:
+    Let els be arrElements(arrval).
+    If length of els is less than 1:
+        Return arrval.
+    Return concat(concat(chr(5), joinChr6(els, 1, (length of els) - 1, "")), chr(15)).
 
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1741,6 +1764,13 @@
         Return bindAssign(substringAfter(s, "const "), env).
     If startsWith(s, "var "):
         Return bindAssign(substringAfter(s, "var "), env).
+    If hasSep(s, " . push ("):
+        Let pv be trim(substringBefore(s, " . push (")).
+        Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
+        Return envSet(env, pv, arrPush(envGet(env, pv), jsEvalIn(trim(pa), env))).
+    If hasSep(s, " . pop ("):
+        Let ov be trim(substringBefore(s, " . pop (")).
+        Return envSet(env, ov, arrPop(envGet(env, ov))).
     If hasSep(s, "++"):
         Return envSet(env, trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), jsEvalIn(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1"), env)).
     If hasSep(s, "--"):

@@ -55,6 +55,7 @@ const PROGRAMS = [
   `let a=[5,1,4,2,8];let s=0;for(let i=0;i<a.length;i++){s+=a[i]};s`,
   `let a=[1,2,3,4,5];let c=0;for(let i=0;i<a.length;i++){if(a[i]%2==1){c++}};c`,
   `let words=["the","quick","brown","fox"];let total=0;for(const w of words){total+=w.length};total`,
+  `let evens=[];for(let i=1;i<=10;i++){if(i%2==0){evens.push(i)}};evens.join(",")`,
   // strings — real method chains
   `"Hello World".toUpperCase().indexOf("WORLD")`,
   `"  padded  ".trim().length`,
