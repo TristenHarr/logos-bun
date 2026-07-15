@@ -19,6 +19,66 @@
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
 
+# jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
+# tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
+# object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
+# and value. Inside a string value, characters that would otherwise be read as syntax
+# by the array/object/paren passes are escaped to their enc* placeholder (mirroring
+# how a space becomes encSpace), and decoded back at every output boundary.
+## To tagStr () -> Text:
+    Return chr(3).
+
+## To tagArr () -> Text:
+    Return chr(5).
+
+## To tagArrSep () -> Text:
+    Return chr(6).
+
+## To tagArrEnd () -> Text:
+    Return chr(15).
+
+## To tagObj () -> Text:
+    Return chr(7).
+
+## To tagObjKV () -> Text:
+    Return chr(8).
+
+## To tagObjSep () -> Text:
+    Return chr(11).
+
+## To tagObjEnd () -> Text:
+    Return chr(14).
+
+## To encSpace () -> Text:
+    Return chr(4).
+
+## To encBrkL () -> Text:
+    Return chr(24).
+
+## To encBrkR () -> Text:
+    Return chr(25).
+
+## To encBraceL () -> Text:
+    Return chr(26).
+
+## To encBraceR () -> Text:
+    Return chr(27).
+
+## To encParenL () -> Text:
+    Return chr(28).
+
+## To encParenR () -> Text:
+    Return chr(29).
+
+## To encBackslash () -> Text:
+    Return chr(30).
+
+## To encNewline () -> Text:
+    Return chr(31).
+
+## To encQuote () -> Text:
+    Return chr(127).
+
 ## To numericCore (part: Text) -> Int:
     Let beforePre be item 1 of split(part, "-").
     Let beforeBuild be item 1 of split(beforePre, "+").
@@ -656,7 +716,7 @@
         Return false.
     If t is equal to "":
         Return false.
-    If t is equal to chr(3):
+    If t is equal to tagStr ():
         Return false.
     If t is equal to "null":
         Return false.
@@ -800,7 +860,7 @@
     If name is equal to "Number":
         Return toText(parseInt(materialize(av))).
     If name is equal to "String":
-        Return concat(chr(3), materialize(av)).
+        Return concat(tagStr (), materialize(av)).
     If name is equal to "Boolean":
         Return cmpResult(boolOf(av)).
     Return av.
@@ -841,18 +901,18 @@
     Return matArr(els, i + 1, concat(concat(acc, ","), m)).
 
 ## To materialize (v: Text) -> Text:
-    If startsWith(v, chr(3)):
-        Return substringAfter(v, chr(3)).
-    If startsWith(v, chr(5)):
+    If startsWith(v, tagStr ()):
+        Return substringAfter(v, tagStr ()).
+    If startsWith(v, tagArr ()):
         Return matArr(arrElements(v), 1, "").
-    If startsWith(v, chr(7)):
+    If startsWith(v, tagObj ()):
         Return "[object Object]".
     Return v.
 
 ## To hasStr (expr: Text) -> Bool:
     If substringBefore(expr, chr(34)) is not equal to expr:
         Return true.
-    If substringBefore(expr, chr(3)) is not equal to expr:
+    If substringBefore(expr, tagStr ()) is not equal to expr:
         Return true.
     Return false.
 
@@ -870,18 +930,18 @@
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
-    If c is equal to chr(5):
+    If c is equal to tagArr ():
         Return splitArrElemsDepth(s, i + 1, depth + 1, concat(acc, c)).
-    If c is equal to chr(15):
+    If c is equal to tagArrEnd ():
         Return splitArrElemsDepth(s, i + 1, depth - 1, concat(acc, c)).
-    If c is equal to chr(6):
+    If c is equal to tagArrSep ():
         If depth is equal to 0:
             Return splitArrElemsDepth(s, i + 1, 0, concat(acc, chr(10))).
         Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
     Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
 
 ## To arrElements (arrval: Text) -> Seq of Text:
-    Let inner be substringAfter(arrval, chr(5)).
+    Let inner be substringAfter(arrval, tagArr ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return [] of Text.
@@ -889,11 +949,11 @@
 
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
-        Return concat(concat(chr(5), acc), chr(15)).
+        Return concat(concat(tagArr (), acc), tagArrEnd ()).
     Let elVal be evalValue(trim(item i of elems)).
     If i is equal to 1:
         Return buildArr(elems, i + 1, elVal).
-    Return buildArr(elems, i + 1, concat(concat(acc, chr(6)), elVal)).
+    Return buildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), elVal)).
 
 ## To arrGet (arrVal: Text, idx: Int) -> Text:
     Let els be arrElements(arrVal).
@@ -913,27 +973,27 @@
     Let prefix be trim(rawPrefix).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
-    If startsWith(lastTok, chr(5)):
+    If startsWith(lastTok, tagArr ()):
         Let elem be arrGet(lastTok, parseInt(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
-    If startsWith(lastTok, chr(7)):
+    If startsWith(lastTok, tagObj ()):
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
     If inner is equal to "":
-        Return resolveArrays(trim(concat(concat(rawPrefix, concat(chr(5), chr(15))), rest))).
+        Return resolveArrays(trim(concat(concat(rawPrefix, concat(tagArr (), tagArrEnd ())), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(split(inner, ","), 1, "")), rest))).
 
 ## To splitObjEntriesDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
-    If c is equal to chr(7):
+    If c is equal to tagObj ():
         Return splitObjEntriesDepth(s, i + 1, depth + 1, concat(acc, c)).
-    If c is equal to chr(14):
+    If c is equal to tagObjEnd ():
         Return splitObjEntriesDepth(s, i + 1, depth - 1, concat(acc, c)).
-    If c is equal to chr(11):
+    If c is equal to tagObjSep ():
         If depth is equal to 0:
             Return splitObjEntriesDepth(s, i + 1, 0, concat(acc, chr(10))).
         Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c)).
@@ -943,12 +1003,12 @@
     If i is greater than length of entries:
         Return "undefined".
     Let entry be item i of entries.
-    If substringBefore(entry, chr(8)) is equal to key:
-        Return substringAfter(entry, chr(8)).
+    If substringBefore(entry, tagObjKV ()) is equal to key:
+        Return substringAfter(entry, tagObjKV ()).
     Return objScan(entries, i + 1, key).
 
 ## To objGet (objVal: Text, key: Text) -> Text:
-    Let inner be substringAfter(objVal, chr(7)).
+    Let inner be substringAfter(objVal, tagObj ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return "undefined".
@@ -958,54 +1018,54 @@
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let k be concat(chr(3), substringBefore(entry, chr(8))).
+    Let k be concat(tagStr (), substringBefore(entry, tagObjKV ())).
     If i is equal to 1:
         Return objKeysLoop(entries, i + 1, k).
-    Return objKeysLoop(entries, i + 1, concat(concat(acc, chr(6)), k)).
+    Return objKeysLoop(entries, i + 1, concat(concat(acc, tagArrSep ()), k)).
 
 ## To objValuesLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let v be substringAfter(entry, chr(8)).
+    Let v be substringAfter(entry, tagObjKV ()).
     If i is equal to 1:
         Return objValuesLoop(entries, i + 1, v).
-    Return objValuesLoop(entries, i + 1, concat(concat(acc, chr(6)), v)).
+    Return objValuesLoop(entries, i + 1, concat(concat(acc, tagArrSep ()), v)).
 
 ## To objEntriesLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let pair be concat(concat(chr(5), concat(concat(concat(chr(3), substringBefore(entry, chr(8))), chr(6)), substringAfter(entry, chr(8)))), chr(15)).
+    Let pair be concat(concat(tagArr (), concat(concat(concat(tagStr (), substringBefore(entry, tagObjKV ())), tagArrSep ()), substringAfter(entry, tagObjKV ()))), tagArrEnd ()).
     If i is equal to 1:
         Return objEntriesLoop(entries, i + 1, pair).
-    Return objEntriesLoop(entries, i + 1, concat(concat(acc, chr(6)), pair)).
+    Return objEntriesLoop(entries, i + 1, concat(concat(acc, tagArrSep ()), pair)).
 
 ## To objEntrySeq (objVal: Text) -> Seq of Text:
-    Let inner be substringAfter(objVal, chr(7)).
+    Let inner be substringAfter(objVal, tagObj ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return [] of Text.
     Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
 
 ## To objKeys (objVal: Text) -> Text:
-    Return concat(concat(chr(5), objKeysLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+    Return concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
 
 ## To objValues (objVal: Text) -> Text:
-    Return concat(concat(chr(5), objValuesLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+    Return concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
 
 ## To objEntries (objVal: Text) -> Text:
-    Return concat(concat(chr(5), objEntriesLoop(objEntrySeq(objVal), 1, "")), chr(15)).
+    Return concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
 
 ## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
-    If c is equal to chr(127):
+    If c is equal to encQuote ():
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
-    If c is equal to chr(30):
+    If c is equal to encBackslash ():
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
-    If c is equal to chr(31):
+    If c is equal to encNewline ():
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "n"))).
     If c is equal to chr(9):
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "t"))).
@@ -1027,18 +1087,18 @@
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, chr(8)), 1, "")), chr(34)), ":"), jsonStringify(concat(substringAfter(entry, chr(8)), ""))).
+    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, tagObjKV ()), 1, "")), chr(34)), ":"), jsonStringify(concat(substringAfter(entry, tagObjKV ()), ""))).
     If i is equal to 1:
         Return jsonObjLoop(entries, i + 1, pair).
     Return jsonObjLoop(entries, i + 1, concat(concat(acc, ","), pair)).
 
 ## To jsonStringify (v: Text) -> Text:
-    If startsWith(v, chr(3)):
-        Return concat(concat(chr(34), jsonEscape(substringAfter(v, chr(3)), 1, "")), chr(34)).
-    If startsWith(v, chr(5)):
-        Return concat(concat(chr(24), jsonArrLoop(arrElements(v), 1, "")), chr(25)).
-    If startsWith(v, chr(7)):
-        Return concat(concat(chr(26), jsonObjLoop(objEntrySeq(v), 1, "")), chr(27)).
+    If startsWith(v, tagStr ()):
+        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
+    If startsWith(v, tagArr ()):
+        Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
+    If startsWith(v, tagObj ()):
+        Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeq(v), 1, "")), encBraceR ()).
     Return v.
 
 ## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
@@ -1046,18 +1106,18 @@
         Return acc.
     Let c be item i of s.
     If inStr:
-        If c is equal to chr(127):
+        If c is equal to encQuote ():
             Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
         Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
-    If c is equal to chr(127):
+    If c is equal to encQuote ():
         Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
-    If c is equal to chr(26):
+    If c is equal to encBraceL ():
         Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
-    If c is equal to chr(24):
+    If c is equal to encBrkL ():
         Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
-    If c is equal to chr(27):
+    If c is equal to encBraceR ():
         Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
-    If c is equal to chr(25):
+    If c is equal to encBrkR ():
         Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
     If c is equal to ",":
         If depth is equal to 0:
@@ -1067,49 +1127,49 @@
 
 ## To jsonBuildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
-        Return concat(concat(chr(7), acc), chr(14)).
+        Return concat(concat(tagObj (), acc), tagObjEnd ()).
     Let entry be item i of entries.
     Let keyRaw be substringBefore(entry, ":").
     Let k be strSliceLoop(keyRaw, 2, (length of keyRaw) - 1, "").
     Let val be jsonParse(substringAfter(entry, ":")).
-    Let pair be concat(concat(k, chr(8)), val).
+    Let pair be concat(concat(k, tagObjKV ()), val).
     If i is equal to 1:
         Return jsonBuildObj(entries, i + 1, pair).
-    Return jsonBuildObj(entries, i + 1, concat(concat(acc, chr(11)), pair)).
+    Return jsonBuildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), pair)).
 
 ## To jsonBuildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
-        Return concat(concat(chr(5), acc), chr(15)).
+        Return concat(concat(tagArr (), acc), tagArrEnd ()).
     Let val be jsonParse(item i of elems).
     If i is equal to 1:
         Return jsonBuildArr(elems, i + 1, val).
-    Return jsonBuildArr(elems, i + 1, concat(concat(acc, chr(6)), val)).
+    Return jsonBuildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), val)).
 
 ## To jsonParse (v: Text) -> Text:
-    If startsWith(v, chr(26)):
+    If startsWith(v, encBraceL ()):
         Let innerO be strSliceLoop(v, 2, (length of v) - 1, "").
         If innerO is equal to "":
-            Return concat(chr(7), chr(14)).
+            Return concat(tagObj (), tagObjEnd ()).
         Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, ""), chr(10)), 1, "").
-    If startsWith(v, chr(24)):
+    If startsWith(v, encBrkL ()):
         Let innerA be strSliceLoop(v, 2, (length of v) - 1, "").
         If innerA is equal to "":
-            Return concat(chr(5), chr(15)).
+            Return concat(tagArr (), tagArrEnd ()).
         Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
-    If startsWith(v, chr(127)):
-        Return concat(chr(3), strSliceLoop(v, 2, (length of v) - 1, "")).
+    If startsWith(v, encQuote ()):
+        Return concat(tagStr (), strSliceLoop(v, 2, (length of v) - 1, "")).
     Return v.
 
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
-        Return concat(concat(chr(7), acc), chr(14)).
+        Return concat(concat(tagObj (), acc), tagObjEnd ()).
     Let entry be trim(item i of entries).
     Let k be materialize(litToStr(trim(substringBefore(entry, " : ")))).
     Let v be evalResolved(trim(substringAfter(entry, " : "))).
-    Let pair be concat(concat(k, chr(8)), v).
+    Let pair be concat(concat(k, tagObjKV ()), v).
     If i is equal to 1:
         Return buildObj(entries, i + 1, pair).
-    Return buildObj(entries, i + 1, concat(concat(acc, chr(11)), pair)).
+    Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), pair)).
 
 ## To splitObjEntries (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1139,7 +1199,7 @@
     Let inner be trim(item np of pieces).
     Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
     If inner is equal to "":
-        Return resolveObjects(trim(concat(concat(prefix, concat(chr(7), chr(14))), rest))).
+        Return resolveObjects(trim(concat(concat(prefix, concat(tagObj (), tagObjEnd ())), rest))).
     Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, ""), chr(10)), 1, "")), rest))).
 
 ## To dotSep () -> Text:
@@ -1153,7 +1213,7 @@
     Let tailToks be split(tail, " ").
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
-    If startsWith(recv, chr(7)):
+    If startsWith(recv, tagObj ()):
         Let val be objGet(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
@@ -1161,7 +1221,7 @@
     Return expr.
 
 ## To propLength (v: Text) -> Int:
-    If startsWith(v, chr(5)):
+    If startsWith(v, tagArr ()):
         Return length of arrElements(v).
     Return length of materialize(litToStr(v)).
 
@@ -1179,7 +1239,7 @@
 ## To litToStr (tok: Text) -> Text:
     If startsWith(tok, chr(34)):
         Let content be item 1 of split(substringAfter(tok, chr(34)), chr(34)).
-        Return concat(chr(3), content).
+        Return concat(tagStr (), content).
     Return tok.
 
 ## To concatTerms (terms: Seq of Text, i: Int, acc: Text) -> Text:
@@ -1187,16 +1247,16 @@
         Return acc.
     Let t be trim(item i of terms).
     Let lit be litToStr(t).
-    If startsWith(lit, chr(3)):
+    If startsWith(lit, tagStr ()):
         Return concatTerms(terms, i + 1, concat(acc, materialize(lit))).
     Return concatTerms(terms, i + 1, concat(acc, materialize(evalValue(t)))).
 
 ## To evalValue (expr: Text) -> Text:
     If startsWith(trim(expr), chr(1)):
         Return trim(expr).
-    If startsWith(trim(expr), chr(5)):
+    If startsWith(trim(expr), tagArr ()):
         Return trim(expr).
-    If startsWith(trim(expr), chr(7)):
+    If startsWith(trim(expr), tagObj ()):
         Return trim(expr).
     If trim(expr) is equal to "true":
         Return "true".
@@ -1207,28 +1267,28 @@
     If trim(expr) is equal to "undefined":
         Return "undefined".
     If hasStr(expr):
-        Return concat(chr(3), concatTerms(split(expr, " + "), 1, "")).
+        Return concat(tagStr (), concatTerms(split(expr, " + "), 1, "")).
     Return toText(evalParens(expr)).
 
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
-        Return concat(chr(3), "function").
+        Return concat(tagStr (), "function").
     Let v be evalValue(litToStr(tok)).
-    If startsWith(v, chr(3)):
-        Return concat(chr(3), "string").
-    If startsWith(v, chr(5)):
-        Return concat(chr(3), "object").
-    If startsWith(v, chr(7)):
-        Return concat(chr(3), "object").
+    If startsWith(v, tagStr ()):
+        Return concat(tagStr (), "string").
+    If startsWith(v, tagArr ()):
+        Return concat(tagStr (), "object").
+    If startsWith(v, tagObj ()):
+        Return concat(tagStr (), "object").
     If v is equal to "true":
-        Return concat(chr(3), "boolean").
+        Return concat(tagStr (), "boolean").
     If v is equal to "false":
-        Return concat(chr(3), "boolean").
+        Return concat(tagStr (), "boolean").
     If v is equal to "null":
-        Return concat(chr(3), "object").
+        Return concat(tagStr (), "object").
     If v is equal to "undefined":
-        Return concat(chr(3), "undefined").
-    Return concat(chr(3), "number").
+        Return concat(tagStr (), "undefined").
+    Return concat(tagStr (), "number").
 
 ## To resolveTypeof (expr: Text) -> Text:
     If substringBefore(expr, "typeof ") is equal to expr:
@@ -1241,9 +1301,9 @@
     Return resolveTypeof(trim(concat(concat(before, typeOfTag(tok)), restToks))).
 
 ## To cmpVals (a: Text, b: Text) -> Int:
-    If startsWith(a, chr(3)):
+    If startsWith(a, tagStr ()):
         Return compareText(materialize(a), materialize(b)).
-    If startsWith(b, chr(3)):
+    If startsWith(b, tagStr ()):
         Return compareText(materialize(a), materialize(b)).
     Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
 
@@ -1271,10 +1331,10 @@
 
 ## To strCharAt (s: Text, i: Int) -> Text:
     If i is less than 0:
-        Return chr(3).
+        Return tagStr ().
     If i + 1 is greater than length of s:
-        Return chr(3).
-    Return concat(chr(3), item (i + 1) of s).
+        Return tagStr ().
+    Return concat(tagStr (), item (i + 1) of s).
 
 ## To strIndexOf (s: Text, sub: Text) -> Int:
     Let bef be substringBefore(s, sub).
@@ -1294,7 +1354,7 @@
     Return arrIndexOfLoop(arrElements(arrval), 1, target).
 
 ## To idxOf (raw: Text, subEval: Text) -> Int:
-    If startsWith(raw, chr(5)):
+    If startsWith(raw, tagArr ()):
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
 
@@ -1306,14 +1366,14 @@
     Let el be item i of els.
     If acc is equal to "":
         Return arrSliceLoop(els, i + 1, endEx, el).
-    Let nextAcc be concat(concat(acc, chr(6)), el).
+    Let nextAcc be concat(concat(acc, tagArrSep ()), el).
     Return arrSliceLoop(els, i + 1, endEx, nextAcc).
 
 ## To arrSlice (arrval: Text, a: Int, b: Int) -> Text:
-    Return concat(concat(chr(5), arrSliceLoop(arrElements(arrval), a + 1, b, "")), chr(15)).
+    Return concat(concat(tagArr (), arrSliceLoop(arrElements(arrval), a + 1, b, "")), tagArrEnd ()).
 
 ## To sliceOf (raw: Text, a: Int, b: Int) -> Text:
-    If startsWith(raw, chr(5)):
+    If startsWith(raw, tagArr ()):
         Return arrSlice(raw, a, b).
     Return strSlice(materialize(raw), a, b).
 
@@ -1323,13 +1383,13 @@
     Let el be item i of els.
     If acc is equal to "":
         Return arrReverseLoop(els, i - 1, el).
-    Let nextAcc be concat(concat(acc, chr(6)), el).
+    Let nextAcc be concat(concat(acc, tagArrSep ()), el).
     Return arrReverseLoop(els, i - 1, nextAcc).
 
 ## To arrReverse (arrval: Text) -> Text:
     Let els be arrElements(arrval).
     Let n be length of els.
-    Return concat(concat(chr(5), arrReverseLoop(els, n, "")), chr(15)).
+    Return concat(concat(tagArr (), arrReverseLoop(els, n, "")), tagArrEnd ()).
 
 ## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1338,11 +1398,11 @@
     Let r be callFn(concat(fnval, ""), el, concat(env, "")).
     If i is equal to 1:
         Return arrMapLoop(els, i + 1, fnval, env, r).
-    Let nextAcc be concat(concat(acc, chr(6)), r).
+    Let nextAcc be concat(concat(acc, tagArrSep ()), r).
     Return arrMapLoop(els, i + 1, fnval, env, nextAcc).
 
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(concat(chr(5), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), chr(15)).
+    Return concat(concat(tagArr (), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ()).
 
 ## To arrReduceLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1361,19 +1421,19 @@
         Let f be item 1 of els.
         Return joinChr6(els, 2, upto, f).
     Let e be item i of els.
-    Return joinChr6(els, i + 1, upto, concat(concat(acc, chr(6)), e)).
+    Return joinChr6(els, i + 1, upto, concat(concat(acc, tagArrSep ()), e)).
 
 ## To arrPush (arrval: Text, val: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
-        Return concat(concat(chr(5), val), chr(15)).
-    Return concat(concat(chr(5), concat(concat(joinChr6(els, 1, length of els, ""), chr(6)), val)), chr(15)).
+        Return concat(concat(tagArr (), val), tagArrEnd ()).
+    Return concat(concat(tagArr (), concat(concat(joinChr6(els, 1, length of els, ""), tagArrSep ()), val)), tagArrEnd ()).
 
 ## To arrPop (arrval: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
         Return arrval.
-    Return concat(concat(chr(5), joinChr6(els, 1, (length of els) - 1, "")), chr(15)).
+    Return concat(concat(tagArr (), joinChr6(els, 1, (length of els) - 1, "")), tagArrEnd ()).
 
 ## To arrConcat (a: Text, b: Text) -> Text:
     Let ea be arrElements(a).
@@ -1381,15 +1441,15 @@
     Let na be length of ea.
     Let nb be length of eb.
     If na is less than 1:
-        Return concat(concat(chr(5), joinChr6(eb, 1, nb, "")), chr(15)).
+        Return concat(concat(tagArr (), joinChr6(eb, 1, nb, "")), tagArrEnd ()).
     If nb is less than 1:
-        Return concat(concat(chr(5), joinChr6(ea, 1, na, "")), chr(15)).
-    Return concat(concat(chr(5), concat(concat(joinChr6(ea, 1, na, ""), chr(6)), joinChr6(eb, 1, nb, ""))), chr(15)).
+        Return concat(concat(tagArr (), joinChr6(ea, 1, na, "")), tagArrEnd ()).
+    Return concat(concat(tagArr (), concat(concat(joinChr6(ea, 1, na, ""), tagArrSep ()), joinChr6(eb, 1, nb, ""))), tagArrEnd ()).
 
 ## To concatOf (a: Text, b: Text) -> Text:
-    If startsWith(a, chr(5)):
+    If startsWith(a, tagArr ()):
         Return arrConcat(a, b).
-    Return concat(chr(3), concat(materialize(a), materialize(b))).
+    Return concat(tagStr (), concat(materialize(a), materialize(b))).
 
 ## To arrAt (arrval: Text, i: Int) -> Text:
     Let els be arrElements(arrval).
@@ -1407,13 +1467,13 @@
     If i is less than 0:
         If n + i is less than 0:
             Return "undefined".
-        Return concat(chr(3), item (n + i + 1) of s).
+        Return concat(tagStr (), item (n + i + 1) of s).
     If i is greater than n - 1:
         Return "undefined".
-    Return concat(chr(3), item (i + 1) of s).
+    Return concat(tagStr (), item (i + 1) of s).
 
 ## To atOf (raw: Text, i: Int) -> Text:
-    If startsWith(raw, chr(5)):
+    If startsWith(raw, tagArr ()):
         Return arrAt(raw, i).
     Return strAt(materialize(raw), i).
 
@@ -1421,20 +1481,20 @@
     If i is greater than length of els:
         Return acc.
     Let el be item i of els.
-    If startsWith(el, chr(5)):
+    If startsWith(el, tagArr ()):
         Let subEls be arrElements(el).
         If length of subEls is less than 1:
             Return arrFlatLoop(els, i + 1, acc).
         Let sub be joinChr6(subEls, 1, length of subEls, "").
         If acc is equal to "":
             Return arrFlatLoop(els, i + 1, sub).
-        Return arrFlatLoop(els, i + 1, concat(concat(acc, chr(6)), sub)).
+        Return arrFlatLoop(els, i + 1, concat(concat(acc, tagArrSep ()), sub)).
     If acc is equal to "":
         Return arrFlatLoop(els, i + 1, el).
-    Return arrFlatLoop(els, i + 1, concat(concat(acc, chr(6)), el)).
+    Return arrFlatLoop(els, i + 1, concat(concat(acc, tagArrSep ()), el)).
 
 ## To arrFlat (arrval: Text) -> Text:
-    Return concat(concat(chr(5), arrFlatLoop(arrElements(arrval), 1, "")), chr(15)).
+    Return concat(concat(tagArr (), arrFlatLoop(arrElements(arrval), 1, "")), tagArrEnd ()).
 
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1461,12 +1521,12 @@
     If keep:
         If acc is equal to "":
             Return arrFilterLoop(els, i + 1, fnval, env, el).
-        Let nextAcc be concat(concat(acc, chr(6)), el).
+        Let nextAcc be concat(concat(acc, tagArrSep ()), el).
         Return arrFilterLoop(els, i + 1, fnval, env, nextAcc).
     Return arrFilterLoop(els, i + 1, fnval, env, acc).
 
 ## To arrFilter (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(concat(chr(5), arrFilterLoop(arrElements(arrval), 1, fnval, env, "")), chr(15)).
+    Return concat(concat(tagArr (), arrFilterLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ()).
 
 ## To arrSomeLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Bool:
     If i is greater than length of els:
@@ -1510,7 +1570,7 @@
     Return strSliceLoop(s, i + 1, endEx, concat(acc, c)).
 
 ## To strSlice (s: Text, a: Int, b: Int) -> Text:
-    Return concat(chr(3), strSliceLoop(s, a + 1, b, "")).
+    Return concat(tagStr (), strSliceLoop(s, a + 1, b, "")).
 
 ## To strRepeat (s: Text, n: Int, acc: Text) -> Text:
     If n is less than or equal to 0:
@@ -1529,7 +1589,7 @@
     If i is greater than length of s:
         Return i.
     Let c be item i of s.
-    If c is equal to chr(4):
+    If c is equal to encSpace ():
         Return trimHeadIdx(s, i + 1).
     Return i.
 
@@ -1537,7 +1597,7 @@
     If i is less than 1:
         Return 0.
     Let c be item i of s.
-    If c is equal to chr(4):
+    If c is equal to encSpace ():
         Return trimTailIdx(s, i - 1).
     Return i.
 
@@ -1553,48 +1613,48 @@
 
 ## To strPadStart (s: Text, target: Int, pad: Text) -> Text:
     If length of s is greater than or equal to target:
-        Return concat(chr(3), s).
+        Return concat(tagStr (), s).
     If pad is equal to "":
-        Return concat(chr(3), s).
+        Return concat(tagStr (), s).
     Let need be target - (length of s).
     Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
-    Return concat(chr(3), concat(padding, s)).
+    Return concat(tagStr (), concat(padding, s)).
 
 ## To strPadEnd (s: Text, target: Int, pad: Text) -> Text:
     If length of s is greater than or equal to target:
-        Return concat(chr(3), s).
+        Return concat(tagStr (), s).
     If pad is equal to "":
-        Return concat(chr(3), s).
+        Return concat(tagStr (), s).
     Let need be target - (length of s).
     Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
-    Return concat(chr(3), concat(s, padding)).
+    Return concat(tagStr (), concat(s, padding)).
 
 ## To strCharCodeAt (s: Text, i: Int) -> Int:
     If i + 1 is greater than length of s:
         Return 0.
     Let c be item (i + 1) of s.
-    If c is equal to chr(4):
+    If c is equal to encSpace ():
         Return 32.
     Return ord(c).
 
 ## To fromCharCodeLoop (codes: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of codes:
-        Return concat(chr(3), acc).
+        Return concat(tagStr (), acc).
     Let code be parseInt(jsEvalIn(trim(item i of codes), env)).
     If code is equal to 32:
-        Return fromCharCodeLoop(codes, i + 1, env, concat(acc, chr(4))).
+        Return fromCharCodeLoop(codes, i + 1, env, concat(acc, encSpace ())).
     Return fromCharCodeLoop(codes, i + 1, env, concat(acc, chr(code))).
 
 ## To splitToArr (pieces: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of pieces:
         Return acc.
-    Let piece be concat(chr(3), item i of pieces).
+    Let piece be concat(tagStr (), item i of pieces).
     If i is equal to 1:
         Return splitToArr(pieces, i + 1, piece).
-    Return splitToArr(pieces, i + 1, concat(concat(acc, chr(6)), piece)).
+    Return splitToArr(pieces, i + 1, concat(concat(acc, tagArrSep ()), piece)).
 
 ## To strSplit (s: Text, sep: Text) -> Text:
-    Return concat(concat(chr(5), splitToArr(split(s, sep), 1, "")), chr(15)).
+    Return concat(concat(tagArr (), splitToArr(split(s, sep), 1, "")), tagArrEnd ()).
 
 ## To arrJoinLoop (els: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1606,14 +1666,14 @@
     Return arrJoinLoop(els, i + 1, sep, nextAcc).
 
 ## To arrJoin (arrval: Text, sep: Text) -> Text:
-    Return concat(chr(3), arrJoinLoop(arrElements(arrval), 1, sep, "")).
+    Return concat(tagStr (), arrJoinLoop(arrElements(arrval), 1, sep, "")).
 
 ## To strReplace (s: Text, a: Text, b: Text) -> Text:
     Let bef be substringBefore(s, a).
     If bef is equal to s:
-        Return concat(chr(3), s).
+        Return concat(tagStr (), s).
     Let tail be substringAfter(s, a).
-    Return concat(chr(3), concat(concat(bef, b), tail)).
+    Return concat(tagStr (), concat(concat(bef, b), tail)).
 
 ## To strUpperLoop (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1704,19 +1764,19 @@
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(substringBefore(aft, ")")), env), chr(5)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(substringBefore(aft, ")")), env), tagArr ()))), rst)), env).
     If substringBefore(expr, "JSON . parse (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . parse (").
         Let aft be substringAfter(expr, "JSON . parse (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(materialize(jsEvalIn(trim(argStr), env)), chr(34), chr(127)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(materialize(jsEvalIn(trim(argStr), env)), chr(34), encQuote ()))), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . stringify (").
         Let aft be substringAfter(expr, "JSON . stringify (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Return resolveMethods(trim(concat(concat(bef, concat(chr(3), jsonStringify(jsEvalIn(trim(argStr), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), jsonStringify(jsEvalIn(trim(argStr), env)))), rst)), env).
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
@@ -1872,7 +1932,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strUpperLoop(sval, 1, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strUpperLoop(sval, 1, ""))), rst)), env).
     If lm is equal to " . toLowerCase (":
         Let bef be substringBefore(expr, " . toLowerCase (").
         Let aft be substringAfter(expr, " . toLowerCase (").
@@ -1880,7 +1940,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strLowerLoop(sval, 1, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strLowerLoop(sval, 1, ""))), rst)), env).
     If lm is equal to " . includes (":
         Let bef be substringBefore(expr, " . includes (").
         Let aft be substringAfter(expr, " . includes (").
@@ -1915,7 +1975,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strRepeat(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)), ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strRepeat(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)), ""))), rst)), env).
     If lm is equal to " . trim (":
         Let bef be substringBefore(expr, " . trim (").
         Let aft be substringAfter(expr, " . trim (").
@@ -1923,7 +1983,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strTrim(sval))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strTrim(sval))), rst)), env).
     If lm is equal to " . padStart (":
         Let bef be substringBefore(expr, " . padStart (").
         Let aft be substringAfter(expr, " . padStart (").
@@ -2302,16 +2362,16 @@
     Return concat(concat(" ", t), " ").
 
 ## To decodeStr (s: Text) -> Text:
-    Let a be replaceAll(s, chr(4), " ").
-    Let b be replaceAll(a, chr(24), chr(91)).
-    Let c be replaceAll(b, chr(25), chr(93)).
-    Let d be replaceAll(c, chr(26), chr(123)).
-    Let e be replaceAll(d, chr(27), chr(125)).
-    Let f be replaceAll(e, chr(28), "(").
-    Let g be replaceAll(f, chr(29), ")").
-    Let h be replaceAll(g, chr(127), chr(34)).
-    Let ii be replaceAll(h, chr(30), chr(92)).
-    Return replaceAll(ii, chr(31), chr(10)).
+    Let a be replaceAll(s, encSpace (), " ").
+    Let b be replaceAll(a, encBrkL (), chr(91)).
+    Let c be replaceAll(b, encBrkR (), chr(93)).
+    Let d be replaceAll(c, encBraceL (), chr(123)).
+    Let e be replaceAll(d, encBraceR (), chr(125)).
+    Let f be replaceAll(e, encParenL (), "(").
+    Let g be replaceAll(f, encParenR (), ")").
+    Let h be replaceAll(g, encQuote (), chr(34)).
+    Let ii be replaceAll(h, encBackslash (), chr(92)).
+    Return replaceAll(ii, encNewline (), chr(10)).
 
 ## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
@@ -2324,29 +2384,29 @@
             If i is less than length of s:
                 Let nx be item (i + 1) of s.
                 If nx is equal to chr(34):
-                    Return normJs(s, i + 2, inStr, concat(acc, chr(127))).
+                    Return normJs(s, i + 2, inStr, concat(acc, encQuote ())).
                 If nx is equal to chr(92):
-                    Return normJs(s, i + 2, inStr, concat(acc, chr(30))).
+                    Return normJs(s, i + 2, inStr, concat(acc, encBackslash ())).
                 If nx is equal to "n":
-                    Return normJs(s, i + 2, inStr, concat(acc, chr(31))).
+                    Return normJs(s, i + 2, inStr, concat(acc, encNewline ())).
                 If nx is equal to "t":
                     Return normJs(s, i + 2, inStr, concat(acc, chr(9))).
                 Return normJs(s, i + 2, inStr, concat(acc, nx)).
             Return normJs(s, i + 1, inStr, concat(acc, c)).
         If c is equal to " ":
-            Return normJs(s, i + 1, inStr, concat(acc, chr(4))).
+            Return normJs(s, i + 1, inStr, concat(acc, encSpace ())).
         If c is equal to chr(91):
-            Return normJs(s, i + 1, inStr, concat(acc, chr(24))).
+            Return normJs(s, i + 1, inStr, concat(acc, encBrkL ())).
         If c is equal to chr(93):
-            Return normJs(s, i + 1, inStr, concat(acc, chr(25))).
+            Return normJs(s, i + 1, inStr, concat(acc, encBrkR ())).
         If c is equal to chr(123):
-            Return normJs(s, i + 1, inStr, concat(acc, chr(26))).
+            Return normJs(s, i + 1, inStr, concat(acc, encBraceL ())).
         If c is equal to chr(125):
-            Return normJs(s, i + 1, inStr, concat(acc, chr(27))).
+            Return normJs(s, i + 1, inStr, concat(acc, encBraceR ())).
         If c is equal to "(":
-            Return normJs(s, i + 1, inStr, concat(acc, chr(28))).
+            Return normJs(s, i + 1, inStr, concat(acc, encParenL ())).
         If c is equal to ")":
-            Return normJs(s, i + 1, inStr, concat(acc, chr(29))).
+            Return normJs(s, i + 1, inStr, concat(acc, encParenR ())).
         Return normJs(s, i + 1, inStr, concat(acc, c)).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
