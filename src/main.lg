@@ -565,9 +565,16 @@
         Return jsEvalAdd(tokens, i + 2, acc, curProduct * num, curSign).
     Return jsEvalAdd(tokens, i + 2, acc, curProduct % num, curSign).
 
-## To jsEval (expr: Text) -> Int:
+## To jsEvalNorm (expr: Text) -> Int:
     Let tokens be split(expr, " ").
     Return jsEvalAdd(tokens, 2, 0, parseInt(item 1 of tokens), 1).
+
+## To jsEval (expr: Text) -> Int:
+    If startsWith(trim(expr), "- "):
+        Return jsEvalNorm(concat("0 ", trim(expr))).
+    If startsWith(trim(expr), "+ "):
+        Return jsEvalNorm(concat("0 ", trim(expr))).
+    Return jsEvalNorm(expr).
 
 ## To joinPieces (pieces: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
     If i is greater than upto:
