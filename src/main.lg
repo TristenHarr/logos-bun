@@ -891,6 +891,14 @@
 ## To hasReturn (env: Text) -> Bool:
     Return envGet(env, "__ret") is not equal to "".
 
+## To hasThrow (env: Text) -> Bool:
+    Return envGet(env, "__throw") is not equal to "".
+
+## To hasHalt (env: Text) -> Bool:
+    If hasReturn(env):
+        Return true.
+    Return hasThrow(env).
+
 ## To argAt (args: Seq of Text, i: Int, callerEnv: Text) -> Text:
     If i is greater than length of args:
         Return "undefined".
@@ -2856,6 +2864,24 @@
         Return splitTop(s, i + 1, depth, concat(acc, c)).
     Return splitTop(s, i + 1, depth, concat(acc, c)).
 
+## To tryCatchRun (afterTry: Text, cparam: Text, catchBlock: Text) -> Text:
+    If hasThrow(afterTry):
+        Let thrown be envGet(concat(afterTry, ""), "__throw").
+        Return runBlockStr(catchBlock, envSet(envSet(afterTry, "__throw", ""), cparam, thrown)).
+    Return afterTry.
+
+## To execTry (stmt: Text, env: Text) -> Text:
+    Let afterTryBrace be substringAfter(stmt, chr(123)).
+    Let tryBlock be braceBody(concat(afterTryBrace, ""), 1, 0, "").
+    Let rest1 be trim(substringAfter(substringAfter(afterTryBrace, tryBlock), chr(125))).
+    Let afterTry be runBlockStr(tryBlock, env).
+    If startsWith(rest1, "catch"):
+        Let cparam be trim(substringBefore(substringAfter(rest1, "("), ")")).
+        Let afterCP be substringAfter(rest1, ")").
+        Let catchBlock be braceBody(substringAfter(afterCP, chr(123)), 1, 0, "").
+        Return tryCatchRun(afterTry, cparam, catchBlock).
+    Return afterTry.
+
 ## To execIf (stmt: Text, env: Text) -> Text:
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let afterBrace be substringAfter(stmt, chr(123)).
@@ -2990,6 +3016,10 @@
         If startsWith(trim(substringAfter(s, "return")), "function ("):
             Return envSet(env, "__ret", funcValueOf(substitute(trim(substringAfter(s, "return")), env))).
         Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
+    If startsWith(s, "throw "):
+        Return envSet(env, "__throw", jsEvalIn(substringAfter(s, "throw "), env)).
+    If startsWith(s, "try "):
+        Return execTry(s, env).
     If startsWith(s, "while "):
         Return execWhile(s, env).
     If startsWith(s, "for "):
@@ -3049,13 +3079,13 @@
 ## To runBlock (stmts: Seq of Text, i: Int, env: Text) -> Text:
     If i is greater than length of stmts:
         Return env.
-    If hasReturn(env):
+    If hasHalt(env):
         Return env.
     Let st be item i of stmts.
     Return runBlock(stmts, i + 1, execStmt(st, env)).
 
 ## To execWhile (stmt: Text, env: Text) -> Text:
-    If hasReturn(env):
+    If hasHalt(env):
         Return env.
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
@@ -3064,7 +3094,7 @@
     Return env.
 
 ## To forStmt (stmt: Text, env: Text) -> Text:
-    If hasReturn(env):
+    If hasHalt(env):
         Return env.
     Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
     Let cond be trim(item 2 of parts).
@@ -3077,7 +3107,7 @@
     Return env.
 
 ## To forOfLoop (els: Seq of Text, i: Int, varName: Text, body: Text, env: Text) -> Text:
-    If hasReturn(env):
+    If hasHalt(env):
         Return env.
     If i is greater than length of els:
         Return env.
