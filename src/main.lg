@@ -806,10 +806,23 @@
 ## To envGet (env: Text, name: Text) -> Text:
     Return envScan(split(env, ";"), 1, name).
 
+# A token in PROPERTY position (right after `.`) or KEY position (right after `{`/`,`
+# and right before `:`) names a member, not a variable — so it must NOT be substituted,
+# else a variable whose name matches a key/property corrupts that slot (BUG-40).
 ## To substTokens (tokens: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of tokens:
         Return trim(acc).
     Let tok be item i of tokens.
+    If i is greater than 1:
+        If item (i - 1) of tokens is equal to ".":
+            Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), tok)).
+    If i is greater than 1:
+        If i is less than length of tokens:
+            If item (i + 1) of tokens is equal to ":":
+                If item (i - 1) of tokens is equal to chr(123):
+                    Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), tok)).
+                If item (i - 1) of tokens is equal to ",":
+                    Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), tok)).
     Let val be envGet(env, tok).
     If val is not equal to "":
         Return substTokens(tokens, i + 1, env, concat(concat(acc, " "), val)).
