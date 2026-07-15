@@ -1350,6 +1350,25 @@
         Return arrAt(raw, i).
     Return strAt(materialize(raw), i).
 
+## To arrFlatLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    If startsWith(el, chr(5)):
+        Let subEls be arrElements(el).
+        If length of subEls is less than 1:
+            Return arrFlatLoop(els, i + 1, acc).
+        Let sub be joinChr6(subEls, 1, length of subEls, "").
+        If acc is equal to "":
+            Return arrFlatLoop(els, i + 1, sub).
+        Return arrFlatLoop(els, i + 1, concat(concat(acc, chr(6)), sub)).
+    If acc is equal to "":
+        Return arrFlatLoop(els, i + 1, el).
+    Return arrFlatLoop(els, i + 1, concat(concat(acc, chr(6)), el)).
+
+## To arrFlat (arrval: Text) -> Text:
+    Return concat(concat(chr(5), arrFlatLoop(arrElements(arrval), 1, "")), chr(15)).
+
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -1560,7 +1579,7 @@
     Return b.
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -1698,6 +1717,14 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), atOf(raw, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)))), rst)), env).
+    If lm is equal to " . flat (":
+        Let bef be substringBefore(expr, " . flat (").
+        Let aft be substringAfter(expr, " . flat (").
+        Let rst be substringAfter(aft, ")").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlat(raw)), rst)), env).
     If lm is equal to " . some (":
         Let bef be substringBefore(expr, " . some (").
         Let aft be substringAfter(expr, " . some (").
