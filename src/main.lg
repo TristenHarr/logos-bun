@@ -899,6 +899,32 @@
         Return cmpResult(boolOf(av)).
     Return av.
 
+## To joinComma (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    If i is equal to 1:
+        Return joinComma(els, i + 1, el).
+    Return joinComma(els, i + 1, concat(concat(acc, ","), el)).
+
+## To expandSpreadLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let arg be trim(item i of args).
+    If startsWith(arg, "..."):
+        Let elems be joinComma(arrElements(jsEvalIn(trim(substringAfter(arg, "...")), concat(env, ""))), 1, "").
+        If acc is equal to "":
+            Return expandSpreadLoop(args, i + 1, env, elems).
+        Return expandSpreadLoop(args, i + 1, env, concat(concat(acc, ","), elems)).
+    If acc is equal to "":
+        Return expandSpreadLoop(args, i + 1, env, arg).
+    Return expandSpreadLoop(args, i + 1, env, concat(concat(acc, ","), arg)).
+
+## To expandSpreadArgs (inner: Text, env: Text) -> Text:
+    If substringBefore(inner, "...") is equal to inner:
+        Return inner.
+    Return expandSpreadLoop(splitArgsN(inner), 1, env, "").
+
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
         Return expr.
@@ -906,7 +932,7 @@
     Let rest be substringAfter(expr, ")").
     Let pieces be split(leftOfClose, "(").
     Let np be length of pieces.
-    Let inner be trim(item np of pieces).
+    Let inner be expandSpreadArgs(trim(item np of pieces), concat(env, "")).
     Let prefix be trim(joinPieces(pieces, 1, np - 1, "")).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
