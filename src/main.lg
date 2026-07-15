@@ -1930,8 +1930,43 @@
         Return a.
     Return b.
 
+## To appendEl (acc: Text, el: Text) -> Text:
+    If acc is equal to "":
+        Return el.
+    Return concat(concat(acc, tagArrSep ()), el).
+
+## To sortCmpLt (a: Text, b: Text, mode: Text, fnval: Text, env: Text) -> Bool:
+    If mode is equal to "default":
+        Return compareText(materialize(a), materialize(b)) is less than 0.
+    Return parseInt(callFn2(fnval, a, b, env)) is less than 0.
+
+## To insertSortedLoop (accEls: Seq of Text, i: Int, el: Text, mode: Text, fnval: Text, env: Text, out: Text, placed: Bool) -> Text:
+    If i is greater than length of accEls:
+        If placed:
+            Return out.
+        Return appendEl(out, el).
+    Let x be item i of accEls.
+    If placed:
+        Return insertSortedLoop(accEls, i + 1, el, mode, fnval, env, appendEl(out, x), true).
+    If sortCmpLt(concat(el, ""), concat(x, ""), concat(mode, ""), concat(fnval, ""), concat(env, "")):
+        Return insertSortedLoop(accEls, i + 1, concat(el, ""), mode, fnval, env, appendEl(appendEl(out, concat(el, "")), x), true).
+    Return insertSortedLoop(accEls, i + 1, el, mode, fnval, env, appendEl(out, x), false).
+
+## To insertSorted (acc: Text, el: Text, mode: Text, fnval: Text, env: Text) -> Text:
+    Return concat(concat(tagArr (), insertSortedLoop(arrElements(acc), 1, el, mode, fnval, env, "", false)), tagArrEnd ()).
+
+## To sortFold (els: Seq of Text, i: Int, mode: Text, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let newAcc be insertSorted(concat(acc, ""), concat(el, ""), concat(mode, ""), concat(fnval, ""), concat(env, "")).
+    Return sortFold(els, i + 1, mode, fnval, env, newAcc).
+
+## To sortArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
+    Return sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ())).
+
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . sort (", betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -2084,6 +2119,18 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlat(raw)), rst)), env).
+    If lm is equal to " . sort (":
+        Let bef be substringBefore(expr, " . sort (").
+        Let aft be substringAfter(expr, " . sort (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        If trim(concat(argStr, "")) is equal to "":
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), sortArr(raw, "default", "", env)), rst)), env).
+        Let fnval be fnArgVal(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), sortArr(raw, "cmp", fnval, env)), rst)), env).
     If lm is equal to " . some (":
         Let bef be substringBefore(expr, " . some (").
         Let aft be substringAfter(expr, " . some (").
@@ -2483,6 +2530,15 @@
         Return true.
     Return false.
 
+## To isSimpleName (sv: Text) -> Bool:
+    If hasSep(sv, " . "):
+        Return false.
+    If hasSep(sv, chr(91)):
+        Return false.
+    If hasSep(sv, " "):
+        Return false.
+    Return true.
+
 ## To memberCompoundRewrite (s: Text) -> Text:
     If hasSep(s, "++"):
         If isMemberTarget(trim(concat(substringBefore(s, "++"), substringAfter(s, "++")))):
@@ -2539,6 +2595,13 @@
     If hasSep(s, " . pop ("):
         Let ov be trim(substringBefore(s, " . pop (")).
         Return envSet(env, ov, arrPop(envGet(env, ov))).
+    If hasSep(s, " . sort ("):
+        Let sv be trim(substringBefore(s, " . sort (")).
+        Let saft be substringAfter(s, " . sort (").
+        Let srest be trim(strSliceLoop(saft, (length of balancedArg(concat(saft, ""), 1, 0, "")) + 2, length of saft, "")).
+        If srest is equal to "":
+            If isSimpleName(concat(sv, "")):
+                Return envSet(env, sv, jsEvalIn(concat(s, ""), env)).
     Let mcr be memberCompoundRewrite(concat(s, "")).
     If hasSep(mcr, " = "):
         Return execStmt(mcr, env).
