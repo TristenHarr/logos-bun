@@ -625,8 +625,29 @@
         Return jsEvalAdd(tokens, i + 2, acc, curProduct * num, curSign).
     Return jsEvalAdd(tokens, i + 2, acc, curProduct % num, curSign).
 
+## To lastMatchIdx (toks: Seq of Text, target: Text, i: Int) -> Int:
+    If i is less than 1:
+        Return 0.
+    If item i of toks is equal to target:
+        Return i.
+    Return lastMatchIdx(toks, target, i - 1).
+
+## To powReduce (expr: Text, idx: Int) -> Text:
+    Let toks be split(expr, " ").
+    Let base be parseInt(item (idx - 1) of toks).
+    Let exp be parseInt(item (idx + 1) of toks).
+    Let left be joinRange(toks, 1, idx - 2, "").
+    Let right be joinRange(toks, idx + 2, length of toks, "").
+    Return joinNonEmpty(split(concat(concat(concat(left, " "), toText(powInt(base, exp, 1))), concat(" ", right)), " "), 1, "").
+
+## To resolvePow (expr: Text) -> Text:
+    Let idx be lastMatchIdx(split(expr, " "), "**", length of split(expr, " ")).
+    If idx is equal to 0:
+        Return expr.
+    Return resolvePow(powReduce(expr, idx)).
+
 ## To jsEvalNorm (expr: Text) -> Int:
-    Let tokens be split(expr, " ").
+    Let tokens be split(resolvePow(expr), " ").
     Return jsEvalAdd(tokens, 2, 0, parseInt(item 1 of tokens), 1).
 
 ## To jsEval (expr: Text) -> Int:
@@ -2360,6 +2381,8 @@
     Return false.
 
 ## To isOp2 (t: Text) -> Bool:
+    If t is equal to "**":
+        Return true.
     If t is equal to "==":
         Return true.
     If t is equal to "!=":
