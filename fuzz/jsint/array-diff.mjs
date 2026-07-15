@@ -27,7 +27,8 @@ if (OURS) {
     if (k < 0.82) { const els = a.slice(1, -1).split(",").map(Number); const target = rnd() < 0.7 ? els[Math.floor(rnd() * els.length)] : Math.floor(rnd() * 40); return `let a=${a};a.indexOf(${target})`; } // array indexOf (element-based)
     if (k < 0.86) { const els = a.slice(1, -1).split(",").map(Number); const target = rnd() < 0.7 ? els[Math.floor(rnd() * els.length)] : Math.floor(rnd() * 40); return `let a=${a};a.includes(${target})`; } // array includes
     if (k < 0.9) { const b = 1 + Math.floor(rnd() * len), a0 = Math.floor(rnd() * b); return `let a=${a};a.slice(${a0},${b})`; } // array slice (element sub-array)
-    if (k < 0.96) return `let a=${a};a.reverse()`;                          // array reverse
+    if (k < 0.93) return `let a=${a};a.reverse()`;                          // array reverse
+    if (k < 0.97) { const w = Math.floor(rnd() * 9), x = Math.floor(rnd() * 9), y = Math.floor(rnd() * 9), z = Math.floor(rnd() * 9); const i = Math.floor(rnd() * 2), j = Math.floor(rnd() * 2); return `let a=[[${w},${x}],[${y},${z}]];a[${i}][${j}]`; } // NESTED array index
     const i = Math.floor(rnd() * len), j = Math.floor(rnd() * len); return `let a=${a};a[${i}]>a[${j}]?a[${i}]:a[${j}]`; // ternary
   };
   let checked = 0;

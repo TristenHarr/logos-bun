@@ -834,7 +834,7 @@
     If startsWith(v, chr(3)):
         Return substringAfter(v, chr(3)).
     If startsWith(v, chr(5)):
-        Return matArr(split(substringAfter(v, chr(5)), chr(6)), 1, "").
+        Return matArr(arrElements(v), 1, "").
     If startsWith(v, chr(7)):
         Return "[object Object]".
     Return v.
@@ -856,16 +856,35 @@
     Let nextAcc be concat(concat(acc, sep), piece).
     Return joinUpto(parts, i + 1, upto, sep, nextAcc).
 
+## To splitArrElemsDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(5):
+        Return splitArrElemsDepth(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(15):
+        Return splitArrElemsDepth(s, i + 1, depth - 1, concat(acc, c)).
+    If c is equal to chr(6):
+        If depth is equal to 0:
+            Return splitArrElemsDepth(s, i + 1, 0, concat(acc, chr(10))).
+        Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
+    Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
+
+## To arrElements (arrval: Text) -> Seq of Text:
+    Let inner be substringAfter(arrval, chr(5)).
+    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Return split(splitArrElemsDepth(content, 1, 0, ""), chr(10)).
+
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
-        Return concat(chr(5), acc).
+        Return concat(concat(chr(5), acc), chr(15)).
     Let elVal be evalValue(trim(item i of elems)).
     If i is equal to 1:
         Return buildArr(elems, i + 1, elVal).
     Return buildArr(elems, i + 1, concat(concat(acc, chr(6)), elVal)).
 
 ## To arrGet (arrVal: Text, idx: Int) -> Text:
-    Let els be split(substringAfter(arrVal, chr(5)), chr(6)).
+    Let els be arrElements(arrVal).
     If idx + 1 is greater than length of els:
         Return "undefined".
     Return item (idx + 1) of els.
@@ -983,10 +1002,7 @@
 
 ## To propLength (v: Text) -> Int:
     If startsWith(v, chr(5)):
-        Let content be substringAfter(v, chr(5)).
-        If content is equal to "":
-            Return 0.
-        Return length of split(content, chr(6)).
+        Return length of arrElements(v).
     Return length of materialize(litToStr(v)).
 
 ## To resolveProps (expr: Text) -> Text:
@@ -1103,7 +1119,7 @@
     Return arrIndexOfLoop(els, i + 1, target).
 
 ## To arrIndexOf (arrval: Text, target: Text) -> Int:
-    Return arrIndexOfLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, target).
+    Return arrIndexOfLoop(arrElements(arrval), 1, target).
 
 ## To idxOf (raw: Text, subEval: Text) -> Int:
     If startsWith(raw, chr(5)):
@@ -1122,7 +1138,7 @@
     Return arrSliceLoop(els, i + 1, endEx, nextAcc).
 
 ## To arrSlice (arrval: Text, a: Int, b: Int) -> Text:
-    Return concat(chr(5), arrSliceLoop(split(substringAfter(arrval, chr(5)), chr(6)), a + 1, b, "")).
+    Return concat(concat(chr(5), arrSliceLoop(arrElements(arrval), a + 1, b, "")), chr(15)).
 
 ## To sliceOf (raw: Text, a: Int, b: Int) -> Text:
     If startsWith(raw, chr(5)):
@@ -1139,9 +1155,9 @@
     Return arrReverseLoop(els, i - 1, nextAcc).
 
 ## To arrReverse (arrval: Text) -> Text:
-    Let els be split(substringAfter(arrval, chr(5)), chr(6)).
+    Let els be arrElements(arrval).
     Let n be length of els.
-    Return concat(chr(5), arrReverseLoop(els, n, "")).
+    Return concat(concat(chr(5), arrReverseLoop(els, n, "")), chr(15)).
 
 ## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1154,7 +1170,7 @@
     Return arrMapLoop(els, i + 1, fnval, env, nextAcc).
 
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(chr(5), arrMapLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, fnval, env, "")).
+    Return concat(concat(chr(5), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), chr(15)).
 
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1186,7 +1202,7 @@
     Return arrFilterLoop(els, i + 1, fnval, env, acc).
 
 ## To arrFilter (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(chr(5), arrFilterLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, fnval, env, "")).
+    Return concat(concat(chr(5), arrFilterLoop(arrElements(arrval), 1, fnval, env, "")), chr(15)).
 
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
@@ -1242,7 +1258,7 @@
     Return splitToArr(pieces, i + 1, concat(concat(acc, chr(6)), piece)).
 
 ## To strSplit (s: Text, sep: Text) -> Text:
-    Return concat(chr(5), splitToArr(split(s, sep), 1, "")).
+    Return concat(concat(chr(5), splitToArr(split(s, sep), 1, "")), chr(15)).
 
 ## To arrJoinLoop (els: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1254,7 +1270,7 @@
     Return arrJoinLoop(els, i + 1, sep, nextAcc).
 
 ## To arrJoin (arrval: Text, sep: Text) -> Text:
-    Return concat(chr(3), arrJoinLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, sep, "")).
+    Return concat(chr(3), arrJoinLoop(arrElements(arrval), 1, sep, "")).
 
 ## To strReplace (s: Text, a: Text, b: Text) -> Text:
     Let bef be substringBefore(s, a).
