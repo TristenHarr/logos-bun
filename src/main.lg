@@ -777,7 +777,24 @@
         Return v.
     Return jsOrVal(groups, i + 1).
 
+## To isNullish (v: Text) -> Bool:
+    If v is equal to "null":
+        Return true.
+    If v is equal to "undefined":
+        Return true.
+    Return false.
+
+## To jsNullishVal (parts: Seq of Text, i: Int) -> Text:
+    Let v be jsEvalCmp(trim(item i of parts)).
+    If i is equal to length of parts:
+        Return v.
+    If isNullish(v):
+        Return jsNullishVal(parts, i + 1).
+    Return v.
+
 ## To jsEvalLogic (expr: Text) -> Text:
+    If hasSep(expr, " ?? "):
+        Return jsNullishVal(split(expr, " ?? "), 1).
     If hasSep(expr, " || "):
         Return jsOrVal(split(expr, " || "), 1).
     If hasSep(expr, " && "):
@@ -2538,6 +2555,8 @@
 
 ## To isOp2 (t: Text) -> Bool:
     If t is equal to "**":
+        Return true.
+    If t is equal to "??":
         Return true.
     If t is equal to "==":
         Return true.
