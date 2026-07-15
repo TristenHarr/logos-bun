@@ -2689,6 +2689,18 @@
             Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
     Return "".
 
+## To assignTarget (target: Text, value: Text, env: Text) -> Text:
+    If hasSep(target, " . "):
+        Let base be trim(substringBefore(target, " . ")).
+        Let newobj be objSet(envGet(concat(env, ""), concat(base, "")), trim(substringAfter(target, " . ")), value).
+        Return envSet(env, base, newobj).
+    If hasSep(target, chr(91)):
+        Let ivar be trim(substringBefore(target, chr(91))).
+        Let iidx be parseInt(jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, ""))).
+        Let newarr be arrSetIdx(envGet(concat(env, ""), concat(ivar, "")), iidx, value).
+        Return envSet(env, ivar, newarr).
+    Return envSet(env, target, value).
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If startsWith(s, "function "):
@@ -2714,10 +2726,10 @@
     If hasSep(s, " . push ("):
         Let pv be trim(substringBefore(s, " . push (")).
         Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
-        Return envSet(env, pv, arrPush(envGet(env, pv), jsEvalIn(trim(pa), env))).
+        Return assignTarget(concat(pv, ""), arrPush(jsEvalIn(concat(pv, ""), concat(env, "")), jsEvalIn(trim(pa), concat(env, ""))), env).
     If hasSep(s, " . pop ("):
         Let ov be trim(substringBefore(s, " . pop (")).
-        Return envSet(env, ov, arrPop(envGet(env, ov))).
+        Return assignTarget(concat(ov, ""), arrPop(jsEvalIn(concat(ov, ""), concat(env, ""))), env).
     If hasSep(s, " . sort ("):
         Let sv be trim(substringBefore(s, " . sort (")).
         Let saft be substringAfter(s, " . sort (").
@@ -2747,17 +2759,9 @@
     If hasSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
         If hasSep(lhs, " . "):
-            Let mVar be trim(substringBefore(lhs, " . ")).
-            Let mProp be trim(substringAfter(lhs, " . ")).
-            Let mNew be jsEvalIn(substringAfter(s, " = "), concat(env, "")).
-            Let mCur be envGet(concat(env, ""), concat(mVar, "")).
-            Return envSet(env, mVar, objSet(mCur, mProp, mNew)).
+            Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, chr(91)):
-            Let iVar be trim(substringBefore(lhs, chr(91))).
-            Let iIdx be parseInt(jsEvalIn(trim(substringBefore(substringAfter(lhs, chr(91)), chr(93))), concat(env, ""))).
-            Let iNew be jsEvalIn(substringAfter(s, " = "), concat(env, "")).
-            Let iCur be envGet(concat(env, ""), concat(iVar, "")).
-            Return envSet(env, iVar, arrSetIdx(iCur, iIdx, iNew)).
+            Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         Return bindAssign(s, env).
     Return env.
 
