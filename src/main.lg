@@ -1079,6 +1079,22 @@
         Return -1.
     Return length of bef.
 
+## To arrIndexOfLoop (els: Seq of Text, i: Int, target: Text) -> Int:
+    If i is greater than length of els:
+        Return -1.
+    Let el be item i of els.
+    If el is equal to target:
+        Return i - 1.
+    Return arrIndexOfLoop(els, i + 1, target).
+
+## To arrIndexOf (arrval: Text, target: Text) -> Int:
+    Return arrIndexOfLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, target).
+
+## To idxOf (raw: Text, subEval: Text) -> Int:
+    If startsWith(raw, chr(5)):
+        Return arrIndexOf(raw, subEval).
+    Return strIndexOf(materialize(raw), materialize(subEval)).
+
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
@@ -1212,9 +1228,9 @@
         Let btoks be split(bef, " ").
         Let recv be item (length of btoks) of btoks.
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
-        Let sval be materialize(jsEvalIn(recv, env)).
-        Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(strIndexOf(sval, subv))), rst)), env).
+        Let raw be jsEvalIn(recv, env).
+        Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
     If substringBefore(expr, " . slice (") is not equal to expr:
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").
@@ -1251,9 +1267,9 @@
         Let btoks be split(bef, " ").
         Let recv be item (length of btoks) of btoks.
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
-        Let sval be materialize(jsEvalIn(recv, env)).
-        Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(strIndexOf(sval, subv) is not equal to -1)), rst)), env).
+        Let raw be jsEvalIn(recv, env).
+        Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(idxOf(raw, subEval) is not equal to -1)), rst)), env).
     If substringBefore(expr, " . startsWith (") is not equal to expr:
         Let bef be substringBefore(expr, " . startsWith (").
         Let aft be substringAfter(expr, " . startsWith (").
