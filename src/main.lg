@@ -1775,6 +1775,9 @@
 ## To arrFlat (arrval: Text) -> Text:
     Return concat(concat(tagArr (), arrFlatLoop(arrElements(arrval), 1, "")), tagArrEnd ()).
 
+## To arrFlatMap (arrval: Text, fnval: Text, env: Text) -> Text:
+    Return arrFlat(arrMap(arrval, fnval, env)).
+
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -2081,8 +2084,17 @@
 ## To sortArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
     Return sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ())).
 
+## To leftmostOf (expr: Text, markers: Seq of Text, i: Int, best: Text, bestPos: Int) -> Text:
+    If i is greater than length of markers:
+        Return best.
+    Let m be item i of markers.
+    Let p be mpos(concat(expr, ""), concat(m, "")).
+    If p is less than bestPos:
+        Return leftmostOf(expr, markers, i + 1, m, p).
+    Return leftmostOf(expr, markers, i + 1, best, bestPos).
+
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . replaceAll (", betterMarker(concat(expr, ""), " . findIndex (", betterMarker(concat(expr, ""), " . sort (", betterMarker(concat(expr, ""), " . flat (", betterMarker(concat(expr, ""), " . at (", betterMarker(concat(expr, ""), " . concat (", betterMarker(concat(expr, ""), " . some (", betterMarker(concat(expr, ""), " . every (", betterMarker(concat(expr, ""), " . find (", betterMarker(concat(expr, ""), " . padStart (", betterMarker(concat(expr, ""), " . padEnd (", betterMarker(concat(expr, ""), " . substring (", betterMarker(concat(expr, ""), " . charCodeAt (", betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))))))))))))))))).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -2213,6 +2225,16 @@
         Let fnval be fnArgVal(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
         Let initVal be jsEvalIn(trim(joinRange(atoks, cIdx + 1, length of atoks, "")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, initVal, env)), rst)), env).
+    If lm is equal to " . flatMap (":
+        Let bef be substringBefore(expr, " . flatMap (").
+        Let aft be substringAfter(expr, " . flatMap (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be fnArgVal(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlatMap(raw, fnval, env)), rst)), env).
     If lm is equal to " . map (":
         Let bef be substringBefore(expr, " . map (").
         Let aft be substringAfter(expr, " . map (").
