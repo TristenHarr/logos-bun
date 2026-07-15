@@ -997,6 +997,42 @@
 ## To objEntries (objVal: Text) -> Text:
     Return concat(concat(chr(5), objEntriesLoop(objEntrySeq(objVal), 1, "")), chr(15)).
 
+## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
+    If c is equal to chr(92):
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
+    Return jsonEscape(s, i + 1, concat(acc, c)).
+
+## To jsonArrLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let s be jsonStringify(concat(item i of els, "")).
+    If i is equal to 1:
+        Return jsonArrLoop(els, i + 1, s).
+    Return jsonArrLoop(els, i + 1, concat(concat(acc, ","), s)).
+
+## To jsonObjLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, chr(8)), 1, "")), chr(34)), ":"), jsonStringify(concat(substringAfter(entry, chr(8)), ""))).
+    If i is equal to 1:
+        Return jsonObjLoop(entries, i + 1, pair).
+    Return jsonObjLoop(entries, i + 1, concat(concat(acc, ","), pair)).
+
+## To jsonStringify (v: Text) -> Text:
+    If startsWith(v, chr(3)):
+        Return concat(concat(chr(34), jsonEscape(substringAfter(v, chr(3)), 1, "")), chr(34)).
+    If startsWith(v, chr(5)):
+        Return concat(concat(chr(24), jsonArrLoop(arrElements(v), 1, "")), chr(25)).
+    If startsWith(v, chr(7)):
+        Return concat(concat(chr(26), jsonObjLoop(objEntrySeq(v), 1, "")), chr(27)).
+    Return v.
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return concat(concat(chr(7), acc), chr(14)).
@@ -1536,6 +1572,11 @@
         Let rst be substringAfter(aft, ")").
         Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
+    If substringBefore(expr, "JSON . stringify (") is not equal to expr:
+        Let bef be substringBefore(expr, "JSON . stringify (").
+        Let aft be substringAfter(expr, "JSON . stringify (").
+        Let rst be substringAfter(aft, ")").
+        Return resolveMethods(trim(concat(concat(bef, concat(chr(3), jsonStringify(jsEvalIn(trim(substringBefore(aft, ")")), env)))), rst)), env).
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
