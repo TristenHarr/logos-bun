@@ -60,6 +60,8 @@ const PROGRAMS = [
   "let user={name:\"ada\",age:36};`${user.name} is ${user.age}`",
   `let cfg={port:8080,tls:true,hosts:["a","b"]};JSON.stringify(cfg)`,
   `let nums=[1,2,3,4,5];let doubled=nums.map(x=>x*2);JSON.stringify(doubled)`,
+  `let cfg=JSON.parse("{\\"port\\":8080,\\"names\\":[\\"a\\",\\"b\\"]}");cfg.port+cfg.names.length`,
+  `let o={a:1,b:{c:[2,3]}};let clone=JSON.parse(JSON.stringify(o));clone.b.c[1]`,
   `let o={a:1,b:2,c:3};let ks="";for(const k of Object.keys(o)){ks+=k};ks`,
   `let parts=[];for(let n of [5,42,7]){parts.push((""+n).padStart(3,"0"))};parts.join(":")`,
   // strings — real method chains

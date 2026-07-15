@@ -1041,6 +1041,65 @@
         Return concat(concat(chr(26), jsonObjLoop(objEntrySeq(v), 1, "")), chr(27)).
     Return v.
 
+## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If inStr:
+        If c is equal to chr(127):
+            Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
+    If c is equal to chr(127):
+        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
+    If c is equal to chr(26):
+        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
+    If c is equal to chr(24):
+        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
+    If c is equal to chr(27):
+        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
+    If c is equal to chr(25):
+        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
+    If c is equal to ",":
+        If depth is equal to 0:
+            Return jsonSplitTop(s, i + 1, 0, false, concat(acc, chr(10))).
+        Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
+    Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
+
+## To jsonBuildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return concat(concat(chr(7), acc), chr(14)).
+    Let entry be item i of entries.
+    Let keyRaw be substringBefore(entry, ":").
+    Let k be strSliceLoop(keyRaw, 2, (length of keyRaw) - 1, "").
+    Let val be jsonParse(substringAfter(entry, ":")).
+    Let pair be concat(concat(k, chr(8)), val).
+    If i is equal to 1:
+        Return jsonBuildObj(entries, i + 1, pair).
+    Return jsonBuildObj(entries, i + 1, concat(concat(acc, chr(11)), pair)).
+
+## To jsonBuildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of elems:
+        Return concat(concat(chr(5), acc), chr(15)).
+    Let val be jsonParse(item i of elems).
+    If i is equal to 1:
+        Return jsonBuildArr(elems, i + 1, val).
+    Return jsonBuildArr(elems, i + 1, concat(concat(acc, chr(6)), val)).
+
+## To jsonParse (v: Text) -> Text:
+    If startsWith(v, chr(26)):
+        Let innerO be strSliceLoop(v, 2, (length of v) - 1, "").
+        If innerO is equal to "":
+            Return concat(chr(7), chr(14)).
+        Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, ""), chr(10)), 1, "").
+    If startsWith(v, chr(24)):
+        Let innerA be strSliceLoop(v, 2, (length of v) - 1, "").
+        If innerA is equal to "":
+            Return concat(chr(5), chr(15)).
+        Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
+    If startsWith(v, chr(127)):
+        Return concat(chr(3), strSliceLoop(v, 2, (length of v) - 1, "")).
+    Return v.
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return concat(concat(chr(7), acc), chr(14)).
@@ -1646,11 +1705,18 @@
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be substringAfter(aft, ")").
         Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(substringBefore(aft, ")")), env), chr(5)))), rst)), env).
+    If substringBefore(expr, "JSON . parse (") is not equal to expr:
+        Let bef be substringBefore(expr, "JSON . parse (").
+        Let aft be substringAfter(expr, "JSON . parse (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(materialize(jsEvalIn(trim(argStr), env)), chr(34), chr(127)))), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . stringify (").
         Let aft be substringAfter(expr, "JSON . stringify (").
-        Let rst be substringAfter(aft, ")").
-        Return resolveMethods(trim(concat(concat(bef, concat(chr(3), jsonStringify(jsEvalIn(trim(substringBefore(aft, ")")), env)))), rst)), env).
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Return resolveMethods(trim(concat(concat(bef, concat(chr(3), jsonStringify(jsEvalIn(trim(argStr), env)))), rst)), env).
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
