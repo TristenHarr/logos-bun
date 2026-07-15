@@ -1128,6 +1128,34 @@
     Let n be length of els.
     Return concat(chr(5), arrReverseLoop(els, n, "")).
 
+## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let r be callFn(concat(fnval, ""), el, concat(env, "")).
+    If i is equal to 1:
+        Return arrMapLoop(els, i + 1, fnval, env, r).
+    Let nextAcc be concat(concat(acc, chr(6)), r).
+    Return arrMapLoop(els, i + 1, fnval, env, nextAcc).
+
+## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
+    Return concat(chr(5), arrMapLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, fnval, env, "")).
+
+## To arrFilterLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let keep be boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))).
+    If keep:
+        If acc is equal to "":
+            Return arrFilterLoop(els, i + 1, fnval, env, el).
+        Let nextAcc be concat(concat(acc, chr(6)), el).
+        Return arrFilterLoop(els, i + 1, fnval, env, nextAcc).
+    Return arrFilterLoop(els, i + 1, fnval, env, acc).
+
+## To arrFilter (arrval: Text, fnval: Text, env: Text) -> Text:
+    Return concat(chr(5), arrFilterLoop(split(substringAfter(arrval, chr(5)), chr(6)), 1, fnval, env, "")).
+
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
@@ -1244,6 +1272,26 @@
         Let rst be substringAfter(aft, ")").
         Let ab be absInt(parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
+    If substringBefore(expr, " . map (") is not equal to expr:
+        Let bef be substringBefore(expr, " . map (").
+        Let aft be substringAfter(expr, " . map (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrMap(raw, fnval, env)), rst)), env).
+    If substringBefore(expr, " . filter (") is not equal to expr:
+        Let bef be substringBefore(expr, " . filter (").
+        Let aft be substringAfter(expr, " . filter (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be jsEvalIn(trim(substringBefore(aft, ")")), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
     If substringBefore(expr, " . reverse (") is not equal to expr:
         Let bef be substringBefore(expr, " . reverse (").
         Let aft be substringAfter(expr, " . reverse (").
