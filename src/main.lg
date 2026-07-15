@@ -971,8 +971,17 @@
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
         Return concat(concat(tagArr (), acc), tagArrEnd ()).
-    Let elVal be evalValue(trim(item i of elems)).
-    If i is equal to 1:
+    Let el be trim(item i of elems).
+    If startsWith(el, "..."):
+        Let sEls be arrElements(evalValue(trim(substringAfter(el, "...")))).
+        If length of sEls is less than 1:
+            Return buildArr(elems, i + 1, acc).
+        Let sJoined be joinChr6(sEls, 1, length of sEls, "").
+        If acc is equal to "":
+            Return buildArr(elems, i + 1, sJoined).
+        Return buildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), sJoined)).
+    Let elVal be evalValue(el).
+    If acc is equal to "":
         Return buildArr(elems, i + 1, elVal).
     Return buildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), elVal)).
 
@@ -2441,6 +2450,8 @@
     If t is equal to "===":
         Return true.
     If t is equal to "!==":
+        Return true.
+    If t is equal to "...":
         Return true.
     Return false.
 

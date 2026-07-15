@@ -74,6 +74,8 @@ const PROGRAMS = [
   `let nums="10,20,30".split(",");let t=0;for(let i=0;i<nums.length;i++){t+=parseInt(nums[i])};t`,
   `let grid=[[1,2],[3,4]];grid[0][0]+grid[0][1]+grid[1][0]+grid[1][1]`,
   `Math.max(Math.abs(-8),Math.min(3,10))`,
+  `let head=[1,2];let tail=[4,5];[...head,3,...tail].reduce((s,x)=>s+x,0)`,
+  `let r="?";switch(2){case 1:r="a";break;case 2:r="b";break;default:r="z"};r`,
 ];
 if (OURS) {
   let checked = 0;
