@@ -1625,6 +1625,64 @@
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
     Return concat(concat(tagArr (), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ()).
 
+## To arrOfLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let v be jsEvalIn(trim(item i of args), concat(env, "")).
+    If acc is equal to "":
+        Return arrOfLoop(args, i + 1, env, v).
+    Return arrOfLoop(args, i + 1, env, concat(concat(acc, tagArrSep ()), v)).
+
+## To arrOf (argStr: Text, env: Text) -> Text:
+    If trim(concat(argStr, "")) is equal to "":
+        Return concat(tagArr (), tagArrEnd ()).
+    Return concat(concat(tagArr (), arrOfLoop(patFields(argStr), 1, env, "")), tagArrEnd ()).
+
+## To fromCharsLoop (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let ch be concat(tagStr (), item i of s).
+    If acc is equal to "":
+        Return fromCharsLoop(s, i + 1, ch).
+    Return fromCharsLoop(s, i + 1, concat(concat(acc, tagArrSep ()), ch)).
+
+## To fromLenLoop (i: Int, n: Int, acc: Text) -> Text:
+    If i is greater than n:
+        Return acc.
+    If acc is equal to "":
+        Return fromLenLoop(i + 1, n, "undefined").
+    Return fromLenLoop(i + 1, n, concat(concat(acc, tagArrSep ()), "undefined")).
+
+## To arrFromBase (v: Text) -> Text:
+    If startsWith(v, tagArr ()):
+        Return concat(v, "").
+    If startsWith(v, tagStr ()):
+        Return concat(concat(tagArr (), fromCharsLoop(substringAfter(v, tagStr ()), 1, "")), tagArrEnd ()).
+    If startsWith(v, tagObj ()):
+        Return concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ()).
+    Return concat(tagArr (), tagArrEnd ()).
+
+## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let params be patFields(paramStr).
+    Let e1 be envSet(env, trim(item 1 of params), el).
+    If length of params is greater than 1:
+        Return envGet(runBlockStr(body, envSet(e1, trim(item 2 of params), idx)), "__ret").
+    Return envGet(runBlockStr(body, e1), "__ret").
+
+## To arrFromMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let r be callFnIdx(concat(fnval, ""), item i of els, toText(i - 1), concat(env, "")).
+    If i is equal to 1:
+        Return arrFromMapLoop(els, i + 1, fnval, env, r).
+    Return arrFromMapLoop(els, i + 1, fnval, env, concat(concat(acc, tagArrSep ()), r)).
+
+## To arrFromMap (base: Text, fnval: Text, env: Text) -> Text:
+    Return concat(concat(tagArr (), arrFromMapLoop(arrElements(base), 1, fnval, env, "")), tagArrEnd ()).
+
 ## To arrReduceLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -2083,6 +2141,20 @@
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(methodArg(aft)), env), tagArr ()))), rst)), env).
+    If substringBefore(expr, "Array . from (") is not equal to expr:
+        Let bef be substringBefore(expr, "Array . from (").
+        Let aft be substringAfter(expr, "Array . from (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Let base be arrFromBase(jsEvalIn(trim(item 1 of args), env)).
+        If length of args is greater than 1:
+            Return resolveMethods(trim(concat(concat(bef, arrFromMap(base, fnArgVal(trim(item 2 of args), env), env)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, base), rst)), env).
+    If substringBefore(expr, "Array . of (") is not equal to expr:
+        Let bef be substringBefore(expr, "Array . of (").
+        Let aft be substringAfter(expr, "Array . of (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, arrOf(methodArg(aft), env)), rst)), env).
     If substringBefore(expr, "JSON . parse (") is not equal to expr:
         Let bef be substringBefore(expr, "JSON . parse (").
         Let aft be substringAfter(expr, "JSON . parse (").
