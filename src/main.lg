@@ -2094,6 +2094,15 @@
 ## To spaced (t: Text) -> Text:
     Return concat(concat(" ", t), " ").
 
+## To decodeStr (s: Text) -> Text:
+    Let a be replaceAll(s, chr(4), " ").
+    Let b be replaceAll(a, chr(24), chr(91)).
+    Let c be replaceAll(b, chr(25), chr(93)).
+    Let d be replaceAll(c, chr(26), chr(123)).
+    Let e be replaceAll(d, chr(27), chr(125)).
+    Let f be replaceAll(e, chr(28), "(").
+    Return replaceAll(f, chr(29), ")").
+
 ## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -2103,6 +2112,18 @@
     If inStr:
         If c is equal to " ":
             Return normJs(s, i + 1, inStr, concat(acc, chr(4))).
+        If c is equal to chr(91):
+            Return normJs(s, i + 1, inStr, concat(acc, chr(24))).
+        If c is equal to chr(93):
+            Return normJs(s, i + 1, inStr, concat(acc, chr(25))).
+        If c is equal to chr(123):
+            Return normJs(s, i + 1, inStr, concat(acc, chr(26))).
+        If c is equal to chr(125):
+            Return normJs(s, i + 1, inStr, concat(acc, chr(27))).
+        If c is equal to "(":
+            Return normJs(s, i + 1, inStr, concat(acc, chr(28))).
+        If c is equal to ")":
+            Return normJs(s, i + 1, inStr, concat(acc, chr(29))).
         Return normJs(s, i + 1, inStr, concat(acc, c)).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
@@ -2292,6 +2313,12 @@
                     Return desugarTemplates(s, i + 2, 2, 1, concat(acc, concat(chr(34), " + ("))).
             Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
         Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
+    If mode is equal to 3:
+        If c is equal to chr(34):
+            Return desugarTemplates(s, i + 1, 2, depth, concat(acc, c)).
+        Return desugarTemplates(s, i + 1, 3, depth, concat(acc, c)).
+    If c is equal to chr(34):
+        Return desugarTemplates(s, i + 1, 3, depth, concat(acc, c)).
     If c is equal to chr(123):
         Return desugarTemplates(s, i + 1, 2, depth + 1, concat(acc, c)).
     If c is equal to chr(125):
@@ -2306,7 +2333,7 @@
     Return joinNonEmpty(split(desugarArrows(normed), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
-    Return replaceAll(materialize(jsRun(normalizeJs(program))), chr(4), " ").
+    Return decodeStr(materialize(jsRun(normalizeJs(program)))).
 
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
@@ -2370,9 +2397,9 @@ Otherwise If cmd is equal to "__hex":
 Otherwise If cmd is equal to "__hex-decode":
     Show fromHex(item 3 of arguments).
 Otherwise If cmd is equal to "__js-eval":
-    Show replaceAll(materialize(jsEvalTernary(item 3 of arguments)), chr(4), " ").
+    Show decodeStr(materialize(jsEvalTernary(item 3 of arguments))).
 Otherwise If cmd is equal to "__js-run":
-    Show replaceAll(materialize(jsRun(item 3 of arguments)), chr(4), " ").
+    Show decodeStr(materialize(jsRun(item 3 of arguments))).
 Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
 Otherwise If isSubcommand(cmd):
