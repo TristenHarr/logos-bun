@@ -873,6 +873,8 @@
 ## To arrElements (arrval: Text) -> Seq of Text:
     Let inner be substringAfter(arrval, chr(5)).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    If content is equal to "":
+        Return [] of Text.
     Return split(splitArrElemsDepth(content, 1, 0, ""), chr(10)).
 
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
@@ -1311,6 +1313,19 @@
             Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32))).
     Return strLowerLoop(s, i + 1, concat(acc, c)).
 
+## To mpos (expr: Text, marker: Text) -> Int:
+    If substringBefore(expr, marker) is equal to expr:
+        Return 1000000.
+    Return length of substringBefore(expr, marker).
+
+## To betterMarker (expr: Text, a: Text, b: Text) -> Text:
+    If mpos(concat(expr, ""), concat(a, "")) is less than or equal to mpos(concat(expr, ""), concat(b, "")):
+        Return a.
+    Return b.
+
+## To leftmostMethod (expr: Text) -> Text:
+    Return betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))).
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
@@ -1363,7 +1378,10 @@
         Let rst be substringAfter(aft, ")").
         Let rd be parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
-    If substringBefore(expr, " . map (") is not equal to expr:
+    Let lm be leftmostMethod(concat(expr, "")).
+    If substringBefore(expr, lm) is equal to expr:
+        Return expr.
+    If lm is equal to " . map (":
         Let bef be substringBefore(expr, " . map (").
         Let aft be substringAfter(expr, " . map (").
         Let argStr be balancedArg(aft, 1, 0, "").
@@ -1374,7 +1392,7 @@
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgVal(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrMap(raw, fnval, env)), rst)), env).
-    If substringBefore(expr, " . filter (") is not equal to expr:
+    If lm is equal to " . filter (":
         Let bef be substringBefore(expr, " . filter (").
         Let aft be substringAfter(expr, " . filter (").
         Let argStr be balancedArg(aft, 1, 0, "").
@@ -1385,7 +1403,7 @@
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgVal(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
-    If substringBefore(expr, " . reverse (") is not equal to expr:
+    If lm is equal to " . reverse (":
         Let bef be substringBefore(expr, " . reverse (").
         Let aft be substringAfter(expr, " . reverse (").
         Let rst be substringAfter(aft, ")").
@@ -1394,7 +1412,7 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReverse(raw)), rst)), env).
-    If substringBefore(expr, " . charAt (") is not equal to expr:
+    If lm is equal to " . charAt (":
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
         Let rst be substringAfter(aft, ")").
@@ -1404,7 +1422,7 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), ch), rst)), env).
-    If substringBefore(expr, " . indexOf (") is not equal to expr:
+    If lm is equal to " . indexOf (":
         Let bef be substringBefore(expr, " . indexOf (").
         Let aft be substringAfter(expr, " . indexOf (").
         Let rst be substringAfter(aft, ")").
@@ -1414,7 +1432,7 @@
         Let raw be jsEvalIn(recv, env).
         Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
-    If substringBefore(expr, " . slice (") is not equal to expr:
+    If lm is equal to " . slice (":
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").
         Let rst be substringAfter(aft, ")").
@@ -1425,7 +1443,7 @@
         Let args be split(substringBefore(aft, ")"), ",").
         Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
-    If substringBefore(expr, " . toUpperCase (") is not equal to expr:
+    If lm is equal to " . toUpperCase (":
         Let bef be substringBefore(expr, " . toUpperCase (").
         Let aft be substringAfter(expr, " . toUpperCase (").
         Let rst be substringAfter(aft, ")").
@@ -1434,7 +1452,7 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strUpperLoop(sval, 1, ""))), rst)), env).
-    If substringBefore(expr, " . toLowerCase (") is not equal to expr:
+    If lm is equal to " . toLowerCase (":
         Let bef be substringBefore(expr, " . toLowerCase (").
         Let aft be substringAfter(expr, " . toLowerCase (").
         Let rst be substringAfter(aft, ")").
@@ -1443,7 +1461,7 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strLowerLoop(sval, 1, ""))), rst)), env).
-    If substringBefore(expr, " . includes (") is not equal to expr:
+    If lm is equal to " . includes (":
         Let bef be substringBefore(expr, " . includes (").
         Let aft be substringAfter(expr, " . includes (").
         Let rst be substringAfter(aft, ")").
@@ -1453,7 +1471,7 @@
         Let raw be jsEvalIn(recv, env).
         Let subEval be jsEvalIn(trim(substringBefore(aft, ")")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(idxOf(raw, subEval) is not equal to -1)), rst)), env).
-    If substringBefore(expr, " . startsWith (") is not equal to expr:
+    If lm is equal to " . startsWith (":
         Let bef be substringBefore(expr, " . startsWith (").
         Let aft be substringAfter(expr, " . startsWith (").
         Let rst be substringAfter(aft, ")").
@@ -1463,7 +1481,7 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(startsWith(sval, subv))), rst)), env).
-    If substringBefore(expr, " . endsWith (") is not equal to expr:
+    If lm is equal to " . endsWith (":
         Let bef be substringBefore(expr, " . endsWith (").
         Let aft be substringAfter(expr, " . endsWith (").
         Let rst be substringAfter(aft, ")").
@@ -1473,7 +1491,7 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(strEndsWith(sval, subv))), rst)), env).
-    If substringBefore(expr, " . repeat (") is not equal to expr:
+    If lm is equal to " . repeat (":
         Let bef be substringBefore(expr, " . repeat (").
         Let aft be substringAfter(expr, " . repeat (").
         Let rst be substringAfter(aft, ")").
@@ -1482,7 +1500,7 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strRepeat(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env)), ""))), rst)), env).
-    If substringBefore(expr, " . trim (") is not equal to expr:
+    If lm is equal to " . trim (":
         Let bef be substringBefore(expr, " . trim (").
         Let aft be substringAfter(expr, " . trim (").
         Let rst be substringAfter(aft, ")").
@@ -1491,7 +1509,7 @@
         Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(chr(3), strTrim(sval))), rst)), env).
-    If substringBefore(expr, " . split (") is not equal to expr:
+    If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
         Let rst be substringAfter(aft, ")").
@@ -1501,7 +1519,7 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strSplit(sval, sepv)), rst)), env).
-    If substringBefore(expr, " . join (") is not equal to expr:
+    If lm is equal to " . join (":
         Let bef be substringBefore(expr, " . join (").
         Let aft be substringAfter(expr, " . join (").
         Let rst be substringAfter(aft, ")").
@@ -1511,7 +1529,7 @@
         Let aval be jsEvalIn(recv, env).
         Let sepv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrJoin(aval, sepv)), rst)), env).
-    If substringBefore(expr, " . replace (") is not equal to expr:
+    If lm is equal to " . replace (":
         Let bef be substringBefore(expr, " . replace (").
         Let aft be substringAfter(expr, " . replace (").
         Let rst be substringAfter(aft, ")").

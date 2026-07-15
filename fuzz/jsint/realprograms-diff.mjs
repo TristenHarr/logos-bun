@@ -23,19 +23,18 @@ const nodeRun = (p) => {
   const body = parts.slice(0, -1).map((s) => s + ";").join("") + " return (" + parts[parts.length - 1] + ");";
   return eval("(()=>{" + body + "})()");
 };
-// NOTE on scoping: the engine does NOT yet support (a) a method call directly on
-// an array LITERAL (`[1,2,3].filter(...)` — resolveMethods runs before the literal
-// is a value), (b) method CHAINING where a method's receiver is another method call
-// (`s.toUpperCase().indexOf(...)` — resolveMethods matches by branch order not
-// leftmost position), or (c) nested Math with a DIFFERENT inner fn. These programs
-// use intermediate variables to compose the same computations — proving the
-// features integrate; the three sugar gaps are documented in BUGS_FOUND.md.
+// NOTE on scoping: method CHAINING now works (leftmost-method dispatch) — these
+// programs chain freely (`s.toUpperCase().indexOf(...)`, `a.filter(f).map(g).join(s)`).
+// Two sugar gaps remain, documented in BUGS_FOUND.md: (a) a method call directly on
+// an array LITERAL (`[1,2,3].filter(...)` — resolveMethods runs before the literal is
+// a value; use a variable receiver), and (b) nested Math with a DIFFERENT inner fn
+// (`Math.max(Math.abs(...))` — needs balanced-arg extraction). Both are avoided here.
 const PROGRAMS = [
-  // higher-order pipelines (intermediate vars)
-  `let a=[1,2,3,4,5,6];let e=a.filter(function(x){return x%2==0});e.map(function(x){return x*x}).join("-")`,
-  `let parts="a,b,c,d".split(",");parts.map(function(s){return s.toUpperCase()}).join("|")`,
-  `let ws="one two three".split(" ");let long=ws.filter(function(w){return w.length>3});long.length`,
-  `let raw="5,3,8,1,9".split(",");let ns=raw.map(function(s){return parseInt(s)});let big=ns.filter(function(n){return n>4});big.join(",")`,
+  // higher-order pipelines — real chains on variable receivers
+  `let a=[1,2,3,4,5,6];a.filter(function(x){return x%2==0}).map(function(x){return x*x}).join("-")`,
+  `"a,b,c,d".split(",").map(function(s){return s.toUpperCase()}).join("|")`,
+  `"one two three".split(" ").filter(function(w){return w.length>3}).length`,
+  `"5,3,8,1,9".split(",").map(function(s){return parseInt(s)}).filter(function(n){return n>4}).join(",")`,
   // closures
   `let adder=function(x){return function(y){return x+y}};adder(10)(32)`,
   `let mul=function(a){return function(b){return a*b}};let triple=mul(3);triple(7)+triple(2)`,
@@ -53,11 +52,11 @@ const PROGRAMS = [
   `let a=[3,7,2,8,1,9,4];let m=a[0];for(let i=1;i<a.length;i++){if(a[i]>m){m=a[i]}};m`,
   `let a=[5,1,4,2,8];let s=0;for(let i=0;i<a.length;i++){s+=a[i]};s`,
   `let a=[1,2,3,4,5];let c=0;for(let i=0;i<a.length;i++){if(a[i]%2==1){c++}};c`,
-  // strings (intermediate vars for chains)
-  `let s="Hello World";let u=s.toUpperCase();u.indexOf("WORLD")`,
-  `let s="  padded  ";let t=s.trim();t.length`,
-  `let r="abcabc".replace("b","X");r.indexOf("X")`,
-  `let name="jane doe";let ps=name.split(" ");ps.map(function(w){return w.charAt(0).toUpperCase()}).join("")`,
+  // strings — real method chains
+  `"Hello World".toUpperCase().indexOf("WORLD")`,
+  `"  padded  ".trim().length`,
+  `"abcabc".replace("b","X").indexOf("X")`,
+  `"jane doe".split(" ").map(function(w){return w.charAt(0).toUpperCase()}).join("")`,
   // mixed
   `let inv={apple:3,banana:5};let total=inv.apple+inv.banana;total>7?"lots":"few"`,
   `let nums="10,20,30".split(",");let t=0;for(let i=0;i<nums.length;i++){t+=parseInt(nums[i])};t`,
