@@ -1785,8 +1785,29 @@
         Return forStmt(stmt, afterUpdate).
     Return env.
 
+## To forOfLoop (els: Seq of Text, i: Int, varName: Text, body: Text, env: Text) -> Text:
+    If hasReturn(env):
+        Return env.
+    If i is greater than length of els:
+        Return env.
+    Let el be item i of els.
+    Let e2 be envSet(env, varName, el).
+    Let afterBody be runBlockStr(concat(body, ""), e2).
+    Return forOfLoop(els, i + 1, varName, body, afterBody).
+
+## To execForOf (stmt: Text, env: Text) -> Text:
+    Let hdr be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let afterKw be trim(substringAfter(hdr, " ")).
+    Let varName be trim(substringBefore(afterKw, " of ")).
+    Let arrExpr be trim(substringAfter(afterKw, " of ")).
+    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Return forOfLoop(arrElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
+
 ## To execFor (stmt: Text, env: Text) -> Text:
-    Let init be trim(item 1 of split(substringBefore(substringAfter(stmt, "("), ")"), ";")).
+    Let hdr be substringBefore(substringAfter(stmt, "("), ")").
+    If hasSep(hdr, " of "):
+        Return execForOf(stmt, env).
+    Let init be trim(item 1 of split(hdr, ";")).
     Return forStmt(stmt, execStmt(init, env)).
 
 ## To runProgram (stmts: Seq of Text, i: Int, env: Text) -> Text:
