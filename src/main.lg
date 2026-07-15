@@ -2935,10 +2935,16 @@
             Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
     Return "".
 
+## To objSetPath (objval: Text, segs: Seq of Text, i: Int, v: Text) -> Text:
+    If i is equal to length of segs:
+        Return objSet(objval, trim(item i of segs), v).
+    Let child be objGet(concat(objval, ""), trim(item i of segs)).
+    Return objSet(objval, trim(item i of segs), objSetPath(child, segs, i + 1, v)).
+
 ## To assignTarget (target: Text, value: Text, env: Text) -> Text:
     If hasSep(target, " . "):
         Let base be trim(substringBefore(target, " . ")).
-        Let newobj be objSet(envGet(concat(env, ""), concat(base, "")), trim(substringAfter(target, " . ")), value).
+        Let newobj be objSetPath(envGet(concat(env, ""), concat(base, "")), split(substringAfter(target, " . "), " . "), 1, value).
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
