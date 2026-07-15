@@ -2433,12 +2433,73 @@
     Let name be trim(substringBefore(substringAfter(stmt, "function "), "(")).
     Return envSet(env, name, funcValueOf(stmt)).
 
+## To defaultOr (cur: Text, defExpr: Text, env: Text) -> Text:
+    If cur is equal to "undefined":
+        Return jsEvalIn(defExpr, env).
+    Return cur.
+
+## To patFieldSplit (s: Text, i: Int, depth: Int, g: Text) -> Text:
+    If i is greater than length of s:
+        Return g.
+    Let c be item i of s.
+    If c is equal to chr(123):
+        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+    If c is equal to chr(91):
+        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+    If c is equal to "(":
+        Return patFieldSplit(s, i + 1, depth + 1, concat(g, c)).
+    If c is equal to chr(125):
+        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+    If c is equal to chr(93):
+        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+    If c is equal to ")":
+        Return patFieldSplit(s, i + 1, depth - 1, concat(g, c)).
+    If c is equal to ",":
+        If depth is equal to 0:
+            Return patFieldSplit(s, i + 1, 0, concat(g, chr(10))).
+        Return patFieldSplit(s, i + 1, depth, concat(g, c)).
+    Return patFieldSplit(s, i + 1, depth, concat(g, c)).
+
+## To patFields (inner: Text) -> Seq of Text:
+    Return split(patFieldSplit(inner, 1, 0, ""), chr(10)).
+
+## To topEqIdx (s: Text, i: Int, depth: Int) -> Int:
+    If i is greater than length of s:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to chr(123):
+        Return topEqIdx(s, i + 1, depth + 1).
+    If c is equal to chr(91):
+        Return topEqIdx(s, i + 1, depth + 1).
+    If c is equal to "(":
+        Return topEqIdx(s, i + 1, depth + 1).
+    If c is equal to chr(125):
+        Return topEqIdx(s, i + 1, depth - 1).
+    If c is equal to chr(93):
+        Return topEqIdx(s, i + 1, depth - 1).
+    If c is equal to ")":
+        Return topEqIdx(s, i + 1, depth - 1).
+    If c is equal to "=":
+        If depth is equal to 0:
+            Return i.
+    Return topEqIdx(s, i + 1, depth).
+
 ## To destructObjLoop (fields: Seq of Text, i: Int, objval: Text, env: Text) -> Text:
     If i is greater than length of fields:
         Return env.
     Let field be trim(item i of fields).
     If field is equal to "":
         Return destructObjLoop(fields, i + 1, objval, env).
+    If hasSep(field, " = "):
+        Let lhsPart be trim(substringBefore(field, " = ")).
+        Let defExpr be trim(substringAfter(field, " = ")).
+        If hasSep(lhsPart, ":"):
+            Let dk be trim(substringBefore(lhsPart, ":")).
+            Let dvn be trim(substringAfter(lhsPart, ":")).
+            Let dval be defaultOr(objGet(concat(objval, ""), dk), defExpr, concat(env, "")).
+            Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, dvn, dval)).
+        Let bval be defaultOr(objGet(concat(objval, ""), concat(lhsPart, "")), defExpr, concat(env, "")).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, lhsPart, bval)).
     If hasSep(field, ":"):
         Let k be trim(substringBefore(field, ":")).
         Let vn be trim(substringAfter(field, ":")).
@@ -2454,23 +2515,35 @@
     If startsWith(field, "..."):
         Let rv be trim(substringAfter(field, "...")).
         Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, rv, arrSlice(concat(arrval, ""), i - 1, 1000000))).
+    If hasSep(field, " = "):
+        Let avn be trim(substringBefore(field, " = ")).
+        Let adef be trim(substringAfter(field, " = ")).
+        Let aval be defaultOr(arrGet(concat(arrval, ""), i - 1), adef, concat(env, "")).
+        Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, avn, aval)).
     Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, concat(field, ""), arrGet(concat(arrval, ""), i - 1))).
 
 ## To destructureObj (pattern: Text, objval: Text, env: Text) -> Text:
     Let inner be trim(substringBefore(substringAfter(pattern, chr(123)), chr(125))).
-    Return destructObjLoop(splitArgsN(inner), 1, objval, env).
+    Return destructObjLoop(patFields(inner), 1, objval, env).
 
 ## To destructureArr (pattern: Text, arrval: Text, env: Text) -> Text:
     Let inner be trim(substringBefore(substringAfter(pattern, chr(91)), chr(93))).
-    Return destructArrLoop(splitArgsN(inner), 1, arrval, env).
+    Return destructArrLoop(patFields(inner), 1, arrval, env).
 
 ## To bindAssign (assign: Text, env: Text) -> Text:
+    Let trimmed be trim(assign).
+    If startsWith(trimmed, chr(123)):
+        Let eqAt be topEqIdx(concat(trimmed, ""), 1, 0).
+        Let pat be trim(strSliceLoop(concat(trimmed, ""), 1, eqAt - 1, "")).
+        Let prhs be trim(strSliceLoop(concat(trimmed, ""), eqAt + 1, length of trimmed, "")).
+        Return destructureObj(pat, jsEvalIn(prhs, env), env).
+    If startsWith(trimmed, chr(91)):
+        Let eqAt2 be topEqIdx(concat(trimmed, ""), 1, 0).
+        Let pat2 be trim(strSliceLoop(concat(trimmed, ""), 1, eqAt2 - 1, "")).
+        Let prhs2 be trim(strSliceLoop(concat(trimmed, ""), eqAt2 + 1, length of trimmed, "")).
+        Return destructureArr(pat2, jsEvalIn(prhs2, env), env).
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
-    If startsWith(name, chr(123)):
-        Return destructureObj(name, jsEvalIn(rhs, env), env).
-    If startsWith(name, chr(91)):
-        Return destructureArr(name, jsEvalIn(rhs, env), env).
     If startsWith(rhs, "function ("):
         Return envSet(env, name, funcValueOf(substitute(rhs, env))).
     Return envSet(env, name, jsEvalIn(rhs, env)).

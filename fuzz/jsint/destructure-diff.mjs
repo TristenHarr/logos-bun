@@ -28,13 +28,16 @@ if (OURS) {
   const sn = () => 1 + ri(9);
   const kw = () => ["let", "const", "var"][ri(3)];
   const program = () => {
-    const k = ri(7);
+    const k = ri(10);
     if (k === 0) return `${kw()} {a,b}={a:${sn()},b:${sn()}};a+b`;                        // object sum
     if (k === 1) return `${kw()} {a,b,c}={a:${sn()},b:${sn()},c:${sn()}};a*b-c`;           // 3-field
     if (k === 2) return `${kw()} {a:x,b:y}={a:${sn()},b:${sn()}};x-y`;                      // rename
     if (k === 3) return `${kw()} [x,y]=[${sn()},${sn()}];x*y`;                              // array pair
     if (k === 4) return `${kw()} [a,b,c]=[${sn()},${sn()},${sn()}];a+b+c`;                  // array triple
     if (k === 5) return `${kw()} [first,...rest]=[${sn()},${sn()},${sn()},${sn()}];first+"|"+rest.join(",")`; // rest
+    if (k === 6) return `${kw()} {a,b=${sn()}}={a:${sn()}${ri(2) ? `,b:${sn()}` : ""}};a+b`; // object default (maybe present)
+    if (k === 7) return `${kw()} {x:v=${sn()}}={${ri(2) ? `x:${sn()}` : ""}};v`;             // rename + default
+    if (k === 8) return `${kw()} [a=${sn()},b=${sn()}]=[${ri(2) ? sn() : ""}];a+b`;          // array defaults (maybe empty)
     return `${kw()} o={n:"${["bun","node","deno"][ri(3)]}",v:${sn()}};${kw()} {n,v}=o;n+v`; // from a variable, string+num
   };
   let checked = 0;
