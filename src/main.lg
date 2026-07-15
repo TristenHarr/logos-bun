@@ -1037,6 +1037,42 @@
         Return compareText(materialize(a), materialize(b)).
     Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
 
+## To strCharAt (s: Text, i: Int) -> Text:
+    If i is less than 0:
+        Return chr(3).
+    If i + 1 is greater than length of s:
+        Return chr(3).
+    Return concat(chr(3), item (i + 1) of s).
+
+## To strIndexOf (s: Text, sub: Text) -> Int:
+    Let bef be substringBefore(s, sub).
+    If bef is equal to s:
+        Return -1.
+    Return length of bef.
+
+## To resolveMethods (expr: Text, env: Text) -> Text:
+    If substringBefore(expr, " . charAt (") is not equal to expr:
+        Let bef be substringBefore(expr, " . charAt (").
+        Let aft be substringAfter(expr, " . charAt (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(substringBefore(aft, ")")), env))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), ch), rst)), env).
+    If substringBefore(expr, " . indexOf (") is not equal to expr:
+        Let bef be substringBefore(expr, " . indexOf (").
+        Let aft be substringAfter(expr, " . indexOf (").
+        Let rst be substringAfter(aft, ")").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let subv be materialize(jsEvalIn(trim(substringBefore(aft, ")")), env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(strIndexOf(sval, subv))), rst)), env).
+    Return expr.
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     If hasSep(trim(expr), " ? "):
         Let cond be substringBefore(trim(expr), " ? ").
@@ -1044,7 +1080,7 @@
         If boolOf(jsEvalIn(cond, env)):
             Return jsEvalIn(substringBefore(rest, " : "), env).
         Return jsEvalIn(substringAfter(rest, " : "), env).
-    Let subd be substitute(joinNonEmpty(split(resolveCalls(trim(expr), env), " "), 1, ""), env).
+    Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(trim(expr), env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
 ## To evalResolved (expr: Text) -> Text:
