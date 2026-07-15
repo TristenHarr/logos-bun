@@ -35,6 +35,8 @@ const PROGRAMS = [
   `"a,b,c,d".split(",").map(s=>s.toUpperCase()).join("|")`,
   `"one two three".split(" ").filter(w=>w.length>3).length`,
   `"5,3,8,1,9".split(",").map(s=>parseInt(s)).filter(n=>n>4).join(",")`,
+  `const a=[1,2,3,4,5];a.reduce((s,x)=>s+x,0)`,
+  `const nums=[3,7,2,8,5];nums.reduce((m,x)=>x>m?x:m,0)`,
   // closures
   `let adder=function(x){return function(y){return x+y}};adder(10)(32)`,
   `let mul=function(a){return function(b){return a*b}};let triple=mul(3);triple(7)+triple(2)`,

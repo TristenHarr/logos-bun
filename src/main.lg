@@ -780,6 +780,16 @@
     Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
 
+## To callFn2 (fnVal: Text, v1: Text, v2: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let params be split(paramStr, ",").
+    Let e1 be envSet(env, trim(item 1 of params), v1).
+    Let e2 be envSet(e1, trim(item 2 of params), v2).
+    Let doneEnv be runBlockStr(body, e2).
+    Return envGet(doneEnv, "__ret").
+
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "String", "Number", "Boolean"].
     Return names contains name.
@@ -1186,6 +1196,16 @@
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
     Return concat(concat(chr(5), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), chr(15)).
 
+## To arrReduceLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let nextAcc be callFn2(concat(fnval, ""), concat(acc, ""), concat(el, ""), concat(env, "")).
+    Return arrReduceLoop(els, i + 1, fnval, env, nextAcc).
+
+## To arrReduce (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
+    Return arrReduceLoop(arrElements(arrval), 1, fnval, env, init).
+
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -1324,7 +1344,7 @@
     Return b.
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace ("))))))))))))))).
+    Return betterMarker(concat(expr, ""), " . reduce (", betterMarker(concat(expr, ""), " . map (", betterMarker(concat(expr, ""), " . filter (", betterMarker(concat(expr, ""), " . reverse (", betterMarker(concat(expr, ""), " . charAt (", betterMarker(concat(expr, ""), " . indexOf (", betterMarker(concat(expr, ""), " . slice (", betterMarker(concat(expr, ""), " . toUpperCase (", betterMarker(concat(expr, ""), " . toLowerCase (", betterMarker(concat(expr, ""), " . includes (", betterMarker(concat(expr, ""), " . startsWith (", betterMarker(concat(expr, ""), " . endsWith (", betterMarker(concat(expr, ""), " . repeat (", betterMarker(concat(expr, ""), " . trim (", betterMarker(concat(expr, ""), " . split (", betterMarker(concat(expr, ""), " . join (", " . replace (")))))))))))))))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -1381,6 +1401,20 @@
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
+    If lm is equal to " . reduce (":
+        Let bef be substringBefore(expr, " . reduce (").
+        Let aft be substringAfter(expr, " . reduce (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let btoks be split(bef, " ").
+        Let recv be item (length of btoks) of btoks.
+        Let prefix be joinRange(btoks, 1, (length of btoks) - 1, "").
+        Let raw be jsEvalIn(recv, env).
+        Let atoks be split(argStr, " ").
+        Let cIdx be exprBodyEnd(atoks, 1, 0, "").
+        Let fnval be fnArgVal(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
+        Let initVal be jsEvalIn(trim(joinRange(atoks, cIdx + 1, length of atoks, "")), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, initVal, env)), rst)), env).
     If lm is equal to " . map (":
         Let bef be substringBefore(expr, " . map (").
         Let aft be substringAfter(expr, " . map (").
@@ -1543,14 +1577,50 @@
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, av, bv)), rst)), env).
     Return expr.
 
+## To topTernaryQ (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let c be item i of toks.
+    If depth is equal to 0:
+        If c is equal to "?":
+            Return i.
+    If isOpenGrp(c):
+        Return topTernaryQ(toks, i + 1, depth + 1, concat(g, c)).
+    If isCloseGrp(c):
+        Return topTernaryQ(toks, i + 1, depth - 1, concat(g, c)).
+    Return topTernaryQ(toks, i + 1, depth, concat(g, c)).
+
+## To topColon (toks: Seq of Text, i: Int, depth: Int, tern: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let c be item i of toks.
+    If isOpenGrp(c):
+        Return topColon(toks, i + 1, depth + 1, tern, concat(g, c)).
+    If isCloseGrp(c):
+        Return topColon(toks, i + 1, depth - 1, tern, concat(g, c)).
+    If depth is equal to 0:
+        If c is equal to "?":
+            Return topColon(toks, i + 1, depth, tern + 1, concat(g, c)).
+        If c is equal to ":":
+            If tern is equal to 0:
+                Return i.
+            Return topColon(toks, i + 1, depth, tern - 1, concat(g, c)).
+    Return topColon(toks, i + 1, depth, tern, concat(g, c)).
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
-    If hasSep(trim(expr), " ? "):
-        Let cond be substringBefore(trim(expr), " ? ").
-        Let rest be substringAfter(trim(expr), " ? ").
-        If boolOf(jsEvalIn(cond, env)):
-            Return jsEvalIn(substringBefore(rest, " : "), env).
-        Return jsEvalIn(substringAfter(rest, " : "), env).
-    Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(trim(expr), env), env), " "), 1, ""), env).
+    Let te be trim(expr).
+    Let tks be split(te, " ").
+    Let qIdx be topTernaryQ(tks, 1, 0, "").
+    If qIdx is greater than 0:
+        Let cIdx be topColon(tks, qIdx + 1, 0, 0, "").
+        If cIdx is greater than 0:
+            Let cond be joinRange(tks, 1, qIdx - 1, "").
+            Let tb be joinRange(tks, qIdx + 1, cIdx - 1, "").
+            Let fb be joinRange(tks, cIdx + 1, length of tks, "").
+            If boolOf(jsEvalIn(cond, env)):
+                Return jsEvalIn(tb, env).
+            Return jsEvalIn(fb, env).
+    Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(te, env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
 ## To resolveAccess (expr: Text) -> Text:
@@ -1667,6 +1737,10 @@
         Return execIf(s, env).
     If startsWith(s, "let "):
         Return bindAssign(substringAfter(s, "let "), env).
+    If startsWith(s, "const "):
+        Return bindAssign(substringAfter(s, "const "), env).
+    If startsWith(s, "var "):
+        Return bindAssign(substringAfter(s, "var "), env).
     If hasSep(s, "++"):
         Return envSet(env, trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), jsEvalIn(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1"), env)).
     If hasSep(s, "--"):
