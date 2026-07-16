@@ -2248,6 +2248,21 @@
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(methodArg(aft)), env), tagArr ()))), rst)), env).
+    If substringBefore(expr, "Number . isNaN (") is not equal to expr:
+        Let bef be substringBefore(expr, "Number . isNaN (").
+        Let aft be substringAfter(expr, "Number . isNaN (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(jsEvalIn(trim(methodArg(aft)), env) is equal to "NaN")), rst)), env).
+    If substringBefore(expr, "Number . isInteger (") is not equal to expr:
+        Let bef be substringBefore(expr, "Number . isInteger (").
+        Let aft be substringAfter(expr, "Number . isInteger (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
+    If substringBefore(expr, "Number . isFinite (") is not equal to expr:
+        Let bef be substringBefore(expr, "Number . isFinite (").
+        Let aft be substringAfter(expr, "Number . isFinite (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Array . from (") is not equal to expr:
         Let bef be substringBefore(expr, "Array . from (").
         Let aft be substringAfter(expr, "Array . from (").
