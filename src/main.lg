@@ -1719,6 +1719,16 @@
     Let n be length of els.
     Return concat(concat(tagArr (), arrReverseLoop(els, n, "")), tagArrEnd ()).
 
+## To arrFillLoop (n: Int, i: Int, v: Text, acc: Text) -> Text:
+    If i is greater than n:
+        Return acc.
+    If acc is equal to "":
+        Return arrFillLoop(n, i + 1, concat(v, ""), v).
+    Return arrFillLoop(n, i + 1, concat(v, ""), concat(concat(acc, tagArrSep ()), v)).
+
+## To arrFill (arrval: Text, v: Text) -> Text:
+    Return concat(concat(tagArr (), arrFillLoop(length of arrElements(arrval), 1, v, "")), tagArrEnd ()).
+
 ## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -2207,7 +2217,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -2461,6 +2471,14 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReverse(raw)), rst)), env).
+    If lm is equal to " . fill (":
+        Let bef be substringBefore(expr, " . fill (").
+        Let aft be substringAfter(expr, " . fill (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFill(raw, jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If lm is equal to " . charAt (":
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
@@ -3099,6 +3117,13 @@
         If srest is equal to "":
             If isSimpleName(concat(sv, "")):
                 Return envSet(env, sv, jsEvalIn(concat(s, ""), env)).
+    If hasSep(s, " . fill ("):
+        Let fv be trim(substringBefore(s, " . fill (")).
+        Let faft be substringAfter(s, " . fill (").
+        Let frest be trim(strSliceLoop(faft, (length of balancedArg(concat(faft, ""), 1, 0, "")) + 2, length of faft, "")).
+        If frest is equal to "":
+            If isSimpleName(concat(fv, "")):
+                Return envSet(env, fv, jsEvalIn(concat(s, ""), env)).
     Let mcr be memberCompoundRewrite(concat(s, "")).
     If hasSep(mcr, " = "):
         Return execStmt(mcr, env).
