@@ -2048,6 +2048,12 @@
     Let b be trimTailIdx(s, length of s).
     Return strSliceLoop(s, a, b, "").
 
+## To strTrimStart (s: Text) -> Text:
+    Return strSliceLoop(concat(s, ""), trimHeadIdx(concat(s, ""), 1), length of s, "").
+
+## To strTrimEnd (s: Text) -> Text:
+    Return strSliceLoop(concat(s, ""), 1, trimTailIdx(concat(s, ""), length of s), "").
+
 ## To strSubstring (s: Text, a: Int, b: Int) -> Text:
     If a is greater than b:
         Return strSlice(s, b, a).
@@ -2201,7 +2207,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "Math . max (") is not equal to expr:
@@ -2542,6 +2548,22 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strTrim(sval))), rst)), env).
+    If lm is equal to " . trimStart (":
+        Let bef be substringBefore(expr, " . trimStart (").
+        Let aft be substringAfter(expr, " . trimStart (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strTrimStart(sval))), rst)), env).
+    If lm is equal to " . trimEnd (":
+        Let bef be substringBefore(expr, " . trimEnd (").
+        Let aft be substringAfter(expr, " . trimEnd (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strTrimEnd(sval))), rst)), env).
     If lm is equal to " . padStart (":
         Let bef be substringBefore(expr, " . padStart (").
         Let aft be substringAfter(expr, " . padStart (").
