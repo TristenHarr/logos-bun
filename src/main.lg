@@ -980,6 +980,18 @@
         Return inner.
     Return expandSpreadLoop(splitArgsN(inner), 1, env, "").
 
+## To maxFold (args: Seq of Text, i: Int, env: Text, acc: Int) -> Int:
+    If i is greater than length of args:
+        Return acc.
+    Let v be parseInt(jsEvalIn(trim(item i of args), env)).
+    Return maxFold(args, i + 1, env, maxInt(acc, v)).
+
+## To minFold (args: Seq of Text, i: Int, env: Text, acc: Int) -> Int:
+    If i is greater than length of args:
+        Return acc.
+    Let v be parseInt(jsEvalIn(trim(item i of args), env)).
+    Return minFold(args, i + 1, env, minInt(acc, v)).
+
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
         Return expr.
@@ -2196,15 +2208,17 @@
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
         Let rst be methodRest(aft).
-        Let args be splitArgs2(methodArg(aft)).
-        Let mx be maxInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
+        Let mxFirst be parseInt(jsEvalIn(trim(item 1 of args), env)).
+        Let mx be maxFold(args, 2, env, mxFirst).
         Return resolveMethods(trim(concat(concat(bef, toText(mx)), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . min (").
         Let aft be substringAfter(expr, "Math . min (").
         Let rst be methodRest(aft).
-        Let args be splitArgs2(methodArg(aft)).
-        Let mn be minInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
+        Let mnFirst be parseInt(jsEvalIn(trim(item 1 of args), env)).
+        Let mn be minFold(args, 2, env, mnFirst).
         Return resolveMethods(trim(concat(concat(bef, toText(mn)), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . abs (").
