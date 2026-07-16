@@ -1733,7 +1733,7 @@
     If i is greater than length of els:
         Return acc.
     Let el be item i of els.
-    Let r be callFn(concat(fnval, ""), el, concat(env, "")).
+    Let r be callFnIdx(concat(fnval, ""), el, toText(i - 1), concat(env, "")).
     If i is equal to 1:
         Return arrMapLoop(els, i + 1, fnval, env, r).
     Let nextAcc be concat(concat(acc, tagArrSep ()), r).
@@ -1958,7 +1958,7 @@
     If i is greater than length of els:
         Return acc.
     Let el be item i of els.
-    Let keep be boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))).
+    Let keep be boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))).
     If keep:
         If acc is equal to "":
             Return arrFilterLoop(els, i + 1, fnval, env, el).
@@ -1973,7 +1973,7 @@
     If i is greater than length of els:
         Return false.
     Let el be item i of els.
-    If boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))):
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
         Return true.
     Return arrSomeLoop(els, i + 1, fnval, env).
 
@@ -1984,7 +1984,7 @@
     If i is greater than length of els:
         Return true.
     Let el be item i of els.
-    If boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))):
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
         Return arrEveryLoop(els, i + 1, fnval, env).
     Return false.
 
@@ -1995,7 +1995,7 @@
     If i is greater than length of els:
         Return "undefined".
     Let el be item i of els.
-    If boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))):
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
         Return el.
     Return arrFindLoop(els, i + 1, fnval, env).
 
@@ -2006,7 +2006,7 @@
     If i is greater than length of els:
         Return -1.
     Let el be item i of els.
-    If boolOf(callFn(concat(fnval, ""), concat(el, ""), concat(env, ""))):
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
         Return i - 1.
     Return arrFindIndexLoop(els, i + 1, fnval, env).
 
