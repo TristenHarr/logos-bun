@@ -3089,6 +3089,8 @@
         Return doConsoleErr(balancedArg(substringAfter(s, "console . error ("), 1, 0, ""), env).
     If startsWith(s, "console . warn ("):
         Return doConsoleErr(balancedArg(substringAfter(s, "console . warn ("), 1, 0, ""), env).
+    If startsWith(s, "process . exit ("):
+        Return doExit(balancedArg(substringAfter(s, "process . exit ("), 1, 0, ""), env).
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
@@ -3594,6 +3596,12 @@
 
 ## To doConsoleErr (logArg: Text, env: Text) -> Text:
     eputs(decodeStr(consoleFmt(patFields(logArg), 1, env, ""))).
+    Return env.
+
+## To doExit (arg: Text, env: Text) -> Text:
+    If trim(arg) is equal to "":
+        exitWith(0).
+    exitWith(parseInt(jsEvalIn(trim(arg), env))).
     Return env.
 
 ## To runSink (finalEnv: Text) -> Text:
