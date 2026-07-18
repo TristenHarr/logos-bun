@@ -18,6 +18,8 @@
 ## To native parseInt (s: Text) -> Int
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
+## To native readFile (path: Text) -> Text
+## To native puts (s: Text) -> Unit
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -978,7 +980,7 @@
 ## To expandSpreadArgs (inner: Text, env: Text) -> Text:
     If substringBefore(inner, "...") is equal to inner:
         Return inner.
-    Return expandSpreadLoop(splitArgsN(inner), 1, env, "").
+    Return expandSpreadLoop(patFields(inner), 1, env, "").
 
 ## To maxFold (args: Seq of Text, i: Int, env: Text, acc: Int) -> Int:
     If i is greater than length of args:
@@ -3079,6 +3081,8 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If startsWith(s, "console . log ("):
+        Return doConsoleLog(balancedArg(substringAfter(s, "console . log ("), 1, 0, ""), env).
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
@@ -3570,6 +3574,35 @@
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
 
+## To consoleFmt (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let piece be materialize(jsEvalIn(trim(item i of args), concat(env, ""))).
+    If i is equal to 1:
+        Return consoleFmt(args, i + 1, env, piece).
+    Return consoleFmt(args, i + 1, env, concat(concat(acc, " "), piece)).
+
+## To doConsoleLog (logArg: Text, env: Text) -> Text:
+    puts(concat(decodeStr(consoleFmt(patFields(logArg), 1, env, "")), chr(10))).
+    Return env.
+
+## To runSink (finalEnv: Text) -> Text:
+    Return "".
+
+## To jsRunFile (src: Text) -> Text:
+    Return runSink(runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, "")).
+
+## To looksLikeScript (cmd: Text) -> Bool:
+    If strEndsWith(cmd, ".js"):
+        Return true.
+    If strEndsWith(cmd, ".mjs"):
+        Return true.
+    If strEndsWith(cmd, ".cjs"):
+        Return true.
+    If strEndsWith(cmd, ".ts"):
+        Return true.
+    Return false.
+
 ## To secondArg (xs: Seq of Text) -> Text:
     If length of xs is greater than 1:
         Return item 2 of xs.
@@ -3637,6 +3670,10 @@ Otherwise If cmd is equal to "__js-run":
     Show decodeStr(materialize(jsRun(item 3 of arguments))).
 Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
+Otherwise If cmd is equal to "run":
+    puts(jsRunFile(readFile(item 3 of arguments))).
+Otherwise If looksLikeScript(cmd):
+    puts(jsRunFile(readFile(cmd))).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
