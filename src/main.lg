@@ -3083,6 +3083,12 @@
     Let s be trim(stmt).
     If startsWith(s, "console . log ("):
         Return doConsoleLog(balancedArg(substringAfter(s, "console . log ("), 1, 0, ""), env).
+    If startsWith(s, "console . info ("):
+        Return doConsoleLog(balancedArg(substringAfter(s, "console . info ("), 1, 0, ""), env).
+    If startsWith(s, "console . error ("):
+        Return doConsoleErr(balancedArg(substringAfter(s, "console . error ("), 1, 0, ""), env).
+    If startsWith(s, "console . warn ("):
+        Return doConsoleErr(balancedArg(substringAfter(s, "console . warn ("), 1, 0, ""), env).
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
@@ -3584,6 +3590,10 @@
 
 ## To doConsoleLog (logArg: Text, env: Text) -> Text:
     puts(concat(decodeStr(consoleFmt(patFields(logArg), 1, env, "")), chr(10))).
+    Return env.
+
+## To doConsoleErr (logArg: Text, env: Text) -> Text:
+    eputs(decodeStr(consoleFmt(patFields(logArg), 1, env, ""))).
     Return env.
 
 ## To runSink (finalEnv: Text) -> Text:

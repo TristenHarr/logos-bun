@@ -15,8 +15,8 @@ const OURS = findBin(join(ROOT, "target")).filter((p) => !/vendor|oracle/.test(p
 const fails = []; if (!OURS) fails.push("no logos-bun binary — build it");
 function mul(s) { let a = s >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const dir = mkdtempSync(join(tmpdir(), "runfile-"));
-const ourRun = (file) => { const r = spawnSync(OURS, ["run", file], { encoding: "utf8" }); return r.status !== 0 ? `ERR:${r.status}` : (r.stdout || ""); };
-const nodeRun = (file) => { const r = spawnSync("node", [file], { encoding: "utf8" }); return r.status !== 0 ? `NODEERR:${r.status}` : (r.stdout || ""); };
+const ourRun = (file) => { const r = spawnSync(OURS, ["run", file], { encoding: "utf8" }); return r.status !== 0 ? `ERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
+const nodeRun = (file) => { const r = spawnSync("node", [file], { encoding: "utf8" }); return r.status !== 0 ? `NODEERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
 if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 120), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
@@ -32,6 +32,8 @@ if (OURS) {
     else if (k === 3) { const t = sn(); lines.push(`function f(x){return x<2?x:f(x-1)+f(x-2)}`, `console.log("fib", f(${1 + ri(8)}));`); }
     else if (k === 4) { const len = 2 + ri(4); lines.push(`let c={t:0};`, `for(let i=1;i<=${len};i++){c.t+=i}`, `console.log("tri", c.t);`); }
     else { const arr = Array.from({ length: 2 + ri(3) }, () => sn()); lines.push(`console.log([${arr.join(",")}].map((x,i)=>x+i).join("-"));`, `console.log("max", Math.max(...[${arr.join(",")}]));`); }
+    // half the time, also emit to stderr (console.error/warn), locked via the \x01-joined stdout\x01stderr comparison
+    if (ri(2) === 0) lines.push(`console.error("err", ${sn()});`, `console.warn("warn");`);
     return lines.join("\n") + "\n";
   };
   let checked = 0;
