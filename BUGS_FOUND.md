@@ -804,3 +804,14 @@ with the *original* state+value (a settled promise is mirrored directly; a pendi
 `new Promise(rej).catch`, `.finally` after both resolve and reject and mid-chain (value passes
 through). `promise-diff` fuzzer extended with catch/finally programs. **85 fuzzers, 0 diffs.**
 `Promise.all`/`.race`/`.allSettled` and generators (E3) remain.
+
+---
+
+**P7 ENGINE — E2.5 `Promise.all`:** `Promise.all([...])` drains the microtask queue so every element
+settles, then fulfills with an array of the resolved values **in order** (a non-promise element is
+its own value), or rejects with the first rejection reason found. Verified: all-resolve →
+value array, non-promise elements, elements that are pending `.then` chains (drained), and a mixed
+array with a rejection routing to `.catch`. `promise-diff` fuzzer extended with `Promise.all`
+programs. **85 fuzzers, 0 diffs.** The Promise surface is now broad — `resolve`/`reject`/`then`/
+chaining/`new Promise`/`async`/`await`/`catch`/`finally`/`all` — with exact microtask ordering.
+`Promise.race`/`allSettled`/`any` and generators (E3) remain.

@@ -1123,6 +1123,37 @@
         Return newPromise(st, objGet(concat(pval, ""), "__pvalue")).
     Return newPromise("fulfilled", concat(pval, "")).
 
+# Promise.all([...]): drain so every element settles, then fulfill with an array of the resolved
+# values in order — or reject with the first rejection reason. A non-promise element is its own value.
+## To resolvedValue (p: Text) -> Text:
+    If isPromise(p):
+        Return objGet(concat(p, ""), "__pvalue").
+    Return concat(p, "").
+
+## To allValues (proms: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of proms:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let v be resolvedValue(item i of proms).
+    If acc is equal to "":
+        Return allValues(proms, i + 1, v).
+    Return allValues(proms, i + 1, concat(concat(acc, tagArrSep ()), v)).
+
+## To firstRejection (proms: Seq of Text, i: Int) -> Text:
+    If i is greater than length of proms:
+        Return "__none__".
+    Let p be item i of proms.
+    If isPromise(p):
+        If materialize(objGet(concat(p, ""), "__pstate")) is equal to "rejected":
+            Return objGet(concat(p, ""), "__pvalue").
+    Return firstRejection(proms, i + 1).
+
+## To promiseAll (arrval: Text, env: Text) -> Text:
+    Let d be drainMicrotasks("").
+    Let rej be firstRejection(arrElements(concat(arrval, "")), 1).
+    If rej is not equal to "__none__":
+        Return newPromise("rejected", rej).
+    Return newPromise("fulfilled", allValues(arrElements(concat(arrval, "")), 1, "")).
+
 # Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
 # callback on its captured value and settles the job's result promise (whose own `.then`
 # callbacks, enqueued while draining, run in turn — chained thens resolve in order).
@@ -2536,6 +2567,10 @@
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
         Return resolveMethods(trim(concat(concat(bef, newPromiseExec(fnArgVal(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
+    If substringBefore(expr, "Promise . all (") is not equal to expr:
+        Let bef be substringBefore(expr, "Promise . all (").
+        Let aft be substringAfter(expr, "Promise . all (").
+        Return resolveMethods(trim(concat(concat(bef, promiseAll(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . resolve (") is not equal to expr:
         Let bef be substringBefore(expr, "Promise . resolve (").
         Let aft be substringAfter(expr, "Promise . resolve (").
