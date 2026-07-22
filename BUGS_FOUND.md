@@ -849,3 +849,16 @@ RegExp("[a-z]+").test("abc")` was false until then). Verified: literals, `^\d+$`
 `a.c`, `colou?r`, `\d+` extraction via `.match(...)[0]`, `null` on no match — all vs Node. New
 `regex-diff` fuzzer (bun-run whole programs). **87 jsint fuzzers, 0 diffs.** E4.2 = regex literals
 `/pat/flags`, `.replace(re,…)`, `.split(re)`, alternation `|`, groups `()`, `{n,m}`.
+
+---
+
+**P7 ENGINE — integer division (`/`):** a latent gap — `/` was in the arithmetic op list
+(`isArithOp`) but was neither spaced by the tokenizer (`isOp1`) nor computed by `jsEvalAdd`, so
+`4/2` was `NaN`. Added `/` to `isOp1` (so `4/2` tokenizes to `4 / 2`) and a `/` case to `jsEvalAdd`
+alongside `*`/`%`. The engine is integer-based, so `/` is **integer division** — exact for the
+common divisible cases (`100/4`→25, `6/2/3`→1, `3*4/2`→6) but truncating otherwise (`5/2`→2, not
+2.5 — a float value type is a separate future feature). New `division-diff` fuzzer restricted to
+exact divisions (a = b·k). Verified division mixed with `+ - *` under precedence. **88 jsint
+fuzzers, 0 diffs.** (Regex *literals* `/pat/flags` were attempted but reverted — the `__REGEXLIT`
+opaque-token encoding didn't survive normalization for special-char patterns, and the `/` division
+tokenizer change must land first; regex literals are a focused follow-up on top of `new RegExp`.)

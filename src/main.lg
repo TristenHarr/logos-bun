@@ -636,6 +636,10 @@
         Return jsEvalAdd(tokens, i + 2, acc + (curSign * curProduct), num, -1).
     If op is equal to "*":
         Return jsEvalAdd(tokens, i + 2, acc, curProduct * num, curSign).
+    If op is equal to "/":
+        If num is equal to 0:
+            Return jsEvalAdd(tokens, i + 2, acc, 0, curSign).
+        Return jsEvalAdd(tokens, i + 2, acc, curProduct / num, curSign).
     Return jsEvalAdd(tokens, i + 2, acc, curProduct % num, curSign).
 
 ## To lastMatchIdx (toks: Seq of Text, target: Text, i: Int) -> Int:
@@ -1930,9 +1934,22 @@
         Return arithBadTok(toks, i + 1).
     Return true.
 
+# A `/` whose divisor is a literal 0 yields NaN (JS 0/0 → NaN); handling it here avoids an integer
+# division-by-zero panic in jsEvalAdd, which also guards num==0 for computed-zero divisors.
+## To divByZero (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If item i of toks is equal to "/":
+        If isIntStr(concat(item (i + 1) of toks, "")):
+            If parseInt(item (i + 1) of toks) is equal to 0:
+                Return true.
+    Return divByZero(toks, i + 1).
+
 ## To arithValue (expr: Text) -> Text:
     Let coerced be coerceNumToks(split(expr, " "), 1, "").
     If arithBadTok(split(concat(coerced, ""), " "), 1):
+        Return "NaN".
+    If divByZero(split(concat(coerced, ""), " "), 1):
         Return "NaN".
     Return toText(evalParens(coerced)).
 
@@ -3831,7 +3848,7 @@
     Return false.
 
 ## To isOp1 (c: Text) -> Bool:
-    Let ops be ["+", "-", "*", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ",", "."].
+    Let ops be ["+", "-", "*", "/", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ",", "."].
     If ops contains c:
         Return true.
     If c is equal to chr(123):
