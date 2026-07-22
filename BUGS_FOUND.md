@@ -832,3 +832,20 @@ yields itself). This runs any FINITE generator, including loop-driven ones
 can't be pre-collected (noted). Verified: fixed + computed + loop yields, `.next().done` exhaustion,
 for-of, and `[...g()]` spread — all match Node. New `generator-diff` fuzzer. **86 jsint fuzzers,
 0 diffs.** E4 regex, E5 (Map/Set/Symbol/BigInt/Date/bitwise), E6 modules remain.
+
+---
+
+**P7 ENGINE — E4.1 REGEX (backtracking matcher + `new RegExp`/`.test`/`.match`):** JS regex needs
+backreferences/lookahead that Rust's `regex` crate lacks, so the matcher is **hand-rolled in LOGOS**.
+`matchHere` recursively matches a pattern position against a text position with greedy `* + ?`
+backtracking (`starBacktrack` counts how many atoms match then retries longest-first); an atom is a
+literal, `.`, an escape (`\d \w \s` + `\D \W \S`), or a `[...]` class (ranges + `^` negation). `^`
+anchors at `reTest`; `$` is checked in `matchHere`. Exposed to JS as a RegExp heap object
+(`{__regex_src, __regex_flags}`): `new RegExp(src)`, `re.test(str)` (a `resolveMethods` case gated on
+`isRegex`), and `str.match(re)` (returns `[match]` or `null`). **Bug found & fixed:** string values
+carry their structural chars (`[ ] \ .`) chr-**encoded** (chr24-30), but the matcher expects the
+literal chars — so the pattern and the subject are `decodeStr`'d before matching (`new
+RegExp("[a-z]+").test("abc")` was false until then). Verified: literals, `^\d+$`, `[a-z]+`/`[A-Z]`,
+`a.c`, `colou?r`, `\d+` extraction via `.match(...)[0]`, `null` on no match — all vs Node. New
+`regex-diff` fuzzer (bun-run whole programs). **87 jsint fuzzers, 0 diffs.** E4.2 = regex literals
+`/pat/flags`, `.replace(re,…)`, `.split(re)`, alternation `|`, groups `()`, `{n,m}`.

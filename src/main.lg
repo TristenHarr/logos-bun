@@ -2592,6 +2592,25 @@
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
+    If substringBefore(expr, "new RegExp (") is not equal to expr:
+        Let bef be substringBefore(expr, "new RegExp (").
+        Let aft be substringAfter(expr, "new RegExp (").
+        Return resolveMethods(trim(concat(concat(bef, newRegex(decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env))), "")), methodRest(aft))), env).
+    If substringBefore(expr, " . test (") is not equal to expr:
+        Let rbef be substringBefore(expr, " . test (").
+        Let raft be substringAfter(expr, " . test (").
+        Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
+        If isRegex(rrecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env)))))), methodRest(raft))), env).
+    If substringBefore(expr, " . match (") is not equal to expr:
+        Let mbef be substringBefore(expr, " . match (").
+        Let maft be substringAfter(expr, " . match (").
+        Let mre be jsEvalIn(trim(methodArg(maft)), env).
+        If isRegex(mre):
+            Let mfound be reFind(decodeStr(materialize(objGet(concat(mre, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(recvExpr(concat(mbef, "")), env)))).
+            If mfound is equal to "":
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), concat(tagStr (), mfound)), tagArrEnd ()))), methodRest(maft))), env).
     If substringBefore(expr, "new Promise (") is not equal to expr:
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
@@ -4189,6 +4208,191 @@
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
     Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed)))), " "), 1, "").
 
+# --- Regex engine (E4): a backtracking matcher in LOGOS ---
+# JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-
+# rolled here. matchHere recursively matches the pattern from a position against the text, with
+# greedy `* + ?` backtracking; atoms are a literal, `.`, an escape (\d \w \s and their negations),
+# or a `[...]` class (ranges + negation). `^` anchors at reTest; `$` is checked in matchHere.
+## To reNot (b: Bool) -> Bool:
+    If b:
+        Return false.
+    Return true.
+
+## To reDigit (ch: Text) -> Bool:
+    If ord(ch) is greater than 47:
+        If ord(ch) is less than 58:
+            Return true.
+    Return false.
+
+## To reWord (ch: Text) -> Bool:
+    If reDigit(ch):
+        Return true.
+    If ch is equal to "_":
+        Return true.
+    If ord(ch) is greater than 64:
+        If ord(ch) is less than 91:
+            Return true.
+    If ord(ch) is greater than 96:
+        If ord(ch) is less than 123:
+            Return true.
+    Return false.
+
+## To reSpace (ch: Text) -> Bool:
+    If ord(ch) is equal to 32:
+        Return true.
+    If ord(ch) is equal to 9:
+        Return true.
+    If ord(ch) is equal to 10:
+        Return true.
+    If ord(ch) is equal to 13:
+        Return true.
+    Return false.
+
+## To classEnd (pat: Text, i: Int) -> Int:
+    If i is greater than length of pat:
+        Return i.
+    If item i of pat is equal to chr(93):
+        Return i.
+    Return classEnd(pat, i + 1).
+
+## To classContains (pat: Text, i: Int, endPos: Int, ch: Text) -> Bool:
+    If i is greater than (endPos - 1):
+        Return false.
+    If (i + 2) is less than endPos:
+        If item (i + 1) of pat is equal to "-":
+            If ord(ch) is greater than (ord(item i of pat) - 1):
+                If ord(ch) is less than (ord(item (i + 2) of pat) + 1):
+                    Return true.
+            Return classContains(pat, i + 3, endPos, ch).
+    If item i of pat is equal to ch:
+        Return true.
+    Return classContains(pat, i + 1, endPos, ch).
+
+## To reClassMatch (pat: Text, i: Int, ch: Text) -> Bool:
+    If item i of pat is equal to "^":
+        Return reNot(classContains(pat, i + 1, classEnd(pat, i), ch)).
+    Return classContains(pat, i, classEnd(pat, i), ch).
+
+## To escapeMatches (e: Text, ch: Text) -> Bool:
+    If e is equal to "d":
+        Return reDigit(ch).
+    If e is equal to "w":
+        Return reWord(ch).
+    If e is equal to "s":
+        Return reSpace(ch).
+    If e is equal to "D":
+        Return reNot(reDigit(ch)).
+    If e is equal to "W":
+        Return reNot(reWord(ch)).
+    If e is equal to "S":
+        Return reNot(reSpace(ch)).
+    Return e is equal to ch.
+
+## To atomLen (pat: Text, pi: Int) -> Int:
+    If item pi of pat is equal to chr(92):
+        Return 2.
+    If item pi of pat is equal to chr(91):
+        Return (classEnd(pat, pi + 1) - pi) + 1.
+    Return 1.
+
+## To atomMatches (pat: Text, pi: Int, ch: Text) -> Bool:
+    Let c be item pi of pat.
+    If c is equal to ".":
+        Return true.
+    If c is equal to chr(92):
+        Return escapeMatches(item (pi + 1) of pat, ch).
+    If c is equal to chr(91):
+        Return reClassMatch(pat, pi + 1, ch).
+    Return c is equal to ch.
+
+## To starBacktrack (pat: Text, npi: Int, text: Text, ti: Int, k: Int) -> Int:
+    Let r be matchHere(pat, npi, text, ti + k).
+    If r is greater than 0:
+        Return r.
+    If k is equal to 0:
+        Return 0.
+    Return starBacktrack(pat, npi, text, ti, k - 1).
+
+## To countAtoms (pat: Text, api: Int, text: Text, ti: Int, k: Int) -> Int:
+    If (ti + k) is greater than length of text:
+        Return k.
+    If atomMatches(pat, api, item (ti + k) of text):
+        Return countAtoms(pat, api, text, ti, k + 1).
+    Return k.
+
+## To matchHere (pat: Text, pi: Int, text: Text, ti: Int) -> Int:
+    If pi is greater than length of pat:
+        Return ti.
+    If item pi of pat is equal to "$":
+        If pi is equal to length of pat:
+            If ti is greater than length of text:
+                Return ti.
+            Return 0.
+    Let alen be atomLen(pat, pi).
+    Let aend be pi + alen.
+    If aend is less than (length of pat + 1):
+        If item aend of pat is equal to "*":
+            Return starBacktrack(pat, aend + 1, text, ti, countAtoms(pat, pi, text, ti, 0)).
+        If item aend of pat is equal to "+":
+            If ti is greater than length of text:
+                Return 0.
+            If atomMatches(pat, pi, item ti of text):
+                Return starBacktrack(pat, aend + 1, text, ti + 1, countAtoms(pat, pi, text, ti + 1, 0)).
+            Return 0.
+        If item aend of pat is equal to "?":
+            If ti is less than (length of text + 1):
+                If atomMatches(pat, pi, item ti of text):
+                    Let rq be matchHere(pat, aend + 1, text, ti + 1).
+                    If rq is greater than 0:
+                        Return rq.
+            Return matchHere(pat, aend + 1, text, ti).
+    If ti is greater than length of text:
+        Return 0.
+    If atomMatches(pat, pi, item ti of text):
+        Return matchHere(pat, aend, text, ti + 1).
+    Return 0.
+
+## To reSearchFrom (pat: Text, text: Text, ti: Int) -> Int:
+    If matchHere(pat, 1, text, ti) is greater than 0:
+        Return ti.
+    If ti is greater than length of text:
+        Return 0.
+    Return reSearchFrom(pat, text, ti + 1).
+
+## To reTest (pat: Text, text: Text) -> Bool:
+    If startsWith(pat, "^"):
+        Return matchHere(pat, 2, text, 1) is greater than 0.
+    Return reSearchFrom(pat, text, 1) is greater than 0.
+
+# A RegExp value is a heap object carrying its source pattern and flags; isRegex classifies it.
+# reFind returns the first matched substring in text ("" for no match). reMatchEnd finds where the
+# match starting at `start` ends (matchHere from pattern start, honoring a leading ^).
+## To newRegex (src: Text, flags: Text) -> Text:
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__regex_src", concat(tagStr (), src)), "__regex_flags", concat(tagStr (), flags)).
+
+## To isRegex (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__regex_src") is not equal to "undefined".
+    Return false.
+
+## To reSearchStart (pat: Text, text: Text) -> Int:
+    If startsWith(pat, "^"):
+        If matchHere(pat, 2, text, 1) is greater than 0:
+            Return 1.
+        Return 0.
+    Return reSearchFrom(pat, text, 1).
+
+## To reMatchEnd (pat: Text, text: Text, start: Int) -> Int:
+    If startsWith(pat, "^"):
+        Return matchHere(pat, 2, text, start).
+    Return matchHere(pat, 1, text, start).
+
+## To reFind (pat: Text, text: Text) -> Text:
+    Let start be reSearchStart(pat, text).
+    If start is equal to 0:
+        Return "".
+    Return strSliceLoop(text, start, (reMatchEnd(pat, text, start) - 1), "").
+
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
 
@@ -4316,6 +4520,8 @@ Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
 Otherwise If cmd is equal to "__heap-probe":
     Show heapProbe().
+Otherwise If cmd is equal to "__regex-test":
+    Show cmpResult(reTest(item 3 of arguments, item 4 of arguments)).
 Otherwise If cmd is equal to "run":
     Let runSrc be readFile(item 3 of arguments).
     Let runExec be concat(tagStr (), item 1 of arguments).
