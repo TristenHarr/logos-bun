@@ -1397,3 +1397,17 @@ fuzzer writes a random multi-file GRAPH per iteration (leaf/mid/entry, 6 shapes)
 `node` (600 graphs/5 seeds, 0 diffs). Plain no-module scripts run byte-identical (the module path is a
 no-op when there are no import/export lines). **118 jsint fuzzers, full sweep + pre-push gate GREEN.**
 The named function EXPRESSION gap (`const f = function g(){}`) remains a separate known engine item.
+
+---
+
+**Named function expressions (2026-07-22).** `const f = function g(x){return x*2}` returned NaN, while the
+anonymous `const f = function(x){…}` worked — surfaced while wiring `export default function NAME(){}`.
+Root cause was narrow: `funcValueOf` already keys off the FIRST `(`, so the name `g` was always
+transparent to it; the only blocker was the five value-position guards testing `startsWith(s, "function
+(")`, which reject a name between `function` and `(`. Added `isFnLiteral` (accepts anonymous `function (`
+OR a named `function NAME (` — third space-token is `(`) and swapped it in at all five sites (fnArgVal,
+fnArgValRaw, the regex `.replace(re, fn)` arg, assignment RHS, and `return`). Now `const f = function
+g(x){…}`, `arr.map(function sq(x){…})`, and `return function inner(x){…}` all match Node; anonymous
+exprs / arrows / declarations unchanged. New `namedfnexpr-diff` fuzzer. **119 jsint fuzzers, full sweep
+GREEN.** (Self-reference by the expression's own name inside its body — `function fact(n){…fact(n-1)…}`
+as an expression — is a separate rarer item; the name is currently dropped, not bound in the body scope.)

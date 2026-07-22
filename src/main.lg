@@ -2849,7 +2849,7 @@
     Return split(commaDepthSplit(argStr, 1, 0, 0, ""), chr(10)).
 
 ## To fnArgVal (s: Text, env: Text) -> Text:
-    If startsWith(s, "function ("):
+    If isFnLiteral(s):
         Return funcValueOf(substitute(s, env)).
     Return jsEvalIn(s, env).
 
@@ -2861,7 +2861,7 @@
 # `<ref>.get(x)` whose base is an inline ref that index/method dispatch resolves by name → NaN. Keeping
 # the name lets it resolve against the live handle in the enclosing env.
 ## To fnArgValRaw (s: Text, env: Text) -> Text:
-    If startsWith(s, "function ("):
+    If isFnLiteral(s):
         Return funcValueOf(s).
     Return jsEvalIn(s, env).
 
@@ -3870,7 +3870,7 @@
         Let args be splitArgs2(methodArg(aft)).
         Let araw be jsEvalIn(trim(item 1 of args), env).
         If isRegex(araw):
-            If startsWith(trim(item 2 of args), "function ("):
+            If isFnLiteral(trim(item 2 of args)):
                 Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplaceFn(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), fnArgValRaw(trim(item 2 of args), env), materialize(objGet(concat(araw, ""), "__regex_flags")), env)), rst)), env).
             Let rb2 be jsEvalIn(trim(item 2 of args), env).
             If startsWith(rb2, chr(1)):
@@ -4050,6 +4050,20 @@
     Let x8 be replaceAll(x7, chr(23), ",").
     Return replaceAll(x8, chr(2), ";").
 
+# A function LITERAL in value position: anonymous `function ( … )` or a named function EXPRESSION
+# `function name ( … )`. funcValueOf already keys off the first `(`, so a name is transparent to it —
+# this predicate just lets the name past the guards that previously only recognized `function (`.
+## To isFnLiteral (s: Text) -> Bool:
+    If startsWith(s, "function (") is equal to true:
+        Return true.
+    If startsWith(s, "function ") is equal to false:
+        Return false.
+    Let toks be split(concat(s, ""), " ").
+    If length of toks is greater than 2:
+        If item 3 of toks is equal to "(":
+            Return true.
+    Return false.
+
 ## To funcValueOf (text: Text) -> Text:
     Let afterOpen be substringAfter(text, "(").
     Let param be trim(substringBefore(concat(afterOpen, ""), ")")).
@@ -4180,7 +4194,7 @@
         Return envSet(env, trim(assign), "undefined").
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
-    If startsWith(rhs, "function ("):
+    If isFnLiteral(rhs):
         Return envSet(env, name, funcValueOf(substitute(rhs, env))).
     Return envSet(env, name, jsEvalIn(rhs, env)).
 
@@ -4467,7 +4481,7 @@
     If startsWith(s, "return"):
         If trim(substringAfter(s, "return")) is equal to "__GENMAKE":
             Return envSet(env, "__ret", genMake()).
-        If startsWith(trim(substringAfter(s, "return")), "function ("):
+        If isFnLiteral(trim(substringAfter(s, "return"))):
             Return envSet(env, "__ret", funcValueOf(substitute(trim(substringAfter(s, "return")), env))).
         If startsWith(trim(substringAfter(s, "return")), "console . log ("):
             Let logged be doConsoleLog(balancedArg(substringAfter(trim(substringAfter(s, "return")), "console . log ("), 1, 0, ""), env).
