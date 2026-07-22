@@ -24,16 +24,16 @@
   ],
   "sample": 50,
   "pass": 868,
-  "fail": 55,
-  "skip": 77,
-  "pct": 94.04,
+  "fail": 56,
+  "skip": 76,
+  "pct": 93.94,
   "taxonomy": {
-    "negative-not-thrown": 52,
+    "negative-not-thrown": 53,
     "engine-crash": 3
   },
   "skips": {
     "async": 53,
-    "host-hook": 23,
+    "host-hook": 22,
     "module": 1
   }
 }

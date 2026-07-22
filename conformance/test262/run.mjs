@@ -68,18 +68,27 @@ let counter = 0;
 function runOne(file) {
   const src = readFileSync(file, "utf8");
   const fm = frontmatter(src);
+  const isAsync = fm.flags.includes("async");
   // --- skip categories (harness/features we cannot fairly measure yet) ---
-  if (fm.flags.includes("async")) return { r: "skip", why: "async" };
+  // Async tests are runnable (we host $DONE/print + drain microtasks) but our async callback model
+  // can't yet resolve a top-level function referenced inside a .then callback (a real E2 hardening
+  // item), so most fail today — gated behind --async so the default baseline reflects the surface we
+  // genuinely support. Flip on once async is hardened.
+  if (isAsync && !has("--async")) return { r: "skip", why: "async" };
   if (fm.flags.includes("module")) return { r: "skip", why: "module" };
   if (fm.flags.includes("CanBlockIsFalse") || fm.flags.includes("CanBlockIsTrue")) return { r: "skip", why: "canblock" };
-  if (/\$262|\$DONE/.test(src)) return { r: "skip", why: "host-hook" };
+  if (/\$262/.test(src)) return { r: "skip", why: "host-hook" };
   // --- assemble ---
   let program;
   if (fm.flags.includes("raw")) {
     program = src;
   } else {
     let pre = harnessFile("sta.js") + "\n" + harnessFile("assert.js") + "\n";
-    for (const inc of fm.includes) { try { pre += harnessFile(inc) + "\n"; } catch { return { r: "skip", why: "missing-include:" + inc }; } }
+    // async test262 tests signal completion by calling $DONE (defined in doneprintHandle.js, which
+    // calls print). We host the async protocol: ensure doneprintHandle + a print->console.log shim,
+    // then classify by the completion marker on stdout after microtasks drain.
+    if (isAsync) pre += harnessFile("doneprintHandle.js") + "\nfunction print(s){ console.log(s); }\n";
+    for (const inc of fm.includes) { if (inc === "doneprintHandle.js") continue; try { pre += harnessFile(inc) + "\n"; } catch { return { r: "skip", why: "missing-include:" + inc }; } }
     const strict = fm.flags.includes("onlyStrict");
     program = (strict ? '"use strict";\n' : "") + pre + src;
   }
@@ -88,8 +97,14 @@ function runOne(file) {
   const res = spawnSync(BIN, ["run", tmp], { encoding: "utf8", timeout: TIMEOUT });
   const timedOut = res.error && res.error.code === "ETIMEDOUT";
   const exit = res.status;
-  const err = ((res.stderr || "") + (res.stdout || "")).trim();
+  const out = res.stdout || "";
+  const err = ((res.stderr || "") + out).trim();
   if (timedOut) return { r: "fail", why: "TIMEOUT", err: "timeout" };
+  if (isAsync) {
+    if (/Test262:AsyncTestComplete/.test(out)) return { r: "pass" };
+    if (/Test262:AsyncTestFailure/.test(out)) return { r: "fail", why: "async-assert", err: (out.match(/Test262:AsyncTestFailure:[^\n]*/) || [""])[0] };
+    return { r: "fail", why: exit !== 0 ? bucket(err) : "async-never-done", err };
+  }
   if (fm.negative) {
     // negative test: expected to error. PASS iff non-zero exit. (type/phase check = refinement)
     return exit !== 0 ? { r: "pass" } : { r: "fail", why: "negative-not-thrown", err };
