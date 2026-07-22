@@ -1228,3 +1228,19 @@ continue`, `while(){…break}`, `for-of` break/continue, and braceless if/else-i
 braced ifs, else-if, loops without break, assignments unaffected. New `breakcont-diff` fuzzer. **108
 jsint fuzzers, 0 diffs; gate GREEN.** (Labeled `break label` to an OUTER loop still breaks only the
 innermost — logged.)
+
+---
+
+**reduce-without-init / `in` operator / split("") / parseFloat crash (2026-07-22).** Four bounded gaps
+from a broad probe: (1) `[1,2,3].reduce((a,b)=>a+b)` with NO initial value gave NaN — it seeded the
+accumulator with an empty (→NaN) init; a new `arrReduceNoInit` seeds with element 0 and starts at
+element 1. (2) The `in` operator was unhandled (`"x" in o` returned `"x"`) — added to `jsEvalCmp`:
+`key in obj` → object has that property, `idx in arr` → in range. (3) `"Hello".split("")` returned the
+whole string, not its characters — `strSplit` now yields `strToCharArr` for an empty separator. (4)
+`parseFloat(...)` was entirely unhandled → infinite recursion → STACK OVERFLOW; registered it as a
+global (via `jsParseIntText`, so it no longer crashes — the fractional part is truncated pending the
+float model). `reduce((a,b)=>a+b)`→6, `"x" in {a,b}` object, `1 in [..]` array, `split("")` chars,
+`parseFloat("42")`→42 all match Node; reduce-with-init, other splits, `<`/`>`, and variable for-in
+unaffected. New `reduceinop-diff` fuzzer. **109 jsint fuzzers, 0 diffs; gate GREEN.** (Pre-existing,
+logged: `for (const k in {inline object})` iterates nothing — inline-object for-in target; a variable
+target works. And parseFloat/`toFixed`/`0.1+0.2` need the float model.)

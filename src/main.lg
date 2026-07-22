@@ -775,6 +775,14 @@
         If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
             Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
+    If hasSep(expr, " in "):
+        Let iparts be split(expr, " in ").
+        Let iobj be evalValue(trim(item 2 of iparts)).
+        If isObjRef(iobj):
+            Return cmpResult(objGet(iobj, materialize(evalValue(trim(item 1 of iparts)))) is not equal to "undefined").
+        If isArrRef(iobj):
+            Return cmpResult(arrGet(iobj, safeInt(materialize(evalValue(trim(item 1 of iparts))))) is not equal to "undefined").
+        Return "false".
     Return evalValue(expr).
 
 ## To boolOf (t: Text) -> Bool:
@@ -1385,11 +1393,13 @@
     Return "NaN".
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "String", "Number", "Boolean"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean"].
     Return names contains name.
 
 ## To globalCall (name: Text, av: Text) -> Text:
     If name is equal to "parseInt":
+        Return jsParseIntText(decodeStr(materialize(av))).
+    If name is equal to "parseFloat":
         Return jsParseIntText(decodeStr(materialize(av))).
     If name is equal to "Number":
         Return jsNumberText(decodeStr(materialize(av))).
@@ -2492,6 +2502,13 @@
 ## To arrReduce (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
     Return arrReduceLoop(arrElements(arrval), 1, fnval, env, init).
 
+# reduce with NO initial value seeds the accumulator with element 0 and starts from element 1.
+## To arrReduceNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
+    Let els be arrElements(arrval).
+    If length of els is less than 1:
+        Return "undefined".
+    Return arrReduceLoop(els, 2, fnval, env, item 1 of els).
+
 ## To joinChr6 (els: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
     If i is greater than upto:
         Return acc.
@@ -2833,6 +2850,8 @@
     Return splitToArr(pieces, i + 1, concat(concat(acc, tagArrSep ()), piece)).
 
 ## To strSplit (s: Text, sep: Text) -> Text:
+    If sep is equal to "":
+        Return strToCharArr(concat(s, "")).
     Return newArr(concat(concat(tagArr (), splitToArr(split(s, sep), 1, "")), tagArrEnd ())).
 
 ## To arrJoinLoop (els: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
@@ -3244,8 +3263,10 @@
         Let atoks be split(argStr, " ").
         Let cIdx be exprBodyEnd(atoks, 1, 0, "").
         Let fnval be fnArgValRaw(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
-        Let initVal be jsEvalIn(trim(joinRange(atoks, cIdx + 1, length of atoks, "")), env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, initVal, env)), rst)), env).
+        Let initPart be trim(joinRange(atoks, cIdx + 1, length of atoks, "")).
+        If initPart is equal to "":
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduceNoInit(raw, fnval, env)), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, jsEvalIn(initPart, env), env)), rst)), env).
     If lm is equal to " . flatMap (":
         Let bef be substringBefore(expr, " . flatMap (").
         Let aft be substringAfter(expr, " . flatMap (").
