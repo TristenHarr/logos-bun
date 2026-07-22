@@ -1244,3 +1244,15 @@ float model). `reduce((a,b)=>a+b)`→6, `"x" in {a,b}` object, `1 in [..]` array
 unaffected. New `reduceinop-diff` fuzzer. **109 jsint fuzzers, 0 diffs; gate GREEN.** (Pre-existing,
 logged: `for (const k in {inline object})` iterates nothing — inline-object for-in target; a variable
 target works. And parseFloat/`toFixed`/`0.1+0.2` need the float model.)
+
+---
+
+**Map.keys() / values() / entries() iterators (2026-07-22).** `[...m.keys()]` was empty and
+`for (const [k,v] of m.entries())` iterated nothing — the Map had no iterator methods. Added `.keys`,
+`.values`, `.entries` handlers (gated on `isMap`, markerInBody-guarded like the other Map ops): keys
+and values return an array built from `__map_keys`/`__map_vals`, entries reuses `mapEntriesArr`.
+`[...m.keys()]`, `[...m.values()]`, and `for (const [k,v] of m.entries())` in insertion order all match
+Node; `m.get`/`m.has`/`m.size`, `Object.keys`, and an object with a `get`/`keys` property key
+unaffected. New `mapiter-diff` fuzzer. **110 jsint fuzzers, 0 diffs; gate GREEN.** (Surfaced but not
+fixed: `m.size` inside a larger `+` concat after a spread — `.size` isn't resolved in that term
+position; logged.)

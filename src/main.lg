@@ -3038,6 +3038,27 @@
         If isMap(recv):
             Let args be splitArgsN(methodArg(aft)).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapSet(recv, jsEvalIn(trim(item 1 of args), env), jsEvalIn(trim(item 2 of args), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . keys (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . keys (") is equal to false:
+        Let bef be substringBefore(expr, " . keys (").
+        Let aft be substringAfter(expr, " . keys (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_keys")), 1, length of arrElements(objGet(concat(recv, ""), "__map_keys")), "")), tagArrEnd ()))), methodRest(aft))), env).
+    If substringBefore(expr, " . values (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . values (") is equal to false:
+        Let bef be substringBefore(expr, " . values (").
+        Let aft be substringAfter(expr, " . values (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_vals")), 1, length of arrElements(objGet(concat(recv, ""), "__map_vals")), "")), tagArrEnd ()))), methodRest(aft))), env).
+    If substringBefore(expr, " . entries (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . entries (") is equal to false:
+        Let bef be substringBefore(expr, " . entries (").
+        Let aft be substringAfter(expr, " . entries (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapEntriesArr(concat(recv, ""))), methodRest(aft))), env).
     If substringBefore(expr, " . get (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . get (") is equal to false:
         Let bef be substringBefore(expr, " . get (").
