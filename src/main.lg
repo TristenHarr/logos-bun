@@ -3425,19 +3425,19 @@
         Let bef be substringBefore(expr, " . then (").
         Let aft be substringAfter(expr, " . then (").
         Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
-        Let thenP be promiseThen(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Let thenP be promiseThen(pval, fnArgValRaw(trim(methodArg(aft)), env), env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), thenP), methodRest(aft))), env).
     If substringBefore(expr, " . catch (") is not equal to expr:
         Let bef be substringBefore(expr, " . catch (").
         Let aft be substringAfter(expr, " . catch (").
         Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
-        Let catchP be promiseCatch(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Let catchP be promiseCatch(pval, fnArgValRaw(trim(methodArg(aft)), env), env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), catchP), methodRest(aft))), env).
     If substringBefore(expr, " . finally (") is not equal to expr:
         Let bef be substringBefore(expr, " . finally (").
         Let aft be substringAfter(expr, " . finally (").
         Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
-        Let finP be promiseFinally(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Let finP be promiseFinally(pval, fnArgValRaw(trim(methodArg(aft)), env), env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), finP), methodRest(aft))), env).
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
