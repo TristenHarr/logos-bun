@@ -1070,3 +1070,17 @@ encoded content, same length, decoded at output) or `undefined` for a negative /
 (unlike `.charAt`, which returns `""`). `"hello"[0]`→`h`, `[10]`/`[-1]`→`undefined`, `s[1]+s[4]`→`eo`,
 and the ubiquitous `for(i<s.length){r+=s[i]}` character walk all match Node; array/object indexing and
 array literals unaffected. New `strindex-diff` fuzzer. **99 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**One-line statement packing after a `}` (2026-07-22).** A block's closing `}` immediately followed by
+the next statement with NO `;` — `function f(){}g()`, `for(…){…}return x`, `if(…){…}foo()` — dropped
+everything after the `}`. `splitTop` only cut statements at a depth-0 `;`, so the trailing statement
+was swallowed into the preceding block's "statement" and never executed. This recurred all session
+(minified/terse/packed source hits it constantly, and it kept tripping the fuzzers). Fixed `splitTop`
+to also insert a boundary after a `}` that closes to depth 0 — UNLESS `splitContinues` says the same
+statement continues: the next token is `else`/`catch`/`finally`/`while` (do-while), an operator / `.` /
+`(` / `[` consuming the value, a `;` (already splits), or end of input. So `function f(){}g()` →
+`f(){}` | `g()`, `for(){}log()` splits, but `if(){}else{}`, `try{}catch{}`, `let o={a:1}`,
+`x=>{…}`, and `a.map(x=>x).join()` chains stay whole. All match Node. New `oneliner-diff` fuzzer.
+**100 jsint fuzzers, 300 runs across seeds 1–3, 0 diffs; gate GREEN.**

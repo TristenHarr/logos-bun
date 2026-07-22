@@ -3715,6 +3715,48 @@
         Return bindDeclList(decls, 1, env).
     Return bindOne(assign, env).
 
+# After a `}` closes to top level (depth 0), a new statement often follows with NO `;` between them —
+# `function f(){}g()`, `for(…){…}return x`, `if(…){…}foo()` (minified/packed code, or just terse
+# source). splitContinues reports whether what follows the `}` is instead a CONTINUATION of the same
+# statement — `else`/`catch`/`finally`/`while` (do-while), an operator / `.` / `(` / `[` using the
+# value, a `;` (which already splits), or end of input — in which case no boundary is inserted. Only
+# when a genuine new statement begins (an identifier/keyword that isn't a continuation) is a newline
+# spliced in. Runs on normalized (space-joined) source, so only spaces are skipped.
+## To splitSkipSpaces (s: Text, j: Int) -> Int:
+    If j is greater than length of s:
+        Return j.
+    If item j of s is equal to " ":
+        Return splitSkipSpaces(s, j + 1).
+    Return j.
+
+## To splitWordIs (s: Text, k: Int, w: Text) -> Bool:
+    Let m be length of w.
+    If k + m - 1 is greater than length of s:
+        Return false.
+    If strSliceLoop(s, k, k + m - 1, "") is not equal to w:
+        Return false.
+    If k + m is greater than length of s:
+        Return true.
+    Return rxIsIdentChar(item (k + m) of s) is equal to false.
+
+## To splitContinues (s: Text, j: Int) -> Bool:
+    Let k be splitSkipSpaces(s, j).
+    If k is greater than length of s:
+        Return true.
+    Let c be item k of s.
+    Let conts be [";", ")", ",", ".", "+", "-", "*", "/", "%", "<", ">", "=", "&", "|", "?", ":", "(", "!", chr(91), chr(93), chr(125)].
+    If conts contains c:
+        Return true.
+    If splitWordIs(s, k, "else"):
+        Return true.
+    If splitWordIs(s, k, "catch"):
+        Return true.
+    If splitWordIs(s, k, "finally"):
+        Return true.
+    If splitWordIs(s, k, "while"):
+        Return true.
+    Return false.
+
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -3724,6 +3766,10 @@
     If c is equal to "(":
         Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
     If c is equal to chr(125):
+        If depth is equal to 1:
+            If splitContinues(s, i + 1):
+                Return splitTop(s, i + 1, 0, concat(acc, c)).
+            Return splitTop(s, i + 1, 0, concat(concat(acc, c), chr(10))).
         Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
     If c is equal to ")":
         Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
