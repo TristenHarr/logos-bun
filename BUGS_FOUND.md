@@ -1433,3 +1433,21 @@ full 120-fuzzer sweep GREEN. Two PRE-EXISTING gaps surfaced during testing and a
 reproduce with the explicit `key: function` form): a method call on a NESTED object property
 (`o.a.m()` → leaks the raw body) and `this.items.reduce(fn, init)` inside a method (returns the init,
 callback not applied). Those are separate engine items, logged for a future increment.
+
+---
+
+**Nested-object / index method calls (2026-07-22).** `o.a.m()`, `arr[0].m()`, `o.a.b.deep()` returned the
+raw function body / NaN, while `x.m()` (plain-variable receiver) worked. The user-method dispatch in
+resolveCalls took only the SINGLE token immediately before the method (`item(len-2)` = `a`) as the
+receiver and evaluated THAT, instead of the whole receiver expression `o.a`. Fixed by resolving the
+receiver boundary with recvStart/joinRange — the exact backward-scan recvExpr already uses (it walks back
+over `.`-chains and matches `]`/`)` groups) — so the receiver becomes the full `o . a` (or `arr [ 0 ]`),
+and the consumed-prefix is recomputed from that same start index. Single-level `o.m()`, class methods,
+statics (`C.of()`), and `new C().g()` are unchanged (for them the full receiver IS the single token). New
+`nestedmethod-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 121-fuzzer sweep GREEN. SEPARATE
+pre-existing bug still open (NOT this fix, reproduces in class methods too): an array LITERAL or
+array-valued PARAM inside a METHOD body doesn't dispatch array methods — `{s(){return [1,2,3].join("-")}}`
+→ NaN, though `.length`/`[i]` on it work, string methods work, and `.join` on a split-RESULT (a heap ref)
+works, and the same body inside a plain `function` works. The divergence is callMethod (which binds
+`this`) vs callFn; the array literal/param isn't reaching arrJoin as a heap ref there. Logged for a
+dedicated increment.

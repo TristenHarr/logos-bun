@@ -1577,12 +1577,15 @@
                 Let result be callFn(sfn, inner, env).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 3, "").
                 Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
-            Let recvVal be jsEvalIn(concat(item ((length of ptoks) - 2) of ptoks, ""), concat(env, "")).
+            Let recvEndIdx be (length of ptoks) - 2.
+            Let recvStartIdx be recvStart(ptoks, recvEndIdx).
+            Let recvExprStr be joinRange(ptoks, recvStartIdx, recvEndIdx, "").
+            Let recvVal be jsEvalIn(concat(recvExprStr, ""), concat(env, "")).
             If isObjRef(recvVal):
                 Let mfn be objGet(recvVal, concat(lastTok, "")).
                 If startsWith(mfn, chr(1)):
                     Let result be callMethod(mfn, inner, recvVal, env).
-                    Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 3, "").
+                    Let newPrefix be joinRange(ptoks, 1, recvStartIdx - 1, "").
                     Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     Let innerVal be jsEvalIn(inner, env).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
