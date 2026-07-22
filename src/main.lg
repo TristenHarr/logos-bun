@@ -39,6 +39,8 @@
 ## To native jsShr (a: Int, b: Int) -> Int
 ## To native jsUshr (a: Int, b: Int) -> Int
 
+## To native jsArithF64 (expr: Text) -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -2164,6 +2166,8 @@
         Return arithBadTok(toks, i + 1).
     If isIntStr(concat(t, "")):
         Return arithBadTok(toks, i + 1).
+    If floatTok(concat(t, "")):
+        Return arithBadTok(toks, i + 1).
     Return true.
 
 # A `/` whose divisor is a literal 0 yields NaN (JS 0/0 → NaN); handling it here avoids an integer
@@ -2177,12 +2181,29 @@
                 Return true.
     Return divByZero(toks, i + 1).
 
+# A numeric token carrying a decimal point (a float literal).
+## To floatTok (t: Text) -> Bool:
+    If substringBefore(t, ".") is equal to t:
+        Return false.
+    Return true.
+
+# Division or a decimal literal means the exact i64 path can't represent the result — route those to
+# the native IEEE-754 evaluator (the same f64 JS uses). Pure integer + - * stays on evalParens.
+## To needsFloat (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If item i of toks is equal to "/":
+        Return true.
+    If floatTok(concat(item i of toks, "")):
+        Return true.
+    Return needsFloat(toks, i + 1).
+
 ## To arithValue (expr: Text) -> Text:
     Let coerced be coerceNumToks(split(expr, " "), 1, "").
     If arithBadTok(split(concat(coerced, ""), " "), 1):
         Return "NaN".
-    If divByZero(split(concat(coerced, ""), " "), 1):
-        Return "NaN".
+    If needsFloat(split(concat(coerced, ""), " "), 1):
+        Return jsArithF64(concat(coerced, "")).
     Return toText(evalParens(coerced)).
 
 ## To evalValue (expr: Text) -> Text:
@@ -4560,6 +4581,11 @@
         If c is equal to ")":
             Return normJs(s, i + 1, inStr, concat(acc, encParenR ())).
         Return normJs(s, i + 1, inStr, concat(acc, c)).
+    If c is equal to ".":
+        If digitChar(lastCharOf(acc)):
+            If i is less than length of s:
+                If digitChar(item (i + 1) of s):
+                    Return normJs(s, i + 1, inStr, concat(acc, c)).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
         Return normJs(s, i + 3, inStr, concat(acc, spaced(op3))).
@@ -4569,6 +4595,21 @@
     If isOp1(c):
         Return normJs(s, i + 1, inStr, concat(acc, spaced(c))).
     Return normJs(s, i + 1, inStr, concat(acc, c)).
+
+## To digitChar (c: Text) -> Bool:
+    If c is equal to "":
+        Return false.
+    Let o be ord(c).
+    If o is less than 48:
+        Return false.
+    If o is greater than 57:
+        Return false.
+    Return true.
+
+## To lastCharOf (s: Text) -> Text:
+    If s is equal to "":
+        Return "".
+    Return item (length of s) of s.
 
 ## To joinNonEmpty (parts: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of parts:

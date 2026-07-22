@@ -1256,3 +1256,21 @@ Node; `m.get`/`m.has`/`m.size`, `Object.keys`, and an object with a `get`/`keys`
 unaffected. New `mapiter-diff` fuzzer. **110 jsint fuzzers, 0 diffs; gate GREEN.** (Surfaced but not
 fixed: `m.size` inside a larger `+` concat after a spread — `.size` isn't resolved in that term
 position; logged.)
+
+---
+
+**FLOATS — IEEE-754 number model (2026-07-22).** THE biggest conformance gap: the engine was
+integer-only, so `1/2`→0, `0.1+0.2`→NaN, `3.14*2`→NaN, and any decimal literal was rejected. Closed it
+with a native f64 seam that keeps the exact-integer fast path intact: (1) a new `js_arith_f64` in the
+toolchain — a recursive-descent evaluator over the spaced token stream (`+ - * / % **`, parens, unary)
+computing in IEEE-754 f64, the same doubles V8 uses, formatted JS-style (whole values drop the `.0`;
+`Infinity`/`-Infinity`/`NaN` spelled the JS way; else Rust's shortest round-trip Display, which matches
+V8). (2) `normJs` now keeps a `.` between two digits as a decimal point (was spacing it into a member-
+access dot, splitting `3.5`→`3 . 5`). (3) `arithValue` routes any expression with a `/` or a decimal
+literal to `jsArithF64`; pure integer `+ - *` stays on the exact i64 `evalParens` (so big-int products
+stay precise). Now `1/2`→0.5, `0.1+0.2`→`0.30000000000000004` (bit-exact), `10/3`→`3.3333333333333335`,
+`9.99*3`→`29.97`, `1/3+1/3+1/3`→1, `1/0`→`Infinity`, `0/0`→`NaN`, `[1,2,3].map(x=>x/2)`→`0.5,1,1.5`, all
+match Node; integer arithmetic, `2**10`, `1000000*1000000`, modulo unaffected. New `float-diff` fuzzer
+(2400 random float expressions/3 seeds, 0 diffs). **111 jsint fuzzers, 0 diffs; gate GREEN.** Toolchain
+`js_arith_f64` added (env.rs + program.rs, LOCAL). Remaining float polish: `toFixed`/`toPrecision`,
+`parseFloat` fractional part, e-notation for very large/small magnitudes, `Math.sqrt`/`sin`/etc.
