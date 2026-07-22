@@ -15,8 +15,8 @@ const OURS = findBin(join(ROOT, "target")).filter((p) => !/vendor|oracle/.test(p
 const fails = []; if (!OURS) fails.push("no logos-bun binary — build it");
 function mul(s) { let a = s >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const dir = mkdtempSync(join(tmpdir(), "runfile-"));
-const ourRun = (file) => { const r = spawnSync(OURS, ["run", file], { encoding: "utf8" }); return r.status !== 0 ? `ERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
-const nodeRun = (file) => { const r = spawnSync("node", [file], { encoding: "utf8" }); return r.status !== 0 ? `NODEERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
+const ourRun = (file, args) => { const r = spawnSync(OURS, ["run", file, ...args], { encoding: "utf8" }); return r.status !== 0 ? `ERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
+const nodeRun = (file, args) => { const r = spawnSync("node", [file, ...args], { encoding: "utf8" }); return r.status !== 0 ? `NODEERR:${r.status}` : `${r.stdout || ""}\x01${r.stderr || ""}`; };
 if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 120), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
@@ -34,6 +34,8 @@ if (OURS) {
     else { const arr = Array.from({ length: 2 + ri(3) }, () => sn()); lines.push(`console.log([${arr.join(",")}].map((x,i)=>x+i).join("-"));`, `console.log("max", Math.max(...[${arr.join(",")}]));`); }
     // half the time, also emit to stderr (console.error/warn), locked via the \x01-joined stdout\x01stderr comparison
     if (ri(2) === 0) lines.push(`console.error("err", ${sn()});`, `console.warn("warn");`);
+    // sometimes read process.argv (the user args after the script) — argv[2..] must match node
+    if (ri(3) === 0) lines.push(`console.log("args:", process.argv.slice(2).join("|"));`, `console.log("argc:", process.argv.length);`);
     return lines.join("\n") + "\n";
   };
   let checked = 0;
@@ -41,9 +43,10 @@ if (OURS) {
     const src = program();
     const file = join(dir, `p${seed}_${it}.js`);
     writeFileSync(file, src);
-    const ref = nodeRun(file);
+    const uargs = Array.from({ length: ri(4) }, () => ["alpha", "beta", "42", "x"][ri(4)]);
+    const ref = nodeRun(file, uargs);
     if (ref.startsWith("NODEERR")) continue;
-    const got = ourRun(file);
+    const got = ourRun(file, uargs);
     if (got !== ref) fails.push(`run(${JSON.stringify(src)}): ours=${JSON.stringify(got)} node=${JSON.stringify(ref)}`);
     checked++;
   }

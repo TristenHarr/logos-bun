@@ -1707,6 +1707,11 @@
         Return arrSlice(raw, a, b).
     Return strSlice(materialize(raw), a, b).
 
+## To sliceEnd (argText: Text, env: Text) -> Int:
+    If trim(argText) is equal to "":
+        Return 1000000.
+    Return parseInt(jsEvalIn(trim(argText), env)).
+
 ## To arrReverseLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
     If i is less than 1:
         Return acc.
@@ -2507,7 +2512,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let args be splitArgs2(methodArg(aft)).
-        Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), sliceEnd(item 2 of args, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
     If lm is equal to " . toUpperCase (":
         Let bef be substringBefore(expr, " . toUpperCase (").
@@ -3607,8 +3612,16 @@
 ## To runSink (finalEnv: Text) -> Text:
     Return "".
 
-## To jsRunFile (src: Text) -> Text:
-    Return runSink(runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, "")).
+## To argvBuild (args: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let el be concat(tagStr (), item i of args).
+    Return argvBuild(args, i + 1, concat(concat(acc, tagArrSep ()), el)).
+
+## To jsRunFile (src: Text, argv: Text) -> Text:
+    Let procObj be objSet(concat(tagObj (), tagObjEnd ()), "argv", argv).
+    Let env0 be envSet("", "process", procObj).
+    Return runSink(runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, env0)).
 
 ## To looksLikeScript (cmd: Text) -> Bool:
     If strEndsWith(cmd, ".js"):
@@ -3689,9 +3702,15 @@ Otherwise If cmd is equal to "__js-run":
 Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
 Otherwise If cmd is equal to "run":
-    puts(jsRunFile(readFile(item 3 of arguments))).
+    Let runSrc be readFile(item 3 of arguments).
+    Let runExec be concat(tagStr (), item 1 of arguments).
+    Let runArgv be concat(concat(tagArr (), argvBuild(arguments, 3, runExec)), tagArrEnd ()).
+    puts(jsRunFile(runSrc, runArgv)).
 Otherwise If looksLikeScript(cmd):
-    puts(jsRunFile(readFile(cmd))).
+    Let bareSrc be readFile(cmd).
+    Let bareExec be concat(tagStr (), item 1 of arguments).
+    Let bareArgv be concat(concat(tagArr (), argvBuild(arguments, 2, bareExec)), tagArrEnd ()).
+    puts(jsRunFile(bareSrc, bareArgv)).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).
