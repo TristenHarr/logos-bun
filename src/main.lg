@@ -21,6 +21,9 @@
 ## To native readFile (path: Text) -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
+## To native heapAlloc (content: Text) -> Text
+## To native heapGet (handle: Text) -> Text
+## To native heapSet (handle: Text, content: Text) -> Unit
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -3609,6 +3612,12 @@
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
 
+## To heapProbe () -> Text:
+    Let h be heapAlloc("v1").
+    Let alias be concat(h, "").
+    heapSet(alias, "v2").
+    Return heapGet(h).
+
 ## To consoleFmt (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
         Return acc.
@@ -3723,6 +3732,8 @@ Otherwise If cmd is equal to "__js-run":
     Show decodeStr(materialize(jsRun(item 3 of arguments))).
 Otherwise If cmd is equal to "__js":
     Show jsExec(item 3 of arguments).
+Otherwise If cmd is equal to "__heap-probe":
+    Show heapProbe().
 Otherwise If cmd is equal to "run":
     Let runSrc be readFile(item 3 of arguments).
     Let runExec be concat(tagStr (), item 1 of arguments).
