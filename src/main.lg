@@ -1010,6 +1010,11 @@
 # with `this` bound to the receiver. callSetter binds the setter's single parameter DIRECTLY to
 # the already-evaluated right-hand side (no re-evaluation) and runs the body with `this`.
 ## To getMember (recv: Text, prop: Text) -> Text:
+    If prop is equal to "size":
+        If isMap(concat(recv, "")):
+            Return toText(collSize(concat(recv, ""))).
+        If isSet(concat(recv, "")):
+            Return toText(collSize(concat(recv, ""))).
     Let direct be objGet(concat(recv, ""), concat(prop, "")).
     If direct is not equal to "undefined":
         Return direct.
@@ -1912,14 +1917,29 @@
         Return concat(tagStr (), content).
     Return tok.
 
+## To termValue (t: Text) -> Text:
+    Let lit be litToStr(concat(t, "")).
+    If startsWith(lit, tagStr ()):
+        Return lit.
+    Return evalValue(trim(t)).
+
+## To plusStep (acc: Text, v: Text) -> Text:
+    If startsWith(acc, tagStr ()):
+        Return concat(tagStr (), concat(materialize(acc), materialize(v))).
+    If startsWith(v, tagStr ()):
+        Return concat(tagStr (), concat(materialize(acc), materialize(v))).
+    If isIntStr(concat(acc, "")):
+        If isIntStr(concat(v, "")):
+            Return toText(parseInt(acc) + parseInt(v)).
+    Return concat(tagStr (), concat(materialize(acc), materialize(v))).
+
 ## To concatTerms (terms: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of terms:
         Return acc.
-    Let t be trim(item i of terms).
-    Let lit be litToStr(t).
-    If startsWith(lit, tagStr ()):
-        Return concatTerms(terms, i + 1, concat(acc, materialize(lit))).
-    Return concatTerms(terms, i + 1, concat(acc, materialize(evalValue(t)))).
+    Let v be termValue(trim(item i of terms)).
+    If i is equal to 1:
+        Return concatTerms(terms, 2, v).
+    Return concatTerms(terms, i + 1, plusStep(acc, v)).
 
 ## To allDigits (t: Text, i: Int) -> Bool:
     If i is greater than length of t:
@@ -2006,7 +2026,7 @@
     If trim(expr) is equal to "undefined":
         Return "undefined".
     If hasStr(expr):
-        Return concat(tagStr (), concatTerms(split(expr, " + "), 1, "")).
+        Return concatTerms(split(expr, " + "), 1, "").
     Return arithValue(expr).
 
 ## To typeOfTag (tok: Text) -> Text:
@@ -2646,6 +2666,43 @@
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
+    If substringBefore(expr, "new Map (") is not equal to expr:
+        Let bef be substringBefore(expr, "new Map (").
+        Let aft be substringAfter(expr, "new Map (").
+        Return resolveMethods(trim(concat(concat(bef, newMap()), methodRest(aft))), env).
+    If substringBefore(expr, "new Set (") is not equal to expr:
+        Let bef be substringBefore(expr, "new Set (").
+        Let aft be substringAfter(expr, "new Set (").
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . set (") is not equal to expr:
+        Let bef be substringBefore(expr, " . set (").
+        Let aft be substringAfter(expr, " . set (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Let args be splitArgsN(methodArg(aft)).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapSet(recv, jsEvalIn(trim(item 1 of args), env), jsEvalIn(trim(item 2 of args), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . get (") is not equal to expr:
+        Let bef be substringBefore(expr, " . get (").
+        Let aft be substringAfter(expr, " . get (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapGet(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . has (") is not equal to expr:
+        Let bef be substringBefore(expr, " . has (").
+        Let aft be substringAfter(expr, " . has (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), cmpResult(mapKeyIdx(arrElements(objGet(concat(recv, ""), "__map_keys")), 1, jsEvalIn(trim(methodArg(aft)), env)) is greater than 0)), methodRest(aft))), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), cmpResult(mapKeyIdx(arrElements(objGet(concat(recv, ""), "__set_vals")), 1, jsEvalIn(trim(methodArg(aft)), env)) is greater than 0)), methodRest(aft))), env).
+    If substringBefore(expr, " . add (") is not equal to expr:
+        Let bef be substringBefore(expr, " . add (").
+        Let aft be substringAfter(expr, " . add (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), setAdd(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, "new RegExp (") is not equal to expr:
         Let bef be substringBefore(expr, "new RegExp (").
         Let aft be substringAfter(expr, "new RegExp (").
@@ -4452,6 +4509,68 @@
     If start is equal to 0:
         Return "".
     Return strSliceLoop(text, start, (reMatchEnd(pat, text, start) - 1), "").
+
+# --- Map / Set (E5) ---
+# A Map is a heap object with parallel __map_keys / __map_vals arrays (insertion order preserved,
+# any key type — keys compared by materialized value); a Set is a heap object with a __set_vals
+# array. Mutators write THROUGH the heap handle (arrays are refs), so a Map/Set aliased by another
+# binding sees updates.
+## To newMap () -> Text:
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__map_keys", newArr(concat(tagArr (), tagArrEnd ()))), "__map_vals", newArr(concat(tagArr (), tagArrEnd ()))).
+
+## To isMap (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__map_keys") is not equal to "undefined".
+    Return false.
+
+## To mapKeyIdx (keys: Seq of Text, i: Int, k: Text) -> Int:
+    If i is greater than length of keys:
+        Return 0.
+    If materialize(item i of keys) is equal to materialize(concat(k, "")):
+        Return i.
+    Return mapKeyIdx(keys, i + 1, k).
+
+## To mapSet (m: Text, k: Text, v: Text) -> Text:
+    Let idx be mapKeyIdx(arrElements(objGet(concat(m, ""), "__map_keys")), 1, concat(k, "")).
+    If idx is greater than 0:
+        Let du be arrSetIdx(objGet(concat(m, ""), "__map_vals"), idx - 1, concat(v, "")).
+        Return concat(m, "").
+    Let dk be arrPush(objGet(concat(m, ""), "__map_keys"), concat(k, "")).
+    Let dv be arrPush(objGet(concat(m, ""), "__map_vals"), concat(v, "")).
+    Return concat(m, "").
+
+## To mapGet (m: Text, k: Text) -> Text:
+    Let idx be mapKeyIdx(arrElements(objGet(concat(m, ""), "__map_keys")), 1, concat(k, "")).
+    If idx is equal to 0:
+        Return "undefined".
+    Return item idx of arrElements(objGet(concat(m, ""), "__map_vals")).
+
+# A Set: __set_vals holds its distinct values.
+## To newSetFrom (arrval: Text) -> Text:
+    Let s be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__set_vals", newArr(concat(tagArr (), tagArrEnd ()))).
+    Return setAddAll(concat(s, ""), arrElements(concat(arrval, "")), 1).
+
+## To setAddAll (s: Text, vals: Seq of Text, i: Int) -> Text:
+    If i is greater than length of vals:
+        Return concat(s, "").
+    Let d be setAdd(concat(s, ""), item i of vals).
+    Return setAddAll(concat(s, ""), vals, i + 1).
+
+## To isSet (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__set_vals") is not equal to "undefined".
+    Return false.
+
+## To setAdd (s: Text, v: Text) -> Text:
+    If mapKeyIdx(arrElements(objGet(concat(s, ""), "__set_vals")), 1, concat(v, "")) is greater than 0:
+        Return concat(s, "").
+    Let d be arrPush(objGet(concat(s, ""), "__set_vals"), concat(v, "")).
+    Return concat(s, "").
+
+## To collSize (v: Text) -> Int:
+    If isMap(v):
+        Return length of arrElements(objGet(concat(v, ""), "__map_keys")).
+    Return length of arrElements(objGet(concat(v, ""), "__set_vals")).
 
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).

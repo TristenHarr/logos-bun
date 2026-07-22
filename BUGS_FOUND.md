@@ -878,3 +878,26 @@ function memoization, whose codegen `insert(key, __memo_result)` then `return __
 the value twice (E0382); fixed the generator to `insert(key, __memo_result.clone())` — a general fix
 for any memoized function. New `bitwise-diff` fuzzer. **89 jsint fuzzers, 0 diffs.** Map/Set/Symbol/
 BigInt/Date and regex literals remain.
+
+---
+
+**E5 Map/Set + a latent left-associativity `+` bug (2026-07-22).** Added `Map` and `Set` to jsint.
+Both are heap objects with parallel-array storage: a `Map` carries `__map_keys`/`__map_vals`
+(insertion order, update-in-place), a `Set` carries `__set_vals` (dedup on construct+`add`). Keys and
+members compare by `materialize` so `1` and `"1"` stay distinct the way Node does. Methods `new Map()`
+/`new Set([…])`/`.set`/`.get`/`.has`/`.add` dispatch in `resolveMethods` gated on `isMap`/`isSet` (so a
+user object with its own `.get`/`.set`/`.has` still routes through the ordinary member path — the
+user-method-shadows-builtin guard runs first), and `.size` is answered in `getMember`. Building the
+`collections-diff` fuzzer immediately surfaced something the string engine had hidden for months:
+`console.log(7+9+"/"+2)` printed **`79/2`** instead of `16/2`. **The `+` operator was not
+left-associative.** `evalValue`'s string branch did `hasStr(expr) → tagStr + concatTerms(split(expr,
+" + "))`, and `concatTerms` *materialized every term and glued them as strings* — so the instant any
+operand in a `+` chain was a string, the whole chain (including a purely numeric prefix like `7+9`)
+collapsed to concatenation. JS folds `+` strictly left-to-right, numeric until the first string
+operand: `((7+9)+"/")+2 = (16+"/")+2 = "16/"+2 = "16/2"`. Rewrote `concatTerms` as a genuine left
+fold with a `plusStep` that keeps the running value numeric (integer add) until either side is a
+string, then switches to concat for the rest; dropped the erroneous outer `tagStr` wrap in
+`evalValue` (the fold now returns a correctly-tagged value). `5+3+"x"`→`8x`, `"a"+1+2+"b"+3+4`→
+`a12b34`, `1+2+3`→`6`, `"total: "+(10+20)`→`total: 30` — all vs Node. New `collections-diff` fuzzer.
+**90 jsint fuzzers, 270 runs across seeds 1–3, 0 diffs; gate GREEN.** Symbol/BigInt/Date and regex
+literals remain.
