@@ -1274,3 +1274,16 @@ match Node; integer arithmetic, `2**10`, `1000000*1000000`, modulo unaffected. N
 (2400 random float expressions/3 seeds, 0 diffs). **111 jsint fuzzers, 0 diffs; gate GREEN.** Toolchain
 `js_arith_f64` added (env.rs + program.rs, LOCAL). Remaining float polish: `toFixed`/`toPrecision`,
 `parseFloat` fractional part, e-notation for very large/small magnitudes, `Math.sqrt`/`sin`/etc.
+
+---
+
+**Float follow-ups: parseFloat / toFixed / Math on floats (2026-07-22).** With the f64 model in place,
+completed the number surface: `parseFloat` now returns the real float (was truncating to int) via a
+native `js_parse_float` (leading-decimal prefix, trailing junk ignored, whitespace + sign + exponent);
+`Number.toFixed(n)` via native `js_to_fixed` (fixed-point, clamped 0..100, IEEE-754 rounding — so
+`(1.005).toFixed(2)`→`1.00` exactly like V8); and `Math.floor`/`ceil`/`round`/`trunc`/`abs`/`sqrt`/`sign`
+via native `js_math1` computing in f64 (previously they truncated via `jsParseIntText`, so `Math.floor(
+-1.5)`→-1 not -2, and `sqrt` didn't exist). `parseFloat("42.5abc")`→42.5, `(3.14159).toFixed(2)`→3.14,
+`Math.floor(-1.5)`→-2, `Math.round(-2.5)`→-2, `Math.sqrt(2)`→1.4142135623730951 all match Node; integer
+`Math.floor(5)`/`abs(-7)`/`max`, `parseInt` unaffected. New `mathfloat-diff` fuzzer. **112 jsint
+fuzzers, 0 diffs; gate GREEN.** Toolchain `js_parse_float`/`js_to_fixed`/`js_math1` added (LOCAL).

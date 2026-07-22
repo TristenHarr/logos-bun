@@ -41,6 +41,12 @@
 
 ## To native jsArithF64 (expr: Text) -> Text
 
+## To native jsParseFloat (s: Text) -> Text
+
+## To native jsToFixed (x: Text, n: Int) -> Text
+
+## To native jsMath1 (op: Text, x: Text) -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -1402,7 +1408,7 @@
     If name is equal to "parseInt":
         Return jsParseIntText(decodeStr(materialize(av))).
     If name is equal to "parseFloat":
-        Return jsParseIntText(decodeStr(materialize(av))).
+        Return jsParseFloat(decodeStr(materialize(av))).
     If name is equal to "Number":
         Return jsNumberText(decodeStr(materialize(av))).
     If name is equal to "String":
@@ -2978,7 +2984,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3185,8 +3191,17 @@
         Let bef be substringBefore(expr, "Math . abs (").
         Let aft be substringAfter(expr, "Math . abs (").
         Let rst be methodRest(aft).
-        Let ab be absInt(safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
-        Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("abs", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+    If substringBefore(expr, "Math . sqrt (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . sqrt (").
+        Let aft be substringAfter(expr, "Math . sqrt (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("sqrt", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+    If substringBefore(expr, "Math . trunc (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . trunc (").
+        Let aft be substringAfter(expr, "Math . trunc (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("trunc", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . pow (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . pow (").
         Let aft be substringAfter(expr, "Math . pow (").
@@ -3198,23 +3213,22 @@
         Let bef be substringBefore(expr, "Math . sign (").
         Let aft be substringAfter(expr, "Math . sign (").
         Let rst be methodRest(aft).
-        Let sg be signInt(safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
-        Return resolveMethods(trim(concat(concat(bef, toText(sg)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("sign", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . floor (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . floor (").
         Let aft be substringAfter(expr, "Math . floor (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("floor", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . ceil (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . ceil (").
         Let aft be substringAfter(expr, "Math . ceil (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("ceil", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . round (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . round (").
         Let aft be substringAfter(expr, "Math . round (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("round", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Array . isArray (") is not equal to expr:
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
@@ -3348,6 +3362,15 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), numToStringVal(raw, argStr, env)), rst)), env).
+    If lm is equal to " . toFixed (":
+        Let bef be substringBefore(expr, " . toFixed (").
+        Let aft be substringAfter(expr, " . toFixed (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), jsToFixed(materialize(raw), safeInt(materialize(jsEvalIn(trim(argStr), env)))))), rst)), env).
     If lm is equal to " . push (":
         Let bef be substringBefore(expr, " . push (").
         Let aft be substringAfter(expr, " . push (").
