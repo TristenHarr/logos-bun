@@ -57,6 +57,16 @@
 
 ## To native jsDateField (ms: Text, field: Text) -> Text
 
+## To native pathDir (path: Text) -> Text
+
+## To native pathResolve (dir: Text, rel: Text) -> Text
+
+## To native moduleCacheGet (path: Text) -> Text
+
+## To native moduleCacheHas (path: Text) -> Text
+
+## To native moduleCacheSet (path: Text, blob: Text) -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -5756,10 +5766,236 @@
     Let el be concat(tagStr (), item i of args).
     Return argvBuild(args, i + 1, concat(concat(acc, tagArrSep ()), el)).
 
+# --- E6 modules: import / export, multi-file resolution ---
+# ESM is handled as a source transform + a runtime module registry. A module's imports are resolved
+# and its dependencies evaluated FIRST (depth-first, each exactly once — the native module cache keyed
+# by resolved path is the once-guard and the cycle break), then the module's own body runs with the
+# `export` keywords stripped, and finally its exported names are lifted into an exports env (the same
+# `name=val;` shape env uses). Because the object heap is a shared thread-local, a value exported by
+# one module is a handle that stays valid when bound into the importer — no serialization across the
+# module boundary. `import`/`export` are top-level statements, so this works line-oriented on the raw
+# source (a multi-line `import { … } from "…"` is first folded to one logical line by joinImportLines).
+
+## To countQuoteChars (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than length of s:
+        Return n.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        Return countQuoteChars(s, i + 1, n + 1).
+    If c is equal to chr(39):
+        Return countQuoteChars(s, i + 1, n + 1).
+    Return countQuoteChars(s, i + 1, n).
+
+## To importComplete (s: Text) -> Bool:
+    Return countQuoteChars(concat(s, ""), 1, 0) is greater than 1.
+
+## To joinImportLines (lines: Seq of Text, i: Int, pending: Text, acc: Text) -> Text:
+    If i is greater than length of lines:
+        If pending is equal to "":
+            Return acc.
+        Return concat(acc, pending).
+    Let ln be item i of lines.
+    If pending is not equal to "":
+        Let merged be concat(concat(pending, " "), trim(ln)).
+        If importComplete(merged):
+            Return joinImportLines(lines, i + 1, "", concat(concat(acc, merged), chr(10))).
+        Return joinImportLines(lines, i + 1, merged, acc).
+    If startsWith(trim(ln), "import "):
+        If importComplete(ln) is equal to false:
+            Return joinImportLines(lines, i + 1, trim(ln), acc).
+    Return joinImportLines(lines, i + 1, "", concat(concat(acc, ln), chr(10))).
+
+## To modIdent (s: Text) -> Text:
+    Let a be replaceAll(replaceAll(replaceAll(replaceAll(replaceAll(s, "=", " "), "(", " "), ";", " "), ":", " "), chr(123), " ").
+    Return trim(item 1 of split(trim(a), " ")).
+
+## To stringLit (s: Text) -> Text:
+    If substringBefore(s, chr(34)) is not equal to s:
+        Return substringBefore(substringAfter(s, chr(34)), chr(34)).
+    If substringBefore(s, chr(39)) is not equal to s:
+        Return substringBefore(substringAfter(s, chr(39)), chr(39)).
+    Return "".
+
+## To importSpec (t: Text) -> Text:
+    Return stringLit(t).
+
+## To importClause (t: Text) -> Text:
+    Let afterKw be substringAfter(t, "import ").
+    If substringBefore(afterKw, " from ") is not equal to afterKw:
+        Return trim(substringBefore(afterKw, " from ")).
+    Return "".
+
+## To bindNamedImports (parts: Seq of Text, i: Int, exportsBlob: Text, env: Text) -> Text:
+    If i is greater than length of parts:
+        Return env.
+    Let p be trim(item i of parts).
+    If p is equal to "":
+        Return bindNamedImports(parts, i + 1, exportsBlob, env).
+    If substringBefore(p, " as ") is not equal to p:
+        Let orig be trim(substringBefore(p, " as ")).
+        Let local be trim(substringAfter(p, " as ")).
+        Return bindNamedImports(parts, i + 1, concat(exportsBlob, ""), envSet(env, local, envGet(exportsBlob, orig))).
+    Return bindNamedImports(parts, i + 1, concat(exportsBlob, ""), envSet(env, p, envGet(exportsBlob, p))).
+
+## To nsBuild (entries: Seq of Text, i: Int, obj: Text) -> Text:
+    If i is greater than length of entries:
+        Return obj.
+    Let e be item i of entries.
+    If e is equal to "":
+        Return nsBuild(entries, i + 1, obj).
+    Let nm be substringBefore(e, "=").
+    If nm is equal to e:
+        Return nsBuild(entries, i + 1, obj).
+    Return nsBuild(entries, i + 1, objSet(obj, nm, substringAfter(e, "="))).
+
+## To namespaceObj (exportsBlob: Text) -> Text:
+    Return nsBuild(split(exportsBlob, ";"), 1, newObjRef(concat(tagObj (), tagObjEnd ()))).
+
+## To bindImports (clause: Text, exportsBlob: Text, env: Text) -> Text:
+    If clause is equal to "":
+        Return env.
+    If startsWith(clause, chr(123)):
+        Let inner be substringBefore(substringAfter(clause, chr(123)), chr(125)).
+        Return bindNamedImports(split(inner, ","), 1, exportsBlob, env).
+    If startsWith(clause, "* as "):
+        Return envSet(env, trim(substringAfter(clause, "* as ")), namespaceObj(exportsBlob)).
+    If substringBefore(clause, ",") is not equal to clause:
+        Let defName be trim(substringBefore(clause, ",")).
+        Let restClause be trim(substringAfter(clause, ",")).
+        Return bindImports(restClause, concat(exportsBlob, ""), envSet(env, defName, envGet(exportsBlob, "default"))).
+    Return envSet(env, trim(clause), envGet(exportsBlob, "default")).
+
+## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
+    If i is greater than length of lines:
+        Return env.
+    Let t be trim(item i of lines).
+    If startsWith(t, "import "):
+        Let spec be importSpec(t).
+        If spec is equal to "":
+            Return applyImports(lines, i + 1, dir, env).
+        Let exportsBlob be loadModule(pathResolve(dir, spec)).
+        Return applyImports(lines, i + 1, dir, bindImports(importClause(t), exportsBlob, env)).
+    If startsWith(t, "export "):
+        If importSpec(t) is not equal to "":
+            Let reeval be loadModule(pathResolve(dir, importSpec(t))).
+            Return applyImports(lines, i + 1, dir, env).
+    Return applyImports(lines, i + 1, dir, env).
+
+## To stripModLines (lines: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of lines:
+        Return acc.
+    Let ln be item i of lines.
+    Let t be trim(ln).
+    If startsWith(t, "import "):
+        Return stripModLines(lines, i + 1, acc).
+    If startsWith(t, "export default "):
+        Let rest be substringAfter(t, "export default ").
+        If defaultBindingName(substringAfter(t, "export default ")) is not equal to "__default__":
+            Return stripModLines(lines, i + 1, concat(concat(acc, rest), chr(10))).
+        Return stripModLines(lines, i + 1, concat(concat(acc, concat("const __default__ = ", rest)), chr(10))).
+    If startsWith(t, concat("export ", chr(123))):
+        Return stripModLines(lines, i + 1, acc).
+    If startsWith(t, "export "):
+        Return stripModLines(lines, i + 1, concat(concat(acc, substringAfter(ln, "export ")), chr(10))).
+    Return stripModLines(lines, i + 1, concat(concat(acc, ln), chr(10))).
+
+## To stripModuleSyntax (src: Text) -> Text:
+    Return stripModLines(split(src, chr(10)), 1, "").
+
+## To defaultBindingName (rest: Text) -> Text:
+    If startsWith(rest, "function "):
+        Let nm be modIdent(substringAfter(rest, "function ")).
+        If nm is not equal to "":
+            Return nm.
+    If startsWith(rest, "class "):
+        Let nc be modIdent(substringAfter(rest, "class ")).
+        If nc is not equal to "":
+            Return nc.
+    Return "__default__".
+
+## To addExportList (parts: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of parts:
+        Return acc.
+    Let p be trim(item i of parts).
+    If p is equal to "":
+        Return addExportList(parts, i + 1, env, acc).
+    If substringBefore(p, " as ") is not equal to p:
+        Let local be trim(substringBefore(p, " as ")).
+        Let pub be trim(substringAfter(p, " as ")).
+        Return addExportList(parts, i + 1, concat(env, ""), envSet(acc, pub, envGet(env, local))).
+    Return addExportList(parts, i + 1, concat(env, ""), envSet(acc, p, envGet(env, p))).
+
+## To mergeAllExports (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let e be item i of entries.
+    If e is equal to "":
+        Return mergeAllExports(entries, i + 1, acc).
+    Let nm be substringBefore(e, "=").
+    If nm is equal to e:
+        Return mergeAllExports(entries, i + 1, acc).
+    If nm is equal to "default":
+        Return mergeAllExports(entries, i + 1, acc).
+    Return mergeAllExports(entries, i + 1, envSet(acc, nm, substringAfter(e, "="))).
+
+## To collectExports (lines: Seq of Text, i: Int, dir: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of lines:
+        Return acc.
+    Let t be trim(item i of lines).
+    If startsWith(t, "export * from"):
+        Let ebAll be loadModule(pathResolve(dir, importSpec(t))).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), mergeAllExports(split(ebAll, ";"), 1, acc)).
+    If startsWith(t, "export "):
+      If importSpec(t) is not equal to "":
+        Let inner be substringBefore(substringAfter(t, chr(123)), chr(125)).
+        Let ebList be loadModule(pathResolve(dir, importSpec(t))).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), addExportList(split(inner, ","), 1, ebList, acc)).
+    If startsWith(t, "export default "):
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, "default", envGet(env, defaultBindingName(substringAfter(t, "export default "))))).
+    If startsWith(t, concat("export ", chr(123))):
+        Let inner2 be substringBefore(substringAfter(t, chr(123)), chr(125)).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), addExportList(split(inner2, ","), 1, env, acc)).
+    If startsWith(t, "export function "):
+        Let nf be modIdent(substringAfter(t, "export function ")).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, nf, envGet(env, nf))).
+    If startsWith(t, "export class "):
+        Let nc be modIdent(substringAfter(t, "export class ")).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, nc, envGet(env, nc))).
+    If startsWith(t, "export const "):
+        Let nk be modIdent(substringAfter(t, "export const ")).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, nk, envGet(env, nk))).
+    If startsWith(t, "export let "):
+        Let nl be modIdent(substringAfter(t, "export let ")).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, nl, envGet(env, nl))).
+    If startsWith(t, "export var "):
+        Let nv be modIdent(substringAfter(t, "export var ")).
+        Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), envSet(acc, nv, envGet(env, nv))).
+    Return collectExports(lines, i + 1, dir, env, acc).
+
+## To runModuleBody (src: Text, dir: Text, baseEnv: Text) -> Text:
+    Let joined be joinImportLines(split(src, chr(10)), 1, "", "").
+    Let importedEnv be applyImports(split(joined, chr(10)), 1, dir, baseEnv).
+    Let body be stripModuleSyntax(joined).
+    Return runBlock(split(splitTop(normalizeJs(body), 1, 0, ""), chr(10)), 1, importedEnv).
+
+## To loadModule (resolved: Text) -> Text:
+    If moduleCacheHas(resolved) is equal to "1":
+        Return moduleCacheGet(resolved).
+    Let guard be moduleCacheSet(resolved, "").
+    Let msrc be readFile(resolved).
+    Let joined be joinImportLines(split(msrc, chr(10)), 1, "", "").
+    Let menv be runModuleBody(msrc, pathDir(resolved), "").
+    Let exportsBlob be collectExports(split(joined, chr(10)), 1, pathDir(resolved), menv, "").
+    Let done be moduleCacheSet(resolved, exportsBlob).
+    Return exportsBlob.
+
 ## To jsRunFile (src: Text, argv: Text) -> Text:
+    Return jsRunFileIn(src, argv, "").
+
+## To jsRunFileIn (src: Text, argv: Text, dir: Text) -> Text:
     Let procObj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
     Let env0 be envSet("", "process", procObj).
-    Let finalEnv be runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, env0).
+    Let finalEnv be runModuleBody(src, dir, env0).
     Let drained be drainMicrotasks("").
     Return runSink(finalEnv).
 
@@ -5849,12 +6085,12 @@ Otherwise If cmd is equal to "run":
     Let runSrc be readFile(item 3 of arguments).
     Let runExec be concat(tagStr (), item 1 of arguments).
     Let runArgv be newArr(concat(concat(tagArr (), argvBuild(arguments, 3, runExec)), tagArrEnd ())).
-    puts(jsRunFile(runSrc, runArgv)).
+    puts(jsRunFileIn(runSrc, runArgv, pathDir(item 3 of arguments))).
 Otherwise If looksLikeScript(cmd):
     Let bareSrc be readFile(cmd).
     Let bareExec be concat(tagStr (), item 1 of arguments).
     Let bareArgv be newArr(concat(concat(tagArr (), argvBuild(arguments, 2, bareExec)), tagArrEnd ())).
-    puts(jsRunFile(bareSrc, bareArgv)).
+    puts(jsRunFileIn(bareSrc, bareArgv, pathDir(cmd))).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").
     exitWith(1).

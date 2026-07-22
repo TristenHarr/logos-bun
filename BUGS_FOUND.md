@@ -1370,3 +1370,30 @@ because the leftmost-method scan never recognized the call at all (the object wa
 negatives. New `date-diff` fuzzer (1515 programs/5 seeds, 0 diffs). **117 jsint fuzzers, 0 diffs; full
 sweep GREEN.** Toolchain `js_date_now`/`js_date_field` added (LOCAL). (`Date.UTC`, local-TZ getters, the
 string-argument `new Date("...")` parser, and `console.log(dateObj)` ISO rendering are later concerns.)
+
+---
+
+**E6 — ES modules: import / export, multi-file resolution (2026-07-22).** The engine ran a single
+file; `import`/`export` were unhandled (→ NaN). Added a full ESM layer as a source transform + a runtime
+module registry. FIVE toolchain natives (LOCAL): `path_dir`/`path_resolve` (join + textual `.`/`..`
+normalization + node/bun extension probing: `.js`/`.mjs`/`.cjs`/`.ts` and `/index.*`) and a thread-local
+module cache (`module_cache_get`/`_has`/`_set`). A module's imports resolve and its dependencies evaluate
+DEPTH-FIRST and exactly ONCE (the cache keyed by resolved path is both the once-guard and the cycle
+break — set to empty before the body runs), then the body runs with `export` keywords stripped, then the
+exported names are lifted into an exports env (the same `name=val;` shape env already uses). Because the
+object heap is a shared thread-local, an exported object/array is a HANDLE that stays valid when bound
+into the importer — no serialization across the module boundary. Handled: named `import { a, b as c }`,
+default (`import x`), namespace (`import * as ns`), mixed default+named, side-effect `import "./x"`;
+`export const/let/var/function/class`, `export { a, b as c }`, `export default` (expr / anon-fn / arrow /
+named-fn / class), re-export `export { x as y } from "./m"`, and `export * from "./m"`. Multi-line
+`import { … } from "…"` is folded to one logical line first (`joinImportLines`, quote-counting for
+completion). SUBTLE FIX: `export default function NAME(){}` first went to `const __default__ = function
+NAME(){}` → NaN, because a NAMED function EXPRESSION assigned to a const is a pre-existing engine gap;
+fixed by emitting it as a real function DECLARATION (`function NAME(){}`, which works) and mapping the
+default export to `NAME` via `defaultBindingName`. Verified: transitive chains, diamond shared-dep
+(evaluated once — one `SHARED-INIT` print), nested-subdir + `./`-relative-within-subdir resolution,
+object/array exports with method calls on the far side, imports used inside functions. New `module-diff`
+fuzzer writes a random multi-file GRAPH per iteration (leaf/mid/entry, 6 shapes) and diffs `bun run` vs
+`node` (600 graphs/5 seeds, 0 diffs). Plain no-module scripts run byte-identical (the module path is a
+no-op when there are no import/export lines). **118 jsint fuzzers, full sweep + pre-push gate GREEN.**
+The named function EXPRESSION gap (`const f = function g(){}`) remains a separate known engine item.
