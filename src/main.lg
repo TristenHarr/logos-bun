@@ -24,6 +24,8 @@
 ## To native heapAlloc (content: Text) -> Text
 ## To native heapGet (handle: Text) -> Text
 ## To native heapSet (handle: Text, content: Text) -> Unit
+## To native classTagSet (handle: Text, chain: Text) -> Unit
+## To native classTagGet (handle: Text) -> Text
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -1037,6 +1039,7 @@
             If startsWith(envGet(env, lastTok), chr(1)):
                 Let inst be newObjRef(concat(tagObj (), tagObjEnd ())).
                 Let ran be callMethod(envGet(env, lastTok), inner, inst, env).
+                classTagSet(refId(concat(inst, "")), instanceChain(concat(lastTok, ""), env)).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
                 Return resolveCalls(concat(concat(concat(newPrefix, " "), concat(inst, "")), rest), env).
     Let fnVal be envGet(env, lastTok).
@@ -1208,6 +1211,15 @@
 
 ## To newArr (blob: Text) -> Text:
     Return concat(tagRef (), heapAlloc(blob)).
+
+# The class-ancestry chain (most-derived first) for `instanceof`. A base class is just its own
+# name; a subclass walks the `__super_<class>` env bindings that the `extends` desugar records,
+# so `new B()` (B extends A) tags "B,A" and both `b instanceof B` and `b instanceof A` hold.
+## To instanceChain (cname: Text, env: Text) -> Text:
+    Let parent be materialize(envGet(concat(env, ""), concat("__super_", cname))).
+    If parent is equal to "":
+        Return cname.
+    Return concat(concat(cname, ","), instanceChain(parent, env)).
 
 ## To isObjRef (v: Text) -> Bool:
     Return startsWith(derefObj(v), tagObj ()).
@@ -2837,8 +2849,37 @@
     Let rest be strSliceLoop(concat(aft, ""), (length of key) + 1, length of aft, "").
     Return resolveProcessEnv(concat(concat(bef, concat(tagStr (), encodeRaw(getEnv(key)))), rest)).
 
+# `a instanceof C`: evaluate the left operand to its heap ref, read its class-ancestry chain
+# from the class-tag table, and test membership of C. A non-object left operand has no chain, so
+# yields false. Only a top-level (paren-depth 0) `instanceof` is processed — a parenthesized one
+# is handled when the paren interior is evaluated. Runs before substitution so C stays a bare token.
+## To topInstanceofIdx (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let c be item i of toks.
+    If isOpenGrp(c):
+        Return topInstanceofIdx(toks, i + 1, depth + 1, concat(g, c)).
+    If isCloseGrp(c):
+        Return topInstanceofIdx(toks, i + 1, depth - 1, concat(g, c)).
+    If c is equal to "instanceof":
+        If depth is equal to 0:
+            Return i.
+    Return topInstanceofIdx(toks, i + 1, depth, concat(g, c)).
+
+## To resolveInstanceof (expr: Text, env: Text) -> Text:
+    Let toks be split(expr, " ").
+    Let idx be topInstanceofIdx(toks, 1, 0, "").
+    If idx is equal to 0:
+        Return expr.
+    Let lhs be joinRange(toks, 1, idx - 1, "").
+    Let cname be item (idx + 1) of toks.
+    Let restR be joinRange(toks, idx + 2, length of toks, "").
+    Let inst be jsEvalIn(lhs, concat(env, "")).
+    Let isInst be split(classTagGet(refId(concat(inst, ""))), ",") contains cname.
+    Return resolveInstanceof(trim(concat(concat(cmpResult(isInst), " "), restR)), env).
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
-    Let te be trim(resolveProcessEnv(expr)).
+    Let te be trim(resolveInstanceof(resolveProcessEnv(expr), env)).
     Let tks be split(te, " ").
     Let qIdx be topTernaryQ(tks, 1, 0, "").
     If qIdx is greater than 0:
@@ -3213,6 +3254,12 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If startsWith(s, "__super__ "):
+        Let srest be substringAfter(s, "__super__ ").
+        Let pname be item 1 of split(srest, " ").
+        Let sargs be balancedArg(substringAfter(srest, chr(40)), 1, 0, "").
+        Let ran be callMethod(envGet(concat(env, ""), concat(pname, "")), sargs, envGet(concat(env, ""), "this"), env).
+        Return env.
     If startsWith(s, "console . log ("):
         Return doConsoleLog(balancedArg(substringAfter(s, "console . log ("), 1, 0, ""), env).
     If startsWith(s, "console . info ("):
@@ -3726,32 +3773,63 @@
 # onto `this` (an instance-own function value bound dynamically by callMethod), the constructor's
 # own params/body drive the function. classWalk peels one `name (params) {body}` member at a time,
 # using braceBody's accumulated length to find each member's matching brace and the remainder.
-## To classWalk (cname: Text, body: Text, cparams: Text, cbody: Text, methods: Text) -> Text:
+# `class B extends A`: the parent name from the class head (empty for a base class).
+## To classParent (head: Seq of Text) -> Text:
+    If length of head is greater than 2:
+        If item 2 of head is equal to "extends":
+            Return item 3 of head.
+    Return "".
+
+# Records the parent for `instanceChain` (so `b instanceof A` holds); a base class binds nothing.
+## To superBindOf (cname: Text, parent: Text) -> Text:
+    If parent is equal to "":
+        Return "".
+    Return concat(concat(concat("__super_", cname), concat(" = ", concat(chr(34), concat(parent, chr(34))))), " ; ").
+
+# Order the constructor's inner statements. Base class: methods then ctor body. Subclass: the
+# `super(args)` call (always the first ctor statement in JS) is rewritten to `__super__ Parent
+# (args)` and run FIRST — it invokes the parent constructor with THIS, populating inherited
+# fields+methods — then the child's own method assignments (which override the parent's), then
+# the rest of the child ctor body.
+## To superFirst (parent: Text, cbody: Text, methods: Text) -> Text:
+    If parent is equal to "":
+        Return concat(methods, cbody).
+    Let afterOpen be substringAfter(cbody, chr(40)).
+    Let sargs be balancedArg(concat(afterOpen, ""), 1, 0, "").
+    Let afterClose be strSliceLoop(afterOpen, (length of sargs) + 2, length of afterOpen, "").
+    Let restBody be trim(substringAfter(concat(afterClose, ""), ";")).
+    Let superCall be concat(concat(concat(concat("__super__ ", parent), " ( "), sargs), " ) ; ").
+    Return concat(concat(superCall, methods), restBody).
+
+## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text) -> Text:
     Let b be trim(body).
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
-        Return concat(concat(concat(concat(concat(head, chr(123)), concat(" ", methods)), cbody), " "), chr(125)).
+        Return concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods))), " "), chr(125)).
     Let name be item 1 of split(b, " ").
     Let params be trim(substringBefore(substringAfter(b, chr(40)), chr(41))).
     Let afterBrace be substringAfter(b, chr(123)).
     Let mbody be braceBody(afterBrace, 1, 0, "").
     Let rest be strSliceLoop(afterBrace, (length of mbody) + 2, length of afterBrace, "").
     If name is equal to "constructor":
-        Return classWalk(cname, rest, params, trim(mbody), methods).
+        Return classWalk(cname, parent, rest, params, trim(mbody), methods).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
     Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
-    Return classWalk(cname, rest, cparams, cbody, concat(methods, assign)).
+    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign)).
 
 ## To desugarClass (expr: Text) -> Text:
     If substringBefore(expr, "class ") is equal to expr:
         Return expr.
     Let bef be substringBefore(expr, "class ").
     Let aft be substringAfter(expr, "class ").
-    Let cname be item 1 of split(trim(aft), " ").
+    Let head be split(trim(substringBefore(aft, chr(123))), " ").
+    Let cname be item 1 of head.
+    Let parent be classParent(head).
     Let afterBrace be substringAfter(aft, chr(123)).
     Let cbody be braceBody(afterBrace, 1, 0, "").
     Let remainder be strSliceLoop(afterBrace, (length of cbody) + 2, length of afterBrace, "").
-    Return desugarClass(concat(concat(concat(bef, classWalk(cname, trim(cbody), "", "", "")), " ; "), remainder)).
+    Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "")), " ; ").
+    Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
 ## To normalizeJs (s: Text) -> Text:
     Let templated be desugarTemplates(s, 1, 0, 0, "").

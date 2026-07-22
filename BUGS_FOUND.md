@@ -687,3 +687,25 @@ evaluates the paren inner through the full `jsEvalIn` (member resolution + arith
 an atomic value, fixing member-access-inside-parens under outer arithmetic everywhere, not just in
 classes. Locked by a new `class-diff` fuzzer. **81 jsint fuzzers × 3 seeds = 243 runs, 0 diffs vs
 Node.** `extends`/`super`/`instanceof`/static/getters are the remaining E1 increments.
+
+---
+
+**P7 ENGINE — E1.4 CLASS INHERITANCE (`instanceof`, `extends`, `super`):** **instanceof** — a
+class instance carries a class-ancestry chain (e.g. "B,A", most-derived first) in a native
+class-tag SIDE TABLE keyed by heap handle (`class_tag_set`/`class_tag_get` in the toolchain's
+`logicaffeine_system::env`, local-only), so the tag never leaks into `Object.keys`/`JSON.stringify`;
+`new C()` stamps `instanceChain(C)` and a depth-aware `resolveInstanceof` (top-level `instanceof`
+only — a parenthesized one is handled when the paren interior evaluates) tests chain membership. A
+non-object left operand has no chain → false. **extends/super** — `class B extends A {…}` desugars to
+`function B(…){ __super__ A (superArgs) ; <B methods> <B ctor body minus super> }` with the parent
+recorded as `__super_B = "A"` (drives `instanceChain`, so `b instanceof A` holds through any depth).
+`super(args)` is rewritten to `__super__ A (args)` and run FIRST via an `execStmt` handler that
+invokes the parent constructor with THIS (`callMethod`), populating inherited fields+methods
+through the heap handle; the child's own method assignments come AFTER, so a child method OVERRIDES
+the parent's. Multi-level inheritance recurses naturally (parent ctor runs its own `__super__`).
+**Bugs fixed:** BUG-36 struck again (an Int-returning depth scanner `topInstanceofIdx` tripped the
+constant-specializer → E0308) — added a growing `Text` guard like `topTernaryQ`; and `__super_B`
+stores a tagged string value, so `instanceChain` must `materialize` the parent name or the chain
+gets a `\x03A` that never matches `A`. Locked by a new `classinherit-diff` fuzzer. **82 jsint
+fuzzers × 3 seeds = 246 runs, 0 diffs vs Node.** Remaining E1: `static` methods, getters/setters,
+private `#fields` — then E2 (async/Promise).
