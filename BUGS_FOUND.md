@@ -952,3 +952,24 @@ are untouched. KNOWN-STILL-OPEN (separate, pre-existing, reproduces with a named
 `substitute` at capture time and that path doesn't carry Map/Set heap handles; proper lexical closures
 are a later fix. New `hofregex-diff` fuzzer. **92 jsint fuzzers, 276 runs across seeds 1–3, 0 diffs;
 gate GREEN.**
+
+---
+
+**Sync HOF callbacks now resolve outer heap-ref free vars by name (2026-07-22).** `arr.map(x=>obj[x])`,
+`arr.filter(x=>set.has(x))`, `arr.map(x=>lookup.get(x))` — reading an OUTER array / object / Map / Set
+from inside a callback — all returned NaN/empty. Value free vars (`x=>x>threshold`, `x=>x*factor`)
+worked, which pinpointed the cause: `fnArgVal` captured every callback via `funcValueOf(substitute(s,
+env))`, and `substitute` bakes each free var's VALUE into the body. Baking a number is fine, but baking
+a heap ref inline yields `<ref>[x]` / `<ref>.get(x)`, whose base is a raw ref that index/method dispatch
+resolves by NAME (only dot-property access handles an inline ref) → NaN (or, once the callback-body
+guard deferred `.get`, a stack overflow). The key realisation: a SYNC higher-order callback runs
+immediately, and `callFnIdx`/`callFn2` execute its body in the *enclosing* env — so its free vars can
+just resolve by name at call time; baking is unnecessary there. (It's necessary only for the async
+`.then`/`.catch`/`.finally` reactions, which drain LATER when the defining env is gone.) Added
+`fnArgValRaw` (= `funcValueOf(s)` with no `substitute`) and pointed the 10 sync HOFs at it —
+`map`/`filter`/`some`/`every`/`find`/`findIndex`/`reduce`/`sort`/`flatMap`/`Array.from(x, fn)` — while
+`.then`/`.catch`/`.finally`/`new Promise` keep `fnArgVal`. Now outer array/object/Map/Set reads inside
+sync callbacks match Node; value closures, returned-from-a-function closures, aliasing, sort/reduce,
+and regex-in-callback all unaffected. New `refclosure-diff` fuzzer. **93 jsint fuzzers, 0 diffs; gate
+GREEN.** STILL-OPEN (separate): a callback that MUTATES an outer ref (`arr.forEach(x=>out.push(x))`) —
+`forEach` isn't implemented yet; and a NAMED callback storing a ref free var still bakes at assignment.

@@ -2393,6 +2393,18 @@
         Return funcValueOf(substitute(s, env)).
     Return jsEvalIn(s, env).
 
+# Synchronous higher-order callbacks (map/filter/some/every/find/reduce/sort/…) run immediately, and
+# callFnIdx/callFn2 execute the body in the enclosing env — so free variables resolve by NAME at call
+# time. Unlike fnArgVal (used for the async .then/.catch/.finally reactions that drain LATER, when the
+# defining env is gone, so those must bake free-var VALUES via substitute), a sync callback must NOT
+# bake: baking a heap-ref free var inline (e.g. `x=>a[x]` or `x=>m.get(x)`) yields `<ref>[x]` /
+# `<ref>.get(x)` whose base is an inline ref that index/method dispatch resolves by name → NaN. Keeping
+# the name lets it resolve against the live handle in the enclosing env.
+## To fnArgValRaw (s: Text, env: Text) -> Text:
+    If startsWith(s, "function ("):
+        Return funcValueOf(s).
+    Return jsEvalIn(s, env).
+
 ## To arrFilterLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -2899,7 +2911,7 @@
         Let args be patFields(methodArg(aft)).
         Let base be arrFromBase(jsEvalIn(trim(item 1 of args), env)).
         If length of args is greater than 1:
-            Return resolveMethods(trim(concat(concat(bef, arrFromMap(base, fnArgVal(trim(item 2 of args), env), env)), rst)), env).
+            Return resolveMethods(trim(concat(concat(bef, arrFromMap(base, fnArgValRaw(trim(item 2 of args), env), env)), rst)), env).
         Return resolveMethods(trim(concat(concat(bef, base), rst)), env).
     If substringBefore(expr, "Array . of (") is not equal to expr:
         Let bef be substringBefore(expr, "Array . of (").
@@ -2961,7 +2973,7 @@
         Let raw be jsEvalIn(recv, env).
         Let atoks be split(argStr, " ").
         Let cIdx be exprBodyEnd(atoks, 1, 0, "").
-        Let fnval be fnArgVal(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
+        Let fnval be fnArgValRaw(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
         Let initVal be jsEvalIn(trim(joinRange(atoks, cIdx + 1, length of atoks, "")), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, initVal, env)), rst)), env).
     If lm is equal to " . flatMap (":
@@ -2972,7 +2984,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlatMap(raw, fnval, env)), rst)), env).
     If lm is equal to " . map (":
         Let bef be substringBefore(expr, " . map (").
@@ -2982,7 +2994,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrMap(raw, fnval, env)), rst)), env).
     If lm is equal to " . filter (":
         Let bef be substringBefore(expr, " . filter (").
@@ -2992,7 +3004,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
     If lm is equal to " . concat (":
         Let bef be substringBefore(expr, " . concat (").
@@ -3030,7 +3042,7 @@
         Let raw be jsEvalIn(recv, env).
         If trim(concat(argStr, "")) is equal to "":
             Return resolveMethods(trim(concat(concat(concat(prefix, " "), sortArr(raw, "default", "", env)), rst)), env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sortArr(raw, "cmp", fnval, env)), rst)), env).
     If lm is equal to " . some (":
         Let bef be substringBefore(expr, " . some (").
@@ -3040,7 +3052,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(arrSome(raw, fnval, env))), rst)), env).
     If lm is equal to " . every (":
         Let bef be substringBefore(expr, " . every (").
@@ -3050,7 +3062,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(arrEvery(raw, fnval, env))), rst)), env).
     If lm is equal to " . find (":
         Let bef be substringBefore(expr, " . find (").
@@ -3060,7 +3072,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFind(raw, fnval, env)), rst)), env).
     If lm is equal to " . reverse (":
         Let bef be substringBefore(expr, " . reverse (").
@@ -3268,7 +3280,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let fnval be fnArgVal(trim(argStr), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(arrFindIndex(raw, fnval, env))), rst)), env).
     Return expr.
 
