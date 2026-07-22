@@ -773,3 +773,19 @@ work (`bindReject` binds the second only when present). Chaining and `.then` on 
 in E2.1. Verified: `new Promise(res=>res(42)).then(log)` → 42, 2-param, chained, `let p = new
 Promise(...)`. `promise-diff` fuzzer extended with `new Promise` cases. **85 fuzzers, 0 diffs.**
 `.catch`/`.finally`/`Promise.all` and `async`/`await` remain.
+
+---
+
+**P7 ENGINE — E2.3 async/await:** modern async syntax on the synchronous-drain model. `await p`
+is handled in `jsEvalIn` (a leading-`await ` prefix): it evaluates the operand, and if the result
+is a promise it **drains the microtask queue** (settling any pending `.then` chain), then reads the
+promise's `__pvalue` — so `await Promise.resolve(x).then(f)` yields the fully-resolved value; a
+non-promise operand is its own value. `async` adds no new control flow here, so `stripAsync`
+(a `normalizeJs` step, after `normJs` so string spaces are already chr4-encoded and untouched)
+removes it: `async function` → `function`, `async (` / `async x =>` → the plain arrow. An async
+function then runs like any function and `await` extracts its awaited values inline. Verified:
+`await Promise.resolve`, multiple sequential awaits, `await` of another async function's return,
+`await` of a `.then` chain, and `async () => {…}` arrows — all match Node. `promise-diff` fuzzer
+extended with async/await programs. **85 fuzzers, 0 diffs.** Scope: `asyncFn().then(...)` (result
+used without `await`) doesn't yet auto-wrap the return in a promise; `.catch`/`.finally`/
+`Promise.all` and generators (E3) are next.

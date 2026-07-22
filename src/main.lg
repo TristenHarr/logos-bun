@@ -1046,6 +1046,14 @@
     Let d be runExecutor(executor, concat("__PRES__", refId(concat(p, ""))), concat("__PREJ__", refId(concat(p, ""))), env).
     Return concat(p, "").
 
+# await p: in a synchronous engine we drain the microtask queue so any pending promise (e.g. a
+# `.then` chain) settles, then read its resolved value; a non-promise operand is its own value.
+## To awaitValue (v: Text) -> Text:
+    If isPromise(v):
+        Let d be drainMicrotasks("").
+        Return objGet(concat(v, ""), "__pvalue").
+    Return concat(v, "").
+
 # p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
 # id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
 # Returns a fresh pending promise the drain will settle with f's return.
@@ -3023,6 +3031,8 @@
 
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let te be trim(resolveInstanceof(resolveProcessEnv(expr), env)).
+    If startsWith(te, "await "):
+        Return awaitValue(jsEvalIn(substringAfter(te, "await "), env)).
     Let tks be split(te, " ").
     Let qIdx be topTernaryQ(tks, 1, 0, "").
     If qIdx is greater than 0:
@@ -4004,10 +4014,16 @@
     Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "")), " ; ").
     Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
+# `async` adds no new control flow in this synchronous-drain model — an async function runs like
+# any function and `await` extracts a promise's settled value — so it is stripped: `async function`
+# → `function`, `async (`/`async x =>` → the plain arrow. (`await` itself is handled in jsEvalIn.)
+## To stripAsync (s: Text) -> Text:
+    Return replaceAll(replaceAll(replaceAll(s, "async function", "function"), "async (", "("), "async ", "").
+
 ## To normalizeJs (s: Text) -> Text:
     Let templated be desugarTemplates(s, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarClass(desugarArrows(normed)), " "), 1, "").
+    Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(normed))), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
