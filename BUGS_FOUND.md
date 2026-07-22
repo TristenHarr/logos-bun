@@ -1025,3 +1025,20 @@ pattern truncated to `[` (unterminated class → stack overflow). Added chr(34) 
 boundary) — now ANY string arg containing a comma (`f("a,b", c)`) splits correctly, not just regexes.
 New `regexops-diff` fuzzer. **96 jsint fuzzers, 0 diffs; gate GREEN.** Deferred: `$&`/`$1` replacement
 patterns and capture groups (literal replacement only for now).
+
+---
+
+**parseInt/Number crash + NaN ordering comparisons (2026-07-22).** `parseInt("42px")` PANICKED —
+`globalCall` routed both `parseInt` and `Number` straight to the native `parseInt`, which aborts on any
+non-integer text (`Cannot parse '42px' as Int`). A crash is worse than a wrong value. Replaced with
+pure-LOGOS parsers matching JS: `jsParseIntText` is lenient — trim, optional sign, take the leading
+digit run, ignore the tail (`"42px"`→42, `"3 apples"`→3), NaN with no leading digit; `jsNumberText` is
+strict — the whole trimmed string must be numeric (`"42px"`→NaN), `""`→0, and a leading `+` is stripped
+(`"+5"`→5). Both `decodeStr` the value first so chr-encoded string spaces (`"  17  "`) are seen as real
+whitespace. Building the fuzzer then caught a second, deeper bug it now exposes constantly: **NaN
+ordering comparisons returned true.** `NaN > 10` was `true` (should be `false`) — `==`/`===`/`!=`/`!==`
+already had `eitherNaN` guards but `<`/`>`/`<=`/`>=` did not, so they fell to `cmpVals` which
+string-compared `"NaN"`. Added the `eitherNaN`→`false` guard to all four ordering operators (any
+comparison with a NaN operand is false in JS). `parseInt("abc")>10`→false, normal comparisons intact.
+New `parseint-diff` fuzzer. **97 jsint fuzzers, 0 diffs; gate GREEN.** (`Number("3.5")`→NaN is the
+known integer-only-engine float gap, not a Number bug; parseInt radix `parseInt("ff",16)` unhandled.)

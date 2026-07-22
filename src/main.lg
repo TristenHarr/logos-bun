@@ -737,9 +737,13 @@
         Return toText(jsBnot(parseInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
     If hasSep(expr, " >= "):
         Let parts be split(expr, " >= ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
@@ -763,9 +767,13 @@
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than 0).
     If hasSep(expr, " > "):
         Let parts be split(expr, " > ").
+        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+            Return "false".
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
     Return evalValue(expr).
 
@@ -1241,15 +1249,59 @@
     Let discard be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), "fulfilled", result).
     Return drainMicrotasks(concat(guard, "x")).
 
+# JS parseInt is lenient: skip leading whitespace + optional sign, take the leading digit run, ignore
+# the rest ("42px"->42), NaN if no digit. The native parseInt PANICS on any non-integer, so jsint
+# must never hand it arbitrary user text — these pure-LOGOS parsers extract the prefix instead.
+## To digitsPrefix (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let ch be item i of s.
+    Let o be ord(ch).
+    If o is greater than or equal to 48:
+        If o is less than or equal to 57:
+            Return digitsPrefix(s, i + 1, concat(acc, ch)).
+    Return acc.
+
+## To jsParseIntText (s: Text) -> Text:
+    Let t be trim(s).
+    If startsWith(t, "-"):
+        Let ds be digitsPrefix(substringAfter(t, "-"), 1, "").
+        If ds is equal to "":
+            Return "NaN".
+        Return concat("-", ds).
+    If startsWith(t, "+"):
+        Let ds be digitsPrefix(substringAfter(t, "+"), 1, "").
+        If ds is equal to "":
+            Return "NaN".
+        Return ds.
+    Let ds be digitsPrefix(concat(t, ""), 1, "").
+    If ds is equal to "":
+        Return "NaN".
+    Return ds.
+
+# JS Number() is stricter than parseInt: the WHOLE (trimmed) string must be numeric, empty -> 0, else NaN.
+## To jsNumberText (s: Text) -> Text:
+    Let t be trim(s).
+    If t is equal to "":
+        Return "0".
+    If startsWith(t, "+"):
+        Let rest be substringAfter(t, "+").
+        If isIntStr(concat(rest, "")):
+            Return rest.
+        Return "NaN".
+    If isIntStr(concat(t, "")):
+        Return t.
+    Return "NaN".
+
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "String", "Number", "Boolean"].
     Return names contains name.
 
 ## To globalCall (name: Text, av: Text) -> Text:
     If name is equal to "parseInt":
-        Return toText(parseInt(materialize(av))).
+        Return jsParseIntText(decodeStr(materialize(av))).
     If name is equal to "Number":
-        Return toText(parseInt(materialize(av))).
+        Return jsNumberText(decodeStr(materialize(av))).
     If name is equal to "String":
         Return concat(tagStr (), materialize(av)).
     If name is equal to "Boolean":
