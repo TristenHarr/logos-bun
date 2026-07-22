@@ -31,6 +31,13 @@
 ## To native genReset () -> Unit
 ## To native genPush (value: Text) -> Unit
 ## To native genSnapshot () -> Text
+## To native jsBand (a: Int, b: Int) -> Int
+## To native jsBor (a: Int, b: Int) -> Int
+## To native jsBxor (a: Int, b: Int) -> Int
+## To native jsBnot (a: Int) -> Int
+## To native jsShl (a: Int, b: Int) -> Int
+## To native jsShr (a: Int, b: Int) -> Int
+## To native jsUshr (a: Int, b: Int) -> Int
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -726,6 +733,8 @@
 ## To jsEvalCmp (expr: Text) -> Text:
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
+    If startsWith(trim(expr), "~ "):
+        Return toText(jsBnot(parseInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
@@ -826,6 +835,34 @@
         Return jsNullishVal(parts, i + 1).
     Return v.
 
+# Bitwise precedence tiers (JS: | < ^ < & < shift, all below && and above comparison; shift is
+# actually tighter than comparison, but shift-with-comparison is rare so it is placed here for a
+# single clean chain). Operands coerce to 32-bit ints via the native js_b* ops. `~` (unary NOT) is
+# handled in jsEvalCmp alongside `!`.
+## To jsEvalShift (expr: Text) -> Text:
+    If hasSep(expr, " >>> "):
+        Return toText(jsUshr(parseInt(jsEvalCmp(substringBefore(expr, " >>> "))), parseInt(jsEvalShift(substringAfter(expr, " >>> "))))).
+    If hasSep(expr, " << "):
+        Return toText(jsShl(parseInt(jsEvalCmp(substringBefore(expr, " << "))), parseInt(jsEvalShift(substringAfter(expr, " << "))))).
+    If hasSep(expr, " >> "):
+        Return toText(jsShr(parseInt(jsEvalCmp(substringBefore(expr, " >> "))), parseInt(jsEvalShift(substringAfter(expr, " >> "))))).
+    Return jsEvalCmp(expr).
+
+## To jsEvalBitAnd (expr: Text) -> Text:
+    If hasSep(expr, " & "):
+        Return toText(jsBand(parseInt(jsEvalShift(substringBefore(expr, " & "))), parseInt(jsEvalBitAnd(substringAfter(expr, " & "))))).
+    Return jsEvalShift(expr).
+
+## To jsEvalBitXor (expr: Text) -> Text:
+    If hasSep(expr, " ^ "):
+        Return toText(jsBxor(parseInt(jsEvalBitAnd(substringBefore(expr, " ^ "))), parseInt(jsEvalBitXor(substringAfter(expr, " ^ "))))).
+    Return jsEvalBitAnd(expr).
+
+## To jsEvalBitOr (expr: Text) -> Text:
+    If hasSep(expr, " | "):
+        Return toText(jsBor(parseInt(jsEvalBitXor(substringBefore(expr, " | "))), parseInt(jsEvalBitOr(substringAfter(expr, " | "))))).
+    Return jsEvalBitXor(expr).
+
 ## To jsEvalLogic (expr: Text) -> Text:
     If hasSep(expr, " ?? "):
         Return jsNullishVal(split(expr, " ?? "), 1).
@@ -833,7 +870,7 @@
         Return jsOrVal(split(expr, " || "), 1).
     If hasSep(expr, " && "):
         Return jsAndVal(split(expr, " && "), 1).
-    Return jsEvalCmp(expr).
+    Return jsEvalBitOr(expr).
 
 ## To jsEvalTernary (expr: Text) -> Text:
     If hasSep(expr, " ? "):
@@ -3802,6 +3839,8 @@
 ## To isOp3 (t: Text) -> Bool:
     If t is equal to "===":
         Return true.
+    If t is equal to ">>>":
+        Return true.
     If t is equal to "!==":
         Return true.
     If t is equal to "...":
@@ -3816,6 +3855,10 @@
 
 ## To isOp2 (t: Text) -> Bool:
     If t is equal to "**":
+        Return true.
+    If t is equal to "<<":
+        Return true.
+    If t is equal to ">>":
         Return true.
     If t is equal to "??":
         Return true.
@@ -3848,7 +3891,7 @@
     Return false.
 
 ## To isOp1 (c: Text) -> Bool:
-    Let ops be ["+", "-", "*", "/", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ",", "."].
+    Let ops be ["+", "-", "*", "/", "%", "<", ">", "(", ")", ";", "?", ":", "=", "!", ",", ".", "&", "|", "^", "~"].
     If ops contains c:
         Return true.
     If c is equal to chr(123):

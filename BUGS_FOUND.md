@@ -862,3 +862,19 @@ exact divisions (a = b·k). Verified division mixed with `+ - *` under precedenc
 fuzzers, 0 diffs.** (Regex *literals* `/pat/flags` were attempted but reverted — the `__REGEXLIT`
 opaque-token encoding didn't survive normalization for special-char patterns, and the `/` division
 tokenizer change must land first; regex literals are a focused follow-up on top of `new RegExp`.)
+
+---
+
+**P7 ENGINE — E5 BITWISE (`& | ^ ~ << >> >>>`) + a LOGOS compiler fix:** JS bitwise operators
+coerce operands to 32-bit signed ints. Added seven native i32 ops (`js_band`/`js_bor`/`js_bxor`/
+`js_bnot`/`js_shl`/`js_shr`/`js_ushr`, local-only toolchain) and four precedence tiers wired into
+the eval chain: `jsEvalLogic → jsEvalBitOr(|) → jsEvalBitXor(^) → jsEvalBitAnd(&) → jsEvalShift
+(<< >> >>>) → jsEvalCmp` (JS precedence `| < ^ < &`; shift is nominally tighter than comparison but
+placed here for one clean chain — shift-with-comparison is rare); `~` (unary NOT) is handled in
+`jsEvalCmp` beside `!`. `&`/`|`/`^`/`~` added to `isOp1`, `<<`/`>>` to `isOp2`, `>>>` to `isOp3` so
+the tokenizer spaces them. Verified `5&3`→1, `5|2`→7, `~5`→-6, `1<<4`→16, `255>>>4`→15, precedence
+`5&3|8`→9, `6&3^1`→3 — all vs Node. **Compiler bug fixed:** the new tiers tripped LOGOS's automatic
+function memoization, whose codegen `insert(key, __memo_result)` then `return __memo_result` moved
+the value twice (E0382); fixed the generator to `insert(key, __memo_result.clone())` — a general fix
+for any memoized function. New `bitwise-diff` fuzzer. **89 jsint fuzzers, 0 diffs.** Map/Set/Symbol/
+BigInt/Date and regex literals remain.
