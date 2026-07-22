@@ -988,3 +988,19 @@ pre-existing gaps this surfaced but did NOT fix (both reproduce OUTSIDE forEach)
 EXPRESSION position — `let n=a.push(2)` yields garbage `2 . push 2 …` (push is a statement-only
 handler; the arrow expression body `x=>a.push(x)` hits this); (2) reassigning an outer SCALAR from a
 callback (`sum=sum+x`) doesn't propagate — the callback env is a copy. Both logged for follow-up.
+
+---
+
+**Array.push in expression position + multiple args (2026-07-22).** `push` only worked as a bare
+statement (`arr.push(x)`); in EXPRESSION position it fell through to garbage — `let n=a.push(2)` →
+`2 . push 2 …`, and `x=>a.push(x)` (an arrow's expression body) never mutated. And multi-arg
+`a.push(1,2,3)` fed the whole `1,2,3` to `jsEvalIn` as one value → NaN. Added a `. push (` handler to
+the position-ordered leftmostOf family (NOT a bare-occurrence handler — so an inner `.push` inside a
+callback body stays hidden until the enclosing `.map`/`.filter` captures the closure, and it can't
+fire twice): it pushes each arg via a new `arrPushAll` (which mutates the array's heap slot in place
+through the handle, so aliases see it) and returns the new length, matching JS. The statement handler
+now also routes through `arrPushAll` so `a.push(1,2,3)` works. `let n=a.push(2)` → `2,1,2`,
+`console.log(a.push(v))`, `forEach(x=>o.push(x*2))`, and multi-arg push all match Node; statement push,
+aliasing, and push-then-sort unaffected. New `pushexpr-diff` fuzzer. **95 jsint fuzzers, 0 diffs; gate
+GREEN.** Note: a BARE `arr.map(x=>o.push(x))` statement (map for a push side effect — an anti-pattern;
+use forEach) still drops the mutation, a pre-existing bare-expression-statement quirk, not a push bug.
