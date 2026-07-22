@@ -999,18 +999,38 @@
 # When a pending promise settles, its registered reactions (each a {fn,res} recorded by a `.then`
 # that ran before the promise was ready) are enqueued as microtasks — so a chained `.then` fires
 # once its upstream promise resolves.
-## To enqueueReactions (reactions: Seq of Text, i: Int, value: Text) -> Text:
+## To enqueueJob (fn: Text, value: Text, resId: Text) -> Text:
+    Let job be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", concat(fn, "")), "val", concat(value, "")), "res", concat(tagStr (), resId)).
+    mtPush(refId(concat(job, ""))).
+    Return "".
+
+# A reaction fires against the settling promise's state: a fulfilled promise runs `onF` (or, if it
+# has none, passes its value straight through to the reaction's result promise); a rejected promise
+# runs `onR` (or propagates the rejection). Whichever handler runs, the drain settles the result
+# promise as fulfilled with the handler's return.
+## To reactOne (onF: Text, onR: Text, onFin: Text, resId: Text, state: Text, value: Text) -> Text:
+    If startsWith(onFin, chr(1)):
+        Let dRun be enqueueJob(onFin, "undefined", refId(concat(newPromise("pending", "undefined"), ""))).
+        Return settlePromise(concat(tagRef (), resId), state, value).
+    If state is equal to "fulfilled":
+        If startsWith(onF, chr(1)):
+            Return enqueueJob(onF, value, resId).
+        Return settlePromise(concat(tagRef (), resId), "fulfilled", value).
+    If startsWith(onR, chr(1)):
+        Return enqueueJob(onR, value, resId).
+    Return settlePromise(concat(tagRef (), resId), "rejected", value).
+
+## To enqueueReactions (reactions: Seq of Text, i: Int, state: Text, value: Text) -> Text:
     If i is greater than length of reactions:
         Return "".
     Let r be item i of reactions.
-    Let job be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", objGet(concat(r, ""), "fn")), "val", concat(value, "")), "res", objGet(concat(r, ""), "res")).
-    mtPush(refId(concat(job, ""))).
-    Return enqueueReactions(reactions, i + 1, value).
+    Let d be reactOne(objGet(concat(r, ""), "onF"), objGet(concat(r, ""), "onR"), objGet(concat(r, ""), "onFin"), materialize(objGet(concat(r, ""), "res")), state, value).
+    Return enqueueReactions(reactions, i + 1, state, value).
 
 ## To settlePromise (pref: Text, state: Text, value: Text) -> Text:
     Let d1 be objSet(concat(pref, ""), "__pstate", concat(tagStr (), state)).
     Let d2 be objSet(concat(pref, ""), "__pvalue", concat(value, "")).
-    Let d3 be enqueueReactions(arrElements(objGet(concat(pref, ""), "__preactions")), 1, concat(value, "")).
+    Let d3 be enqueueReactions(arrElements(objGet(concat(pref, ""), "__preactions")), 1, concat(state, ""), concat(value, "")).
     Return concat(pref, "").
 
 ## To callWith1 (fnVal: Text, value: Text, env: Text) -> Text:
@@ -1057,16 +1077,50 @@
 # p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
 # id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
 # Returns a fresh pending promise the drain will settle with f's return.
+# Register a reaction {onF,onR,res} on a pending promise (fires when it settles). onF/onR is a
+# function value or "" when this handler is not supplied (then/catch pass the missing one as "").
+## To registerReaction (pval: Text, onF: Text, onR: Text, onFin: Text, resultP: Text) -> Text:
+    Let r0 be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "onF", concat(onF, "")), "onR", concat(onR, "")), "onFin", concat(onFin, "")).
+    Return arrPush(objGet(concat(pval, ""), "__preactions"), concat(objSet(concat(r0, ""), "res", concat(tagStr (), refId(concat(resultP, "")))), "")).
+
 ## To promiseThen (pval: Text, f: Text, env: Text) -> Text:
     If isPromise(pval):
         Let resultP be newPromise("pending", "undefined").
         If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "fulfilled":
-            Let job be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", concat(f, "")), "val", objGet(concat(pval, ""), "__pvalue")), "res", concat(tagStr (), refId(concat(resultP, "")))).
-            mtPush(refId(concat(job, ""))).
+            Let d be enqueueJob(f, objGet(concat(pval, ""), "__pvalue"), refId(concat(resultP, ""))).
             Return resultP.
-        Let reaction be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", concat(f, "")), "res", concat(tagStr (), refId(concat(resultP, "")))).
-        Let dReg be arrPush(objGet(concat(pval, ""), "__preactions"), concat(reaction, "")).
+        If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "rejected":
+            Let d be settlePromise(resultP, "rejected", objGet(concat(pval, ""), "__pvalue")).
+            Return resultP.
+        Let dReg be registerReaction(pval, f, "", "", resultP).
         Return resultP.
+    Return newPromise("fulfilled", concat(pval, "")).
+
+## To promiseCatch (pval: Text, f: Text, env: Text) -> Text:
+    If isPromise(pval):
+        Let resultP be newPromise("pending", "undefined").
+        If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "rejected":
+            Let d be enqueueJob(f, objGet(concat(pval, ""), "__pvalue"), refId(concat(resultP, ""))).
+            Return resultP.
+        If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "fulfilled":
+            Let d be settlePromise(resultP, "fulfilled", objGet(concat(pval, ""), "__pvalue")).
+            Return resultP.
+        Let dReg be registerReaction(pval, "", f, "", resultP).
+        Return resultP.
+    Return newPromise("fulfilled", concat(pval, "")).
+
+# p.finally(f): run f for its side effect regardless of outcome, then settle the result promise
+# with p's ORIGINAL state and value (finally is transparent to the chain). f runs as a microtask
+# against a throwaway promise so its return is ignored.
+## To promiseFinally (pval: Text, f: Text, env: Text) -> Text:
+    If isPromise(pval):
+        Let st be materialize(objGet(concat(pval, ""), "__pstate")).
+        If st is equal to "pending":
+            Let resultP be newPromise("pending", "undefined").
+            Let dReg be registerReaction(pval, "", "", f, resultP).
+            Return resultP.
+        Let dRun be enqueueJob(f, "undefined", refId(concat(newPromise("pending", "undefined"), ""))).
+        Return newPromise(st, objGet(concat(pval, ""), "__pvalue")).
     Return newPromise("fulfilled", concat(pval, "")).
 
 # Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
@@ -2496,6 +2550,18 @@
         Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
         Let thenP be promiseThen(pval, fnArgVal(trim(methodArg(aft)), env), env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), thenP), methodRest(aft))), env).
+    If substringBefore(expr, " . catch (") is not equal to expr:
+        Let bef be substringBefore(expr, " . catch (").
+        Let aft be substringAfter(expr, " . catch (").
+        Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
+        Let catchP be promiseCatch(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), catchP), methodRest(aft))), env).
+    If substringBefore(expr, " . finally (") is not equal to expr:
+        Let bef be substringBefore(expr, " . finally (").
+        Let aft be substringAfter(expr, " . finally (").
+        Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
+        Let finP be promiseFinally(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), finP), methodRest(aft))), env).
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").

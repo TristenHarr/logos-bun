@@ -789,3 +789,18 @@ function then runs like any function and `await` extracts its awaited values inl
 extended with async/await programs. **85 fuzzers, 0 diffs.** Scope: `asyncFn().then(...)` (result
 used without `await`) doesn't yet auto-wrap the return in a promise; `.catch`/`.finally`/
 `Promise.all` and generators (E3) are next.
+
+---
+
+**P7 ENGINE — E2.4 `.catch` / `.finally` (reaction model):** to handle rejection paths the promise
+reaction was generalized from a single `fn` to `{onF, onR, onFin, res}`. `settlePromise` now passes
+its state to `reactOne`, which fires the matching handler: a fulfilled promise runs `onF` (or passes
+its value straight through to the reaction's result promise when there is none); a rejected promise
+runs `onR` (or propagates the rejection) — so a rejection flows through `.then` to a downstream
+`.catch`. `.then(f)` registers `{onF:f}`, `.catch(f)` registers `{onR:f}`. `.finally(f)` is
+transparent: `onFin` runs `f` for its side effect against a throwaway promise and settles the result
+with the *original* state+value (a settled promise is mirrored directly; a pending one registers an
+`onFin` reaction). Verified: `Promise.reject(e).catch`, rejection-through-`.then`-to-`.catch`,
+`new Promise(rej).catch`, `.finally` after both resolve and reject and mid-chain (value passes
+through). `promise-diff` fuzzer extended with catch/finally programs. **85 fuzzers, 0 diffs.**
+`Promise.all`/`.race`/`.allSettled` and generators (E3) remain.

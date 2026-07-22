@@ -22,10 +22,13 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const sn = () => 1 + ri(9);
   const program = () => {
-    const k = ri(12), a = sn(), b = sn(), c = sn();
+    const k = ri(15), a = sn(), b = sn(), c = sn();
     if (k === 9) return `async function f(){let x=await Promise.resolve(${a});console.log(x+${b})};f();`;
     if (k === 10) return `async function m(){return ${a}};async function f(){let v=await m();console.log(v*${b})};f();`;
     if (k === 11) return `async function f(){let x=await Promise.resolve(${a}).then(v=>v+${b});console.log(x)};f();`;
+    if (k === 12) return `Promise.reject(${a}).catch(e=>console.log("caught",e));`;
+    if (k === 13) return `Promise.reject(${a}).then(x=>console.log("ok")).catch(e=>console.log("caught",e));`;
+    if (k === 14) return `Promise.resolve(${a}).then(x=>x+${b}).finally(()=>console.log("fin")).then(v=>console.log(v));`;
     if (k === 0) return `Promise.resolve(${a}).then(x=>console.log(x));console.log(${b});`;
     if (k === 1) return `Promise.resolve(${a}).then(x=>x*${b}).then(y=>console.log(y));`;
     if (k === 2) return `console.log(${a});Promise.resolve().then(()=>console.log(${b}));console.log(${c});`;
