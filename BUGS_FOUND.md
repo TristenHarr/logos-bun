@@ -1505,3 +1505,19 @@ sweep GREEN. STILL OPEN (logged): a `throw` inside a CALLED function doesn't pro
 try/catch — `function f(){throw new Error("x")} try{f()}catch(e){…}` misses it — because callFn/callMethod
 return only the value, not the pending `__throw`; threading exception state through the value-return path
 is a separate increment.
+
+---
+
+**Exceptions across call boundaries (2026-07-22).** A `throw` inside a called function never reached an
+outer `try/catch` — `function f(){throw new Error("x")} try{f()}catch(e){…}` silently missed it — because
+callFn/callMethod hand back only the return VALUE, so the callee's `__throw` env flag died with its frame.
+Direct `throw` in a try worked; a throw one call-frame deep did not. Fixed with a thread-local pending-throw
+channel (four natives: throwSet/throwGet/throwPending/throwClear), mirroring the heap/microtask
+thread-locals: when a body leaves `__throw` set, callFn/callMethod stash the thrown value there
+(maybePropagateThrow); after every statement, runBlock drains it back into THAT block's env as `__throw`
+(drainPendingThrow), where the ordinary halt + try/catch machinery resumes. It chains through any depth
+(g→f→try) and composes with finally. One nuance handled: a throwing call nested inside a side-effecting one
+in the same statement — `console.log(chk(-1))` — used to print a spurious value before the throw drained;
+doConsoleLog now checks throwPending after formatting and skips the output. Direct throws, no-throw calls,
+recursion (`fib(10)` = 55), and returned values are all unchanged. New `throwprop-diff` fuzzer (1000
+programs/5 seeds, 0 diffs); full 125-fuzzer sweep GREEN. Toolchain pending-throw natives added (LOCAL).

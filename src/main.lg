@@ -67,6 +67,14 @@
 
 ## To native moduleCacheSet (path: Text, blob: Text) -> Text
 
+## To native throwSet (v: Text) -> Text
+
+## To native throwGet () -> Text
+
+## To native throwPending () -> Text
+
+## To native throwClear () -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -1057,6 +1065,7 @@
     Let body be decFn(substringAfter(afterMark, chr(1))).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
     Let doneEnv be runBlockStr(body, localEnv).
+    Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return envGet(doneEnv, "__ret").
 
 ## To callFn2 (fnVal: Text, v1: Text, v2: Text, env: Text) -> Text:
@@ -1079,6 +1088,7 @@
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
     Let doneEnv be runBlockStr(body, localEnv).
+    Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return envGet(doneEnv, "__ret").
 
 # Accessor properties (class `get x(){…}` / `set x(v){…}`) are stored as `__get_x` / `__set_x`
@@ -4645,6 +4655,21 @@
         Return env.
     Return env.
 
+# A callee that threw stashes the value in the thread-local pending-throw channel (throwSet); after each
+# statement runBlock drains it back into THIS block's env as `__throw`, so the ordinary halt + try/catch
+# machinery takes over — this is what carries a `throw` out of a called function to the caller's try.
+## To maybePropagateThrow (env: Text) -> Text:
+    If hasThrow(env):
+        Return throwSet(envGet(env, "__throw")).
+    Return "".
+
+## To drainPendingThrow (env: Text) -> Text:
+    If throwPending() is equal to "1":
+        Let tv be throwGet().
+        Let c be throwClear().
+        Return envSet(env, "__throw", tv).
+    Return env.
+
 ## To runBlock (stmts: Seq of Text, i: Int, env: Text) -> Text:
     If i is greater than length of stmts:
         Return env.
@@ -4655,7 +4680,7 @@
     If hasContinue(env):
         Return env.
     Let st be item i of stmts.
-    Return runBlock(stmts, i + 1, execStmt(st, env)).
+    Return runBlock(stmts, i + 1, drainPendingThrow(execStmt(st, env))).
 
 ## To execWhile (stmt: Text, env: Text) -> Text:
     If hasHalt(env):
@@ -5946,7 +5971,10 @@
     Return consoleFmt(args, i + 1, env, concat(concat(acc, " "), piece)).
 
 ## To doConsoleLog (logArg: Text, env: Text) -> Text:
-    puts(concat(decodeStr(consoleFmt(patFields(logArg), 1, env, "")), chr(10))).
+    Let formatted be decodeStr(consoleFmt(patFields(logArg), 1, env, "")).
+    If throwPending() is equal to "1":
+        Return env.
+    puts(concat(formatted, chr(10))).
     Return env.
 
 ## To doConsoleErr (logArg: Text, env: Text) -> Text:
