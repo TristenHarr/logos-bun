@@ -5213,15 +5213,27 @@
         Return false.
     Return true.
 
+# Safe space-token access: the i-th token of s, or "" past the end. classWalk consumes a class body
+# member by member and inspects the second token to tell a field from a method; a single-token member
+# (a bare field `a`, or the remnant of an empty `;;` member) has no second token — `item 2 of` would
+# panic (out of bounds), so all such lookups go through nthTok.
+## To nthTok (s: Text, i: Int) -> Text:
+    Let parts be split(s, " ").
+    If i is greater than length of parts:
+        Return "".
+    Return item i of parts.
+
 ## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text, statics: Text, fields: Text) -> Text:
     Let b be trim(body).
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
         Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods, fields))), " "), chr(125)).
         Return concat(statics, fnDef).
+    If startsWith(b, ";"):
+        Return classWalk(cname, parent, trim(substringAfter(b, ";")), cparams, cbody, methods, statics, fields).
     Let name be item 1 of split(b, " ").
-    If isClassField(name, item 2 of split(b, " ")):
-        If item 2 of split(b, " ") is equal to "=":
+    If isClassField(name, nthTok(concat(b, ""), 2)):
+        If nthTok(concat(b, ""), 2) is equal to "=":
             Let fval be trim(substringBefore(substringAfter(b, " = "), " ; ")).
             Let frest be trim(substringAfter(substringAfter(b, " = "), " ; ")).
             Let finit be concat(concat(concat("this . ", name), concat(" = ", fval)), " ; ").
@@ -5236,19 +5248,19 @@
     If name is equal to "constructor":
         Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics, fields).
     If name is equal to "static":
-        If item 2 of split(b, " ") is not equal to chr(40):
-            Let sname be item 2 of split(b, " ").
+        If nthTok(concat(b, ""), 2) is not equal to chr(40):
+            Let sname be nthTok(concat(b, ""), 2).
             Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
             Let sbind be concat(concat(concat(concat(sHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
             Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind), fields).
     If name is equal to "get":
-        If item 2 of split(b, " ") is not equal to chr(40):
-            Let gHead be concat(concat(concat("this . __get_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
+        If nthTok(concat(b, ""), 2) is not equal to chr(40):
+            Let gHead be concat(concat(concat("this . __get_", nthTok(concat(b, ""), 2)), concat(" = function ( ", params)), " ) ").
             Let gAssign be concat(concat(concat(concat(gHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
             Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, gAssign), statics, fields).
     If name is equal to "set":
-        If item 2 of split(b, " ") is not equal to chr(40):
-            Let stHead be concat(concat(concat("this . __set_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
+        If nthTok(concat(b, ""), 2) is not equal to chr(40):
+            Let stHead be concat(concat(concat("this . __set_", nthTok(concat(b, ""), 2)), concat(" = function ( ", params)), " ) ").
             Let stAssign be concat(concat(concat(concat(stHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
             Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics, fields).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").

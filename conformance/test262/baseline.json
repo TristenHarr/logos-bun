@@ -23,13 +23,13 @@
     "built-ins/TypedArray"
   ],
   "sample": 50,
-  "pass": 861,
-  "fail": 62,
+  "pass": 868,
+  "fail": 55,
   "skip": 77,
-  "pct": 93.28,
+  "pct": 94.04,
   "taxonomy": {
-    "negative-not-thrown": 51,
-    "engine-crash": 11
+    "negative-not-thrown": 52,
+    "engine-crash": 3
   },
   "skips": {
     "async": 53,
