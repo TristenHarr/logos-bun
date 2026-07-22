@@ -815,3 +815,20 @@ array with a rejection routing to `.catch`. `promise-diff` fuzzer extended with 
 programs. **85 fuzzers, 0 diffs.** The Promise surface is now broad — `resolve`/`reject`/`then`/
 chaining/`new Promise`/`async`/`await`/`catch`/`finally`/`all` — with exact microtask ordering.
 `Promise.race`/`allSettled`/`any` and generators (E3) remain.
+
+---
+
+**P7 ENGINE — E3 GENERATORS (`function*` / `yield` / `.next()` / for-of / spread):** the engine has
+no coroutines, so generators use an **eager-collect** model. `function* g(params){ body }` desugars
+(`desugarGenerators` in `normalizeJs`) to a normal function that brackets its body with `__GENRESET`
+(push a fresh yield buffer onto a native STACK — `gen_reset`/`gen_push`/`gen_snapshot`, thread-local
+in the toolchain, local-only; a stack so a generator running another nests) and `return __GENMAKE`
+(pop the buffer and package the collected yields as a generator object `{__gen_values, __gen_idx}`).
+`yield X` is an `execStmt` case that pushes `X` onto the active buffer. `.next()` (a `resolveMethods`
+case gated on `isGenerator`) advances `__gen_idx` through the heap handle, returning `{value, done}`;
+`for-of` and spread route through a new `iterElements` (a generator yields `__gen_values`, an array
+yields itself). This runs any FINITE generator, including loop-driven ones
+(`function* range(n){ while(i<n){ yield i; i=i+1 } }` → 0..n-1); an infinite `while(true) yield`
+can't be pre-collected (noted). Verified: fixed + computed + loop yields, `.next().done` exhaustion,
+for-of, and `[...g()]` spread — all match Node. New `generator-diff` fuzzer. **86 jsint fuzzers,
+0 diffs.** E4 regex, E5 (Map/Set/Symbol/BigInt/Date/bitwise), E6 modules remain.

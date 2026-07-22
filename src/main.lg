@@ -28,6 +28,9 @@
 ## To native classTagGet (handle: Text) -> Text
 ## To native mtPush (job: Text) -> Unit
 ## To native mtPop () -> Text
+## To native genReset () -> Unit
+## To native genPush (value: Text) -> Unit
+## To native genSnapshot () -> Text
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -1074,6 +1077,32 @@
         Return objGet(concat(v, ""), "__pvalue").
     Return concat(v, "").
 
+# genMake packages the just-collected yields (genSnapshot, chr(6)-joined = array element format)
+# into a generator object; genNext advances its cursor, returning {value, done} and mutating the
+# cursor through the heap handle so repeated .next() calls progress.
+## To genMake () -> Text:
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__gen_values", newArr(concat(concat(tagArr (), genSnapshot()), tagArrEnd ()))), "__gen_idx", "0").
+
+## To genNext (gen: Text) -> Text:
+    Let vals be arrElements(objGet(concat(gen, ""), "__gen_values")).
+    Let idx be parseInt(materialize(objGet(concat(gen, ""), "__gen_idx"))).
+    If idx is greater than (length of vals) - 1:
+        Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "value", "undefined"), "done", "true").
+    Let d be objSet(concat(gen, ""), "__gen_idx", toText(idx + 1)).
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "value", item (idx + 1) of vals), "done", "false").
+
+## To isGenerator (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__gen_values") is not equal to "undefined".
+    Return false.
+
+# The elements to iterate for for-of / spread: an array's own elements, or a generator's collected
+# yields.
+## To iterElements (v: Text) -> Seq of Text:
+    If isGenerator(v):
+        Return arrElements(objGet(concat(v, ""), "__gen_values")).
+    Return arrElements(concat(v, "")).
+
 # p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
 # id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
 # Returns a fresh pending promise the drain will settle with f's return.
@@ -1341,7 +1370,7 @@
         Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
     Let el be trim(item i of elems).
     If startsWith(el, "..."):
-        Let sEls be arrElements(evalValue(trim(substringAfter(el, "...")))).
+        Let sEls be iterElements(evalValue(trim(substringAfter(el, "...")))).
         If length of sEls is less than 1:
             Return buildArr(elems, i + 1, acc).
         Let sJoined be joinChr6(sEls, 1, length of sEls, "").
@@ -2567,6 +2596,11 @@
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
         Return resolveMethods(trim(concat(concat(bef, newPromiseExec(fnArgVal(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
+    If substringBefore(expr, " . next (") is not equal to expr:
+        Let gbef be substringBefore(expr, " . next (").
+        Let grecv be jsEvalIn(recvExpr(concat(gbef, "")), env).
+        If isGenerator(grecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(gbef, "")), " "), genNext(grecv)), methodRest(substringAfter(expr, " . next (")))), env).
     If substringBefore(expr, "Promise . all (") is not equal to expr:
         Let bef be substringBefore(expr, "Promise . all (").
         Let aft be substringAfter(expr, "Promise . all (").
@@ -3513,6 +3547,15 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If s is equal to "__GENRESET":
+        genReset().
+        Return env.
+    If startsWith(s, "yield "):
+        genPush(jsEvalIn(substringAfter(s, "yield "), env)).
+        Return env.
+    If s is equal to "yield":
+        genPush("undefined").
+        Return env.
     If startsWith(s, "__super__ "):
         Let srest be substringAfter(s, "__super__ ").
         Let pname be item 1 of split(srest, " ").
@@ -3532,6 +3575,8 @@
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
+        If trim(substringAfter(s, "return")) is equal to "__GENMAKE":
+            Return envSet(env, "__ret", genMake()).
         If startsWith(trim(substringAfter(s, "return")), "function ("):
             Return envSet(env, "__ret", funcValueOf(substitute(trim(substringAfter(s, "return")), env))).
         If startsWith(trim(substringAfter(s, "return")), "console . log ("):
@@ -3666,7 +3711,7 @@
     Let varName be trim(substringBefore(afterKw, " of ")).
     Let arrExpr be trim(substringAfter(afterKw, " of ")).
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
-    Return forOfLoop(arrElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
+    Return forOfLoop(iterElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
 
 ## To arrIndexKeys (n: Int, i: Int, acc: Text) -> Text:
     If i is greater than n:
@@ -4121,10 +4166,28 @@
 ## To stripAsync (s: Text) -> Text:
     Return replaceAll(replaceAll(replaceAll(s, "async function", "function"), "async (", "("), "async ", "").
 
+# Generators (eager-collect): `function* g(params){ body }` becomes a normal function that brackets
+# its body with `__GENRESET` (start a fresh yield buffer) and `return __GENMAKE` (package the
+# collected yields as a generator object). `yield` statements push onto that buffer as the body
+# runs. This works for finite generators; an infinite `while(true) yield` can't be pre-collected.
+## To desugarGenerators (expr: Text) -> Text:
+    If substringBefore(expr, "function * ") is equal to expr:
+        Return expr.
+    Let bef be substringBefore(expr, "function * ").
+    Let aft be substringAfter(expr, "function * ").
+    Let name be item 1 of split(trim(aft), " ").
+    Let params be trim(substringBefore(substringAfter(aft, chr(40)), chr(41))).
+    Let afterBrace be substringAfter(aft, chr(123)).
+    Let body be braceBody(afterBrace, 1, 0, "").
+    Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+    Let head be concat(concat(concat(concat("function ", name), " ( "), params), " ) ").
+    Let wrapped be concat(concat(concat(head, chr(123)), concat(concat(" __GENRESET ; ", trim(body)), " ; return __GENMAKE ")), chr(125)).
+    Return desugarGenerators(concat(concat(concat(bef, wrapped), " "), remainder)).
+
 ## To normalizeJs (s: Text) -> Text:
     Let templated be desugarTemplates(s, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(normed))), " "), 1, "").
+    Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed)))), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
