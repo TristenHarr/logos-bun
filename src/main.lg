@@ -47,6 +47,10 @@
 
 ## To native jsMath1 (op: Text, x: Text) -> Text
 
+## To native jsMath2 (op: Text, a: Text, b: Text) -> Text
+
+## To native jsMathMaxMin (op: Text, joined: Text) -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -1454,6 +1458,51 @@
         Return acc.
     Let v be safeInt(materialize(jsEvalIn(trim(item i of args), env))).
     Return minFold(args, i + 1, env, minInt(acc, v)).
+
+# Space-join the evaluated (materialized) values of a variadic argument list (for Math.max/min f64).
+## To joinArgVals (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let v be materialize(jsEvalIn(trim(item i of args), env)).
+    If acc is equal to "":
+        Return joinArgVals(args, i + 1, env, v).
+    Return joinArgVals(args, i + 1, env, concat(concat(acc, " "), v)).
+
+# Resolve the leftmost single-argument transcendental Math call (log/exp/trig/…) to jsMath1; returns
+# the expression unchanged if none is present. Longer names come first so `log10`/`log2` win over `log`.
+## To mathUnaryTry (expr: Text, fns: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of fns:
+        Return concat(expr, "").
+    Let fn be item i of fns.
+    Let marker be concat(concat("Math . ", fn), " (").
+    If substringBefore(expr, marker) is not equal to expr:
+        Let bef be substringBefore(expr, marker).
+        Let aft be substringAfter(expr, marker).
+        Return trim(concat(concat(bef, jsMath1(concat(fn, ""), materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))).
+    Return mathUnaryTry(expr, fns, i + 1, env).
+
+## To mathUnary1 (expr: Text, env: Text) -> Text:
+    Return mathUnaryTry(concat(expr, ""), ["log10", "log2", "log1p", "log", "expm1", "exp", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sin", "cos", "tan", "cbrt"], 1, env).
+
+# Math constants → their f64 literal (checked longest-first so E doesn't shadow the L*/E-suffixed ones).
+## To mathConst (expr: Text) -> Text:
+    If substringBefore(expr, "Math . PI") is not equal to expr:
+        Return replaceAll(expr, "Math . PI", "3.141592653589793").
+    If substringBefore(expr, "Math . LN10") is not equal to expr:
+        Return replaceAll(expr, "Math . LN10", "2.302585092994046").
+    If substringBefore(expr, "Math . LN2") is not equal to expr:
+        Return replaceAll(expr, "Math . LN2", "0.6931471805599453").
+    If substringBefore(expr, "Math . LOG10E") is not equal to expr:
+        Return replaceAll(expr, "Math . LOG10E", "0.4342944819032518").
+    If substringBefore(expr, "Math . LOG2E") is not equal to expr:
+        Return replaceAll(expr, "Math . LOG2E", "1.4426950408889634").
+    If substringBefore(expr, "Math . SQRT1_2") is not equal to expr:
+        Return replaceAll(expr, "Math . SQRT1_2", "0.7071067811865476").
+    If substringBefore(expr, "Math . SQRT2") is not equal to expr:
+        Return replaceAll(expr, "Math . SQRT2", "1.4142135623730951").
+    If substringBefore(expr, "Math . E") is not equal to expr:
+        Return replaceAll(expr, "Math . E", "2.718281828459045").
+    Return concat(expr, "").
 
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
@@ -3176,17 +3225,13 @@
         Let aft be substringAfter(expr, "Math . max (").
         Let rst be methodRest(aft).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
-        Let mxFirst be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
-        Let mx be maxFold(args, 2, env, mxFirst).
-        Return resolveMethods(trim(concat(concat(bef, toText(mx)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("max", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . min (").
         Let aft be substringAfter(expr, "Math . min (").
         Let rst be methodRest(aft).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
-        Let mnFirst be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
-        Let mn be minFold(args, 2, env, mnFirst).
-        Return resolveMethods(trim(concat(concat(bef, toText(mn)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("min", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . abs (").
         Let aft be substringAfter(expr, "Math . abs (").
@@ -3202,13 +3247,30 @@
         Let aft be substringAfter(expr, "Math . trunc (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("trunc", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+    If mathUnary1(expr, env) is not equal to expr:
+        Return resolveMethods(mathUnary1(expr, env), env).
+    If substringBefore(expr, "Math . hypot (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . hypot (").
+        Let aft be substringAfter(expr, "Math . hypot (").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, jsMath2("hypot", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
+    If substringBefore(expr, "Math . atan2 (") is not equal to expr:
+        Let bef be substringBefore(expr, "Math . atan2 (").
+        Let aft be substringAfter(expr, "Math . atan2 (").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, jsMath2("atan2", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
+    If substringBefore(expr, "Math . ") is not equal to expr:
+        Let mc be mathConst(expr).
+        If mc is not equal to expr:
+            Return resolveMethods(mc, env).
     If substringBefore(expr, "Math . pow (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . pow (").
         Let aft be substringAfter(expr, "Math . pow (").
         Let rst be methodRest(aft).
         Let args be splitArgs2(methodArg(aft)).
-        Let pw be powInt(safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), safeInt(materialize(jsEvalIn(trim(item 2 of args), env))), 1).
-        Return resolveMethods(trim(concat(concat(bef, toText(pw)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsMath2("pow", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Math . sign (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . sign (").
         Let aft be substringAfter(expr, "Math . sign (").

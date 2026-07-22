@@ -1287,3 +1287,18 @@ via native `js_math1` computing in f64 (previously they truncated via `jsParseIn
 `Math.floor(-1.5)`→-2, `Math.round(-2.5)`→-2, `Math.sqrt(2)`→1.4142135623730951 all match Node; integer
 `Math.floor(5)`/`abs(-7)`/`max`, `parseInt` unaffected. New `mathfloat-diff` fuzzer. **112 jsint
 fuzzers, 0 diffs; gate GREEN.** Toolchain `js_parse_float`/`js_to_fixed`/`js_math1` added (LOCAL).
+
+---
+
+**Math surface completed over floats: constants + pow/max/min + transcendentals (2026-07-22).**
+Finished the Math library on the f64 model: constants `Math.PI`/`E`/`SQRT2`/`SQRT1_2`/`LN2`/`LN10`/
+`LOG2E`/`LOG10E` (resolved to their f64 literals, so `2*Math.PI`→`6.283185307179586`); `Math.pow` via
+native `js_math2` (`pow(2,0.5)`→`1.4142135623730951`, `pow(2,10)`→1024); variadic `Math.max`/`min` now
+fold in f64 (`max(1.5,2.5,0.5)`→2.5, was truncating to 2); `Math.hypot`/`atan2` via `js_math2`; and the
+unary `log`/`log2`/`log10`/`log1p`/`exp`/`expm1`/`sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`sinh`/`cosh`/
+`tanh`/`cbrt` family via a generic `mathUnary1`→`js_math1` dispatch. Constants, `pow` (integer result),
+`max`/`min`, and `sqrt` of perfect squares are bit-exact with V8 (new `mathfns-diff` fuzzer). **113
+jsint fuzzers, 0 diffs; gate GREEN.** KNOWN 1-ULP LIMIT: the transcendentals (hypot/atan2/sin/cos/tan/
+log/exp/atan/cbrt) on arbitrary inputs can differ from V8 in the last bit — IEEE-754 doesn't mandate
+correctly-rounded transcendentals and Rust's libm ≠ V8's fdlibm; matching exactly would need bundling
+fdlibm. Toolchain `js_math2`/`js_math_maxmin` + extended `js_math1` added (LOCAL).
