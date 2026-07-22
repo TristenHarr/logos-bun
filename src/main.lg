@@ -1585,6 +1585,18 @@
                 classTagSet(refId(concat(inst, "")), instanceChain(concat(lastTok, ""), env)).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
                 Return resolveCalls(concat(concat(concat(newPrefix, " "), concat(inst, "")), rest), env).
+    If startsWith(lastTok, chr(1)):
+        Let resultL be callFn(concat(lastTok, ""), inner, env).
+        Let newPrefixL be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefixL, " "), resultL), rest), env).
+    If lastTok is equal to chr(93):
+        Let calleeStart be recvStart(ptoks, length of ptoks).
+        Let calleeExpr be joinRange(ptoks, calleeStart, length of ptoks, "").
+        Let calleeVal be jsEvalIn(concat(calleeExpr, ""), concat(env, "")).
+        If startsWith(calleeVal, chr(1)):
+            Let resultB be callFn(concat(calleeVal, ""), inner, env).
+            Let newPrefixB be joinRange(ptoks, 1, calleeStart - 1, "").
+            Return resolveCalls(concat(concat(concat(newPrefixB, " "), resultB), rest), env).
     Let fnVal be envGet(env, lastTok).
     If startsWith(fnVal, chr(1)):
         Let result be callFn(fnVal, inner, env).

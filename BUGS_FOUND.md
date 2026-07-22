@@ -1536,3 +1536,20 @@ so this is strictly correct and leaves normal params identical. Now method/class
 array (`xs.length`/`join`/`reduce`/`[i]`, mixed `a, ...rest`) exactly like function rest params; spread
 ARGUMENTS at call sites (`f(...arr)`) are unchanged. Extended `restparam-diff` fuzzer with method/class
 shapes (1000 programs/5 seeds, 0 diffs); full 125-fuzzer sweep GREEN.
+
+---
+
+**Calling a function from an array element / computed property (2026-07-22).** `arr[i]()`, `arr[i](args)`,
+`obj[key]()` never invoked the function — they leaked the raw body. This had masqueraded as a "closure /
+HOF-returning-a-function" bug: `[1,2,3].map(x=>()=>x*10); fns[1]()` produced `return2*10`, and instrumenting
+callFnIdx proved the map callback returns a perfectly-baked fn value — the failure was purely `fns[1]()`.
+resolveCalls recognized a callee only when it was a bare variable NAME (`envGet(env, lastTok)`); for
+`a[0]()` the token before `(` is `]`, an index expression, so no dispatch fired. Fixed by resolving the
+callee's boundary with recvStart/joinRange (the same backward `]`/`)`-group scan that fixed nested method
+calls): evaluate `a[0]` to its fn value and call it, recomputing the consumed prefix from the callee start.
+Also added a fast path for a callee that is already an inline chr(1) fn value. Now `arr[i]()`, curried
+`map(x=>y=>x+y)` then `fns[i](n)`, and dynamic dispatch tables `ops[names[i]](a,b)` all work; plain index
+reads, nested indexing `a[1][0]`, and method calls are unchanged. New `callfromindex-diff` fuzzer (1000
+programs/5 seeds, 0 diffs); full 126-fuzzer sweep GREEN. (A separate PRE-EXISTING crash remains, unrelated
+to this fix and not touched by it: a bracket index whose expression contains a member access —
+`m[m.length-1]` — panics on the Int parse; `let i=m.length-1; m[i]` works. Logged for a dedicated fix.)
