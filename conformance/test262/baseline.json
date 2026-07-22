@@ -1,0 +1,39 @@
+{
+  "pin": "9e61c12835c5e4a3bdba93850427e6742c4f64c4",
+  "dirs": [
+    "language/expressions",
+    "language/statements",
+    "language/types",
+    "language/literals",
+    "built-ins/Array",
+    "built-ins/Object",
+    "built-ins/String",
+    "built-ins/Number",
+    "built-ins/Boolean",
+    "built-ins/Math",
+    "built-ins/JSON",
+    "built-ins/Function",
+    "built-ins/Map",
+    "built-ins/Set",
+    "built-ins/Symbol",
+    "built-ins/RegExp",
+    "built-ins/Promise",
+    "built-ins/Proxy",
+    "built-ins/Reflect",
+    "built-ins/TypedArray"
+  ],
+  "sample": 50,
+  "pass": 861,
+  "fail": 62,
+  "skip": 77,
+  "pct": 93.28,
+  "taxonomy": {
+    "negative-not-thrown": 51,
+    "engine-crash": 11
+  },
+  "skips": {
+    "async": 53,
+    "host-hook": 23,
+    "module": 1
+  }
+}

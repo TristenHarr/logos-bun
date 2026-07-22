@@ -6238,6 +6238,20 @@
     Let done be moduleCacheSet(resolved, exportsBlob).
     Return exportsBlob.
 
+# An uncaught value thrown at the top level (or propagated out of a called function) is Node/bun-fatal:
+# print it to stderr and exit non-zero. An Error object renders as `name: message`; any other value
+# renders through its display. This is both runtime-correct and the pass/fail signal the test262 runner
+# relies on (a test that fails throws a Test262Error, which must surface as a non-zero exit).
+## To formatThrown (v: Text) -> Text:
+    If isObjRef(concat(v, "")):
+        Let nm be objGet(concat(v, ""), "name").
+        If nm is not equal to "undefined":
+            Return concat(concat(materialize(nm), ": "), materialize(objGet(concat(v, ""), "message"))).
+        Let msg be objGet(concat(v, ""), "message").
+        If msg is not equal to "undefined":
+            Return materialize(msg).
+    Return decodeStr(materialize(concat(v, ""))).
+
 ## To jsRunFile (src: Text, argv: Text) -> Text:
     Return jsRunFileIn(src, argv, "").
 
@@ -6246,6 +6260,14 @@
     Let env0 be envSet("", "process", procObj).
     Let finalEnv be runModuleBody(src, dir, env0).
     Let drained be drainMicrotasks("").
+    If hasThrow(concat(finalEnv, "")):
+        eputs(concat(formatThrown(envGet(concat(finalEnv, ""), "__throw")), chr(10))).
+        exitWith(1).
+        Return "".
+    If throwPending() is equal to "1":
+        eputs(concat(formatThrown(throwGet()), chr(10))).
+        exitWith(1).
+        Return "".
     Return runSink(finalEnv).
 
 ## To looksLikeScript (cmd: Text) -> Bool:
