@@ -1152,3 +1152,20 @@ Node; explicit-arg forms (`padStart(3,"0")`→`005`, `Math.pow(2,10)`→1024) un
 The whole "handler hands native parseInt user text → panic" class — hunted across 3 sweeps this session
 (global parseInt/Number, negative index/slice, charCodeAt/substring/Math.floor, slice()/pad/at/charAt/
 repeat/Math.*, and now these) — is closed. **104 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**Single-quoted strings + comma-inside-string array-literal crash (2026-07-22).** Single-quoted string
+literals were entirely broken — `'abc'`/`let x='hi'` evaluated to NaN — because the tokenizer only
+recognized `"` as a string delimiter (which also made `JSON.parse('{"y":9}')` look broken; it was the
+single-quoted argument). Added a `convertQuotes` pre-pass (first in `normalizeJs`) that flips `'…'`→
+`"…"`: a literal `"` inside becomes `\"`, a `\'` becomes a bare `'`, other escapes and double/backtick
+strings pass through. `'abc'`, `'a'+'b'`, `{k:'v'}`, `['x','y'].join('-')`, `'it\'s'`, `'say "hi"'`,
+and `JSON.parse` of single-quoted JSON all match Node. The fuzzer then surfaced a PRE-EXISTING crash it
+now exercises: an array literal with a comma INSIDE a string element — `["abc","a,b,c"]` — stack-
+overflowed, because the array builder split the inner text on raw commas (mangling the string into `"a`
+/ `b` / `c"`). Fixed by routing the array-element split through `splitArgsN`/`commaDepthSplit`, and
+extending `commaDepthSplit` to track `[]` and `{}` depth (it already tracked `()` + string quotes) — so
+commas inside strings, nested arrays, and nested objects no longer split. `["abc","a,b,c"]`,
+`[[1,2],[3]]`, `[{a:1},{a:2}]` all correct; function-arg splitting, `Map.set("k","a,b")`, `Math.max`,
+`reduce` unaffected. New `squote-diff` fuzzer. **105 jsint fuzzers, 0 diffs; gate GREEN.**
