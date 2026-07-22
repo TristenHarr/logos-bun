@@ -1288,6 +1288,14 @@
         Return 0.
     Return parseInt(p).
 
+# padStart/padEnd default the fill to a single space when the 2nd argument is omitted. The fill is
+# concatenated into string CONTENT, whose spaces are chr-encoded (a raw space would be eaten as a
+# token separator), so the default must be encSpace(), matching how a literal " " fill is represented.
+## To padFill (argText: Text, env: Text) -> Text:
+    If trim(argText) is equal to "":
+        Return encSpace ().
+    Return materialize(jsEvalIn(trim(argText), env)).
+
 # charCodeAt: the UTF-16 code unit at i, or NaN (as text) for a negative / out-of-range index.
 ## To charCodeStr (s: Text, i: Int) -> Text:
     If i is less than 0:
@@ -1362,13 +1370,13 @@
 ## To maxFold (args: Seq of Text, i: Int, env: Text, acc: Int) -> Int:
     If i is greater than length of args:
         Return acc.
-    Let v be parseInt(jsEvalIn(trim(item i of args), env)).
+    Let v be safeInt(materialize(jsEvalIn(trim(item i of args), env))).
     Return maxFold(args, i + 1, env, maxInt(acc, v)).
 
 ## To minFold (args: Seq of Text, i: Int, env: Text, acc: Int) -> Int:
     If i is greater than length of args:
         Return acc.
-    Let v be parseInt(jsEvalIn(trim(item i of args), env)).
+    Let v be safeInt(materialize(jsEvalIn(trim(item i of args), env))).
     Return minFold(args, i + 1, env, minInt(acc, v)).
 
 ## To resolveCalls (expr: Text, env: Text) -> Text:
@@ -2745,7 +2753,7 @@
 ## To fromCharCodeLoop (codes: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of codes:
         Return concat(tagStr (), acc).
-    Let code be parseInt(jsEvalIn(trim(item i of codes), env)).
+    Let code be safeInt(materialize(jsEvalIn(trim(item i of codes), env))).
     If code is equal to 32:
         Return fromCharCodeLoop(codes, i + 1, env, concat(acc, encSpace ())).
     Return fromCharCodeLoop(codes, i + 1, env, concat(acc, chr(code))).
@@ -3033,7 +3041,7 @@
         Let aft be substringAfter(expr, "Math . max (").
         Let rst be methodRest(aft).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
-        Let mxFirst be parseInt(jsEvalIn(trim(item 1 of args), env)).
+        Let mxFirst be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
         Let mx be maxFold(args, 2, env, mxFirst).
         Return resolveMethods(trim(concat(concat(bef, toText(mx)), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
@@ -3041,27 +3049,27 @@
         Let aft be substringAfter(expr, "Math . min (").
         Let rst be methodRest(aft).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
-        Let mnFirst be parseInt(jsEvalIn(trim(item 1 of args), env)).
+        Let mnFirst be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
         Let mn be minFold(args, 2, env, mnFirst).
         Return resolveMethods(trim(concat(concat(bef, toText(mn)), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . abs (").
         Let aft be substringAfter(expr, "Math . abs (").
         Let rst be methodRest(aft).
-        Let ab be absInt(parseInt(jsEvalIn(trim(methodArg(aft)), env))).
+        Let ab be absInt(safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(bef, toText(ab)), rst)), env).
     If substringBefore(expr, "Math . pow (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . pow (").
         Let aft be substringAfter(expr, "Math . pow (").
         Let rst be methodRest(aft).
         Let args be splitArgs2(methodArg(aft)).
-        Let pw be powInt(parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env)), 1).
+        Let pw be powInt(safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), safeInt(materialize(jsEvalIn(trim(item 2 of args), env))), 1).
         Return resolveMethods(trim(concat(concat(bef, toText(pw)), rst)), env).
     If substringBefore(expr, "Math . sign (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . sign (").
         Let aft be substringAfter(expr, "Math . sign (").
         Let rst be methodRest(aft).
-        Let sg be signInt(parseInt(jsEvalIn(trim(methodArg(aft)), env))).
+        Let sg be signInt(safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(bef, toText(sg)), rst)), env).
     If substringBefore(expr, "Math . floor (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . floor (").
@@ -3247,7 +3255,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), atOf(raw, parseInt(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), atOf(raw, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env))))), rst)), env).
     If lm is equal to " . flat (":
         Let bef be substringBefore(expr, " . flat (").
         Let aft be substringAfter(expr, " . flat (").
@@ -3321,7 +3329,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let ch be strCharAt(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env))).
+        Let ch be strCharAt(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), ch), rst)), env).
     If lm is equal to " . indexOf (":
         Let bef be substringBefore(expr, " . indexOf (").
@@ -3340,7 +3348,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let args be splitArgs2(methodArg(aft)).
-        Let sliced be sliceOf(raw, parseInt(jsEvalIn(trim(item 1 of args), env)), sliceEnd(item 2 of args, env)).
+        Let sliced be sliceOf(raw, safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), sliceEnd(item 2 of args, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), sliced), rst)), env).
     If lm is equal to " . toUpperCase (":
         Let bef be substringBefore(expr, " . toUpperCase (").
@@ -3392,7 +3400,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strRepeat(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env)), ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strRepeat(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env))), ""))), rst)), env).
     If lm is equal to " . trim (":
         Let bef be substringBefore(expr, " . trim (").
         Let aft be substringAfter(expr, " . trim (").
@@ -3425,7 +3433,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
-        Let padded be strPadStart(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
+        Let padded be strPadStart(sval, safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), padFill(item 2 of args, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
     If lm is equal to " . padEnd (":
         Let bef be substringBefore(expr, " . padEnd (").
@@ -3435,7 +3443,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
-        Let padded be strPadEnd(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env))).
+        Let padded be strPadEnd(sval, safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), padFill(item 2 of args, env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), padded), rst)), env).
     If lm is equal to " . substring (":
         Let bef be substringBefore(expr, " . substring (").

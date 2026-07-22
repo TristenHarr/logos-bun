@@ -1123,3 +1123,19 @@ NaN) for an out-of-range index (`codePointStr`); `lastIndexOf(sub)` via `strLast
 `ll`, `codePointAt(1)` of "AB"→66, `codePointAt(5)` oob→undefined, `lastIndexOf("b")` of "abcabc"→4,
 `lastIndexOf("z")`→-1 all match Node; substring/indexOf/charCodeAt unaffected. New `strmethods2-diff`
 fuzzer. **103 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**Crash-hunt #3: slice()/pad/at/charAt/repeat/Math native-parseInt panics + padStart default fill
+(2026-07-22).** `[1,2,3].slice()` (no args) aborted, and the same `Cannot parse '…' as Int` panic
+lurked in every method handler that fed a possibly missing/NaN argument to the native `parseInt`:
+`slice`, `at`, `charAt`, `repeat`, `padStart`/`padEnd` (start), `Math.max`/`min` (both the first arg
+AND the variadic `maxFold`/`minFold` loop), `Math.abs`/`pow`/`sign`, and `String.fromCharCode`. Routed
+all of them through `safeInt` (NaN/empty→0). Separately, the padStart/padEnd DEFAULT fill was wrong —
+`"5".padEnd(3)` gave `5Na` (it materialised the empty 2nd arg into "NaN"); a new `padFill` returns a
+single `encSpace()` when the fill is omitted (a raw space would be eaten as a token separator in the
+normalized expression, which is why the earlier attempt under-padded), so `"5".padEnd(3)`→`5  `,
+`"5".padStart(3)`→`  5`. `slice()`→whole copy, `charAt()`/`at()`→index 0, `Math.max(3,7,2)`→7 all match
+Node; explicit-arg forms (`padStart(3,"0")`→`005`, `Math.pow(2,10)`→1024) unaffected. New
+`argsafe2-diff` fuzzer. **104 jsint fuzzers, 0 diffs; gate GREEN.** (`Math.abs("x")`→0 vs NaN and
+`Math.max(3,"y")`→3 vs NaN are NaN-coercion DIFFs, not crashes — logged.)
