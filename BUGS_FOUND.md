@@ -1319,3 +1319,15 @@ a value built from decoded text is a well-formed jsint string. `"a1b2c3".replace
 `.replace`, `.split`, and brackets in the SUBJECT unaffected. New `replacefn-diff` fuzzer. **114 jsint
 fuzzers, 0 diffs; gate GREEN.** (Arithmetic on the match — `m => m*2` — still needs string→number
 coercion, a separate gap.)
+
+---
+
+**Symbol primitives (2026-07-22).** `Symbol("x")` STACK-OVERFLOWED — an unknown call recursing. Added
+Symbol as a unique heap value: `newSymbol(desc)` is a heap object carrying a `__symbol` description, so
+identity works (`===` compares the handle — `s===s` true, `Symbol("a")===Symbol("a")` false), and a new
+`isSymbol` gives `typeof` → `"symbol"`. Handled in `resolveMethods` (`Symbol (` → `newSymbol`, empty
+description allowed). `typeof Symbol()`→`symbol`, `s===s`→true, two `Symbol()`→`!==`, all match Node;
+`typeof` for number/string/object/array/function and Map ops unaffected. New `symbol-diff` fuzzer.
+**115 jsint fuzzers, 0 diffs; gate GREEN.** (Symbol-keyed object properties `o[sym]=…`, well-known
+symbols like `Symbol.iterator`, and `Symbol.for` are a later concern — the common `typeof`/identity
+uses work.)

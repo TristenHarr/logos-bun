@@ -2280,6 +2280,16 @@
         Return concatTerms(split(expr, " + "), 1, "").
     Return arithValue(expr).
 
+# A Symbol is a heap object carrying a __symbol description — unique by identity (=== compares the
+# handle, so `Symbol()!==Symbol()` but `s===s`), and `typeof` reports "symbol".
+## To newSymbol (desc: Text) -> Text:
+    Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__symbol", concat(tagStr (), desc)).
+
+## To isSymbol (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__symbol") is not equal to "undefined".
+    Return false.
+
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
         Return concat(tagStr (), "function").
@@ -2288,6 +2298,8 @@
         Return concat(tagStr (), "string").
     If isArrRef(v):
         Return concat(tagStr (), "object").
+    If isSymbol(v):
+        Return concat(tagStr (), "symbol").
     If isObjRef(v):
         Return concat(tagStr (), "object").
     If v is equal to "true":
@@ -3092,6 +3104,13 @@
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
+    If substringBefore(expr, "Symbol (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Symbol (") is equal to false:
+        Let bef be substringBefore(expr, "Symbol (").
+        Let aft be substringAfter(expr, "Symbol (").
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newSymbol("")), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, newSymbol(materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))), env).
     If substringBefore(expr, "new Map (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Map (") is equal to false:
         Let bef be substringBefore(expr, "new Map (").
