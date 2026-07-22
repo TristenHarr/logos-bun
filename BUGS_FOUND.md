@@ -1042,3 +1042,19 @@ string-compared `"NaN"`. Added the `eitherNaN`→`false` guard to all four order
 comparison with a NaN operand is false in JS). `parseInt("abc")>10`→false, normal comparisons intact.
 New `parseint-diff` fuzzer. **97 jsint fuzzers, 0 diffs; gate GREEN.** (`Number("3.5")`→NaN is the
 known integer-only-engine float gap, not a Number bug; parseInt radix `parseInt("ff",16)` unhandled.)
+
+---
+
+**Negative / out-of-bounds array index + slice PANICKED (2026-07-22).** `a[-1]` and `[1,2,3].slice(-1)`
+aborted the process — `index out of bounds: the len is 3 but the index is 18446744073709551615`. The
+1-based `item` builtin computes `i-1` as usize, so any index that reaches it as 0 or negative wraps to
+usize::MAX and panics. `a[i]` went through `arrGet`, which guarded the UPPER bound but not the lower
+(so `idx=-1` → `item 0`), and `.slice(-1)` fed `a+1 = 0` straight into `arrSliceLoop`. Fixed to JS
+semantics: `arrGet` returns `undefined` for a negative index (a negative bracket index is a property
+miss, NOT from-the-end — that's only `.at()`/`.slice()`); a new `normSliceIdx(idx, n)` clamps slice
+bounds to `[0, n]` and reads negatives from the end (`n+idx` floored at 0), applied in both `arrSlice`
+and `strSlice`. `a[-1]`/`a[10]` → `undefined`, `[1,2,3].slice(-1)` → `[3]`, `slice(1,-1)`,
+`slice(-99)` (clamped), `"hello".slice(-2)` → `lo`, all match Node; normal indexing/slicing intact.
+New `negindex-diff` fuzzer. **98 jsint fuzzers, 0 diffs; gate GREEN.** (Non-crash DIFFs still open,
+logged: string bracket `s[-1]`→garbage not undefined; `"5"*"x"`→5 not NaN; `charCodeAt` oob→0 not NaN;
+`(10).toString(2)` radix.)

@@ -1482,9 +1482,23 @@
 
 ## To arrGet (arrVal: Text, idx: Int) -> Text:
     Let els be arrElements(arrVal).
+    If idx is less than 0:
+        Return "undefined".
     If idx + 1 is greater than length of els:
         Return "undefined".
     Return item (idx + 1) of els.
+
+# JS slice/substring clamp indices to [0, n] and read a negative index from the end (n + idx),
+# floored at 0. Normalising here keeps the 1-based `item` accesses in arrSlice/strSlice from ever
+# receiving 0 or a negative (which wraps to usize::MAX in the `item` builtin and panics).
+## To normSliceIdx (idx: Int, n: Int) -> Int:
+    If idx is less than 0:
+        If n + idx is less than 0:
+            Return 0.
+        Return n + idx.
+    If idx is greater than n:
+        Return n.
+    Return idx.
 
 ## To resolveArrays (expr: Text) -> Text:
     If substringBefore(expr, chr(91)) is equal to expr:
@@ -2184,7 +2198,8 @@
     Return arrSliceLoop(els, i + 1, endEx, nextAcc).
 
 ## To arrSlice (arrval: Text, a: Int, b: Int) -> Text:
-    Return newArr(concat(concat(tagArr (), arrSliceLoop(arrElements(arrval), a + 1, b, "")), tagArrEnd ())).
+    Let n be length of arrElements(arrval).
+    Return newArr(concat(concat(tagArr (), arrSliceLoop(arrElements(arrval), normSliceIdx(a, n) + 1, normSliceIdx(b, n), "")), tagArrEnd ())).
 
 ## To sliceOf (raw: Text, a: Int, b: Int) -> Text:
     If isArrRef(raw):
@@ -2550,7 +2565,8 @@
     Return strSliceLoop(s, i + 1, endEx, concat(acc, c)).
 
 ## To strSlice (s: Text, a: Int, b: Int) -> Text:
-    Return concat(tagStr (), strSliceLoop(s, a + 1, b, "")).
+    Let n be length of s.
+    Return concat(tagStr (), strSliceLoop(s, normSliceIdx(a, n) + 1, normSliceIdx(b, n), "")).
 
 ## To strRepeat (s: Text, n: Int, acc: Text) -> Text:
     If n is less than or equal to 0:
