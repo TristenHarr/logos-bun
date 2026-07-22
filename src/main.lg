@@ -20,6 +20,7 @@
 ## To native eputs (s: Text) -> Unit
 ## To native readFile (path: Text) -> Text
 ## To native puts (s: Text) -> Unit
+## To native getEnv (key: Text) -> Text
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -2710,8 +2711,29 @@
             Return topColon(toks, i + 1, depth, tern - 1, concat(g, c)).
     Return topColon(toks, i + 1, depth, tern, concat(g, c)).
 
+## To encodeRaw (s: Text) -> Text:
+    Let a be replaceAll(s, " ", encSpace ()).
+    Let b be replaceAll(a, chr(91), encBrkL ()).
+    Let c be replaceAll(b, chr(93), encBrkR ()).
+    Let d be replaceAll(c, chr(123), encBraceL ()).
+    Let e be replaceAll(d, chr(125), encBraceR ()).
+    Let f be replaceAll(e, "(", encParenL ()).
+    Return replaceAll(f, ")", encParenR ()).
+
+## To firstIdent (s: Text) -> Text:
+    Return substringBefore(concat(s, " "), " ").
+
+## To resolveProcessEnv (expr: Text) -> Text:
+    If substringBefore(expr, "process . env . ") is equal to expr:
+        Return expr.
+    Let bef be substringBefore(expr, "process . env . ").
+    Let aft be substringAfter(expr, "process . env . ").
+    Let key be firstIdent(concat(aft, "")).
+    Let rest be strSliceLoop(concat(aft, ""), (length of key) + 1, length of aft, "").
+    Return resolveProcessEnv(concat(concat(bef, concat(tagStr (), encodeRaw(getEnv(key)))), rest)).
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
-    Let te be trim(expr).
+    Let te be trim(resolveProcessEnv(expr)).
     Let tks be split(te, " ").
     Let qIdx be topTernaryQ(tks, 1, 0, "").
     If qIdx is greater than 0:
