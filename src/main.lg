@@ -2181,6 +2181,17 @@
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
     Return newArr(concat(concat(tagArr (), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ())).
 
+## To arrForEachLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+    If i is greater than length of els:
+        Return "undefined".
+    Let r be callFnIdx(concat(fnval, ""), item i of els, toText(i - 1), concat(env, "")).
+    If r is equal to "__never__":
+        Return "undefined".
+    Return arrForEachLoop(els, i + 1, fnval, env).
+
+## To arrForEach (arrval: Text, fnval: Text, env: Text) -> Text:
+    Return arrForEachLoop(arrElements(arrval), 1, fnval, env).
+
 ## To arrOfLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
         Return acc.
@@ -2668,7 +2679,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3006,6 +3017,16 @@
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
+    If lm is equal to " . forEach (":
+        Let bef be substringBefore(expr, " . forEach (").
+        Let aft be substringAfter(expr, " . forEach (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrForEach(raw, fnval, env)), rst)), env).
     If lm is equal to " . concat (":
         Let bef be substringBefore(expr, " . concat (").
         Let aft be substringAfter(expr, " . concat (").

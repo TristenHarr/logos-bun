@@ -973,3 +973,18 @@ sync callbacks match Node; value closures, returned-from-a-function closures, al
 and regex-in-callback all unaffected. New `refclosure-diff` fuzzer. **93 jsint fuzzers, 0 diffs; gate
 GREEN.** STILL-OPEN (separate): a callback that MUTATES an outer ref (`arr.forEach(x=>out.push(x))`) —
 `forEach` isn't implemented yet; and a NAMED callback storing a ref free var still bakes at assignment.
+
+---
+
+**Array.prototype.forEach (2026-07-22).** `forEach` was entirely missing — `[1,2,3].forEach(f)` was a
+no-op. Added it as a sync HOF alongside `.map`/`.filter`: `.forEach (` joined the leftmostOf marker
+list and got a dispatch branch, and `arrForEach`/`arrForEachLoop` run the callback per element (value
++ index) for side effects and return `undefined`, using `fnArgValRaw` so the body executes in the
+enclosing env. Because of that, a statement-body callback mutating an OUTER heap ref persists through
+the handle: `let o=[]; a.forEach(x=>{o.push(x*2)});` fills `o`, and `a.forEach((k,i)=>{m.set(i,x)})`
+populates an outer Map. Element+index, `String(forEach(...))==="undefined"`, and console.log side
+effects all match Node. New `foreach-diff` fuzzer. **94 jsint fuzzers, 0 diffs; gate GREEN.** Two
+pre-existing gaps this surfaced but did NOT fix (both reproduce OUTSIDE forEach): (1) `.push` in
+EXPRESSION position — `let n=a.push(2)` yields garbage `2 . push 2 …` (push is a statement-only
+handler; the arrow expression body `x=>a.push(x)` hits this); (2) reassigning an outer SCALAR from a
+callback (`sum=sum+x`) doesn't propagate — the callback env is a copy. Both logged for follow-up.
