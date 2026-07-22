@@ -2390,22 +2390,28 @@
         Return [argStr, ""].
     Return [strSliceLoop(argStr, 1, idx - 1, ""), strSliceLoop(argStr, idx + 1, length of argStr, "")].
 
-## To commaDepthSplit (s: Text, i: Int, depth: Int, g: Text) -> Text:
+## To commaDepthSplit (s: Text, i: Int, depth: Int, inStr: Int, g: Text) -> Text:
     If i is greater than length of s:
         Return g.
     Let c be item i of s.
+    If c is equal to chr(34):
+        If inStr is equal to 0:
+            Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
+    If inStr is equal to 1:
+        Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c)).
     If c is equal to "(":
-        Return commaDepthSplit(s, i + 1, depth + 1, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c)).
     If c is equal to ")":
-        Return commaDepthSplit(s, i + 1, depth - 1, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c)).
     If c is equal to ",":
         If depth is equal to 0:
-            Return commaDepthSplit(s, i + 1, 0, concat(g, chr(10))).
-        Return commaDepthSplit(s, i + 1, depth, concat(g, c)).
-    Return commaDepthSplit(s, i + 1, depth, concat(g, c)).
+            Return commaDepthSplit(s, i + 1, 0, 0, concat(g, chr(10))).
+        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
+    Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
 
 ## To splitArgsN (argStr: Text) -> Seq of Text:
-    Return split(commaDepthSplit(argStr, 1, 0, ""), chr(10)).
+    Return split(commaDepthSplit(argStr, 1, 0, 0, ""), chr(10)).
 
 ## To fnArgVal (s: Text, env: Text) -> Text:
     If startsWith(s, "function ("):
@@ -2793,7 +2799,8 @@
       If markerInBody(concat(expr, ""), "new RegExp (") is equal to false:
         Let bef be substringBefore(expr, "new RegExp (").
         Let aft be substringAfter(expr, "new RegExp (").
-        Return resolveMethods(trim(concat(concat(bef, newRegex(decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env))), "")), methodRest(aft))), env).
+        Let rargs be splitArgsN(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, newRegex(decodeStr(materialize(jsEvalIn(trim(item 1 of rargs), env))), reFlagsArg(rargs, env))), methodRest(aft))), env).
     If substringBefore(expr, " . test (") is not equal to expr:
         If markerInBody(concat(expr, ""), " . test (") is equal to false:
             Let rbef be substringBefore(expr, " . test (").
@@ -3279,8 +3286,10 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let sepv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strSplit(sval, sepv)), rst)), env).
+        Let sepraw be jsEvalIn(trim(methodArg(aft)), env).
+        If isRegex(sepraw):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), reSplit(decodeStr(materialize(objGet(concat(sepraw, ""), "__regex_src"))), decodeStr(concat(sval, "")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strSplit(sval, materialize(sepraw))), rst)), env).
     If lm is equal to " . join (":
         Let bef be substringBefore(expr, " . join (").
         Let aft be substringAfter(expr, " . join (").
@@ -3298,9 +3307,11 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
-        Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
+        Let araw be jsEvalIn(trim(item 1 of args), env).
         Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, av, bv)), rst)), env).
+        If isRegex(araw):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplace(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), decodeStr(concat(bv, "")), materialize(objGet(concat(araw, ""), "__regex_flags")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, materialize(araw), bv)), rst)), env).
     If lm is equal to " . replaceAll (":
         Let bef be substringBefore(expr, " . replaceAll (").
         Let aft be substringAfter(expr, " . replaceAll (").
@@ -4609,8 +4620,9 @@
             If closeIdx is equal to 0:
                 Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
             Let pat be strSliceLoop(s, i + 1, closeIdx - 1, "").
-            Let repl be concat(concat("new RegExp(", chr(34)), concat(rxEscape(pat, 1, ""), concat(chr(34), ")"))).
             Let fend be rxFlagsEnd(s, closeIdx + 1).
+            Let flags be strSliceLoop(s, closeIdx + 1, fend - 1, "").
+            Let repl be concat("new RegExp(", concat(chr(34), concat(rxEscape(pat, 1, ""), concat(chr(34), concat(", ", concat(chr(34), concat(flags, concat(chr(34), ")")))))))).
             Return desugarRegexLits(s, fend, ")", false, "", concat(acc, repl)).
         Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
     If rxIsSpace(c):
@@ -4807,6 +4819,40 @@
     If start is equal to 0:
         Return "".
     Return strSliceLoop(text, start, (reMatchEnd(pat, text, start) - 1), "").
+
+## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
+    If length of rargs is less than 2:
+        Return "".
+    If trim(item 2 of rargs) is equal to "":
+        Return "".
+    Return decodeStr(materialize(jsEvalIn(trim(item 2 of rargs), env))).
+
+## To reHasG (flags: Text) -> Bool:
+    Return substringBefore(flags, "g") is not equal to flags.
+
+# reReplaceLoop rebuilds text with each match replaced by `repl`, operating on DECODED text (the
+# regex engine and .replace/.split all decode first). Non-global replaces the first match; global
+# walks left-to-right. A zero-width match (endp <= start) would loop forever, so global stops after
+# one substitution there. reSplit reuses this: replace every match with chr(0), then strSplit on it.
+## To reReplaceLoop (pat: Text, text: Text, repl: Text, global: Bool, acc: Text) -> Text:
+    Let start be reSearchStart(pat, text).
+    If start is equal to 0:
+        Return concat(acc, text).
+    Let endp be reMatchEnd(pat, text, start).
+    Let before be strSliceLoop(text, 1, start - 1, "").
+    Let after be strSliceLoop(text, endp, length of text, "").
+    If global is equal to false:
+        Return concat(acc, concat(before, concat(repl, after))).
+    If endp is greater than start:
+        Let nextAcc be concat(acc, concat(before, concat(repl, ""))).
+        Return reReplaceLoop(pat, after, repl, true, nextAcc).
+    Return concat(acc, concat(before, concat(repl, after))).
+
+## To reReplace (pat: Text, text: Text, repl: Text, flags: Text) -> Text:
+    Return concat(tagStr (), reReplaceLoop(pat, text, repl, reHasG(flags), "")).
+
+## To reSplit (pat: Text, text: Text) -> Text:
+    Return strSplit(reReplaceLoop(pat, text, chr(0), true, ""), chr(0)).
 
 # --- Map / Set (E5) ---
 # A Map is a heap object with parallel __map_keys / __map_vals arrays (insertion order preserved,

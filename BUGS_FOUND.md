@@ -1004,3 +1004,24 @@ now also routes through `arrPushAll` so `a.push(1,2,3)` works. `let n=a.push(2)`
 aliasing, and push-then-sort unaffected. New `pushexpr-diff` fuzzer. **95 jsint fuzzers, 0 diffs; gate
 GREEN.** Note: a BARE `arr.map(x=>o.push(x))` statement (map for a push side effect — an anti-pattern;
 use forEach) still drops the mutation, a pre-existing bare-expression-statement quirk, not a push bug.
+
+---
+
+**Regex String.replace / String.split + flag preservation + comma-in-string arg fix (2026-07-22).**
+`str.replace(/re/, x)` and `str.split(/re/)` ignored the regex (materialised it to "[object Object]"
+and treated it as a literal string). Completed the regex surface: (1) FLAGS now flow through — the
+literal desugar emits `new RegExp("pat","flags")` (was dropping flags) and the `new RegExp (` handler
+reads the 2nd arg, so `/re/g` stores `g`. (2) `reReplaceLoop` rebuilds the DECODED string replacing
+matches with the replacement (first match, or all under `g`; a zero-width match stops the global loop
+so it can't spin); `.replace` branches on `isRegex(arg1)`. (3) `reSplit` reuses `reReplaceLoop` —
+replace every match with a chr(0) sentinel, then `strSplit` on it; `.split` branches on `isRegex`.
+`"a1b2".replace(/\d/g,"X")`→`aXbX`, `"CamelCase".replace(/[A-Z]/g,"_")`→`_amel_ase`,
+`"a1b22".split(/\d+/)` all match Node; string `.replace`/`.split`, `.test`, `.match` unaffected. **A
+latent arg-splitting bug fell out:** patterns with a comma (`/[,;]/`, `/,/`) infinite-looped or split
+wrong because `commaDepthSplit` (which splits call args) tracked paren depth but NOT string quotes, so
+the comma inside `new RegExp("[,;]", "")`'s string literal was treated as an arg separator → the
+pattern truncated to `[` (unterminated class → stack overflow). Added chr(34) quote-tracking to
+`commaDepthSplit` (escaped quotes are already chr(127), so a raw chr(34) always marks a real
+boundary) — now ANY string arg containing a comma (`f("a,b", c)`) splits correctly, not just regexes.
+New `regexops-diff` fuzzer. **96 jsint fuzzers, 0 diffs; gate GREEN.** Deferred: `$&`/`$1` replacement
+patterns and capture groups (literal replacement only for now).
