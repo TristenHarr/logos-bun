@@ -1331,3 +1331,21 @@ description allowed). `typeof Symbol()`→`symbol`, `s===s`→true, two `Symbol(
 **115 jsint fuzzers, 0 diffs; gate GREEN.** (Symbol-keyed object properties `o[sym]=…`, well-known
 symbols like `Symbol.iterator`, and `Symbol.for` are a later concern — the common `typeof`/identity
 uses work.)
+
+---
+
+**BigInt — arbitrary-precision integers (2026-07-22).** `10n+20n` was NaN, `typeof 5n` was "number".
+Added BigInt backed by the toolchain's arbitrary-precision `base::BigInt`: a native `js_bigint_eval`
+is a recursive-descent evaluator over the spaced token stream (`+ - * / % **`, parens, unary; operands
+are decimal digits with an optional trailing `n`) — `/` truncates toward zero, `%` is the remainder,
+and precision is unbounded (`2n**100n`→`1267650600228229401496703205376n`, exact). A BigInt VALUE is a
+`tagBig`-tagged decimal string; `arithValue` routes any expression containing a BigInt token to
+`bigintEval` (integers and floats keep their own paths). `typeof` reports "bigint"; `BigInt(n)`
+constructs; `console.log` prints the trailing-`n` inspect form (`materialize`/`String(10n)` drop it, as
+in JS). The tag byte is `chr(0)` — the only free NON-whitespace control byte; the first pick (`chr(12)`,
+form-feed) was silently eaten by `trim` when a BigInt variable was re-resolved, so `console.log(x)`
+showed `5` not `5n`. `10n+20n`→`30n`, `2n**100n`, `9007199254740993n+1n`, `20n/3n`→`6n`, `-5n+2n`→`-3n`,
+`let x=5n;x*x`→`25n`, `typeof 5n`→`bigint`, `BigInt(42)`→`42n`, `String(30n)`→`30` all match Node;
+integer/float arithmetic, split, and everything else unaffected. New `bigint-diff` fuzzer. **116 jsint
+fuzzers, 0 diffs; gate GREEN.** Toolchain `js_bigint_eval` added (LOCAL). (Bitwise BigInt ops and
+BigInt↔Number mixing errors are a later concern.)

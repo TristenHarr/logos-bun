@@ -45,6 +45,8 @@
 
 ## To native jsToFixed (x: Text, n: Int) -> Text
 
+## To native jsBigintEval (expr: Text) -> Text
+
 ## To native jsMath1 (op: Text, x: Text) -> Text
 
 ## To native jsMath2 (op: Text, a: Text, b: Text) -> Text
@@ -59,6 +61,9 @@
 # how a space becomes encSpace), and decoded back at every output boundary.
 ## To tagStr () -> Text:
     Return chr(3).
+
+## To tagBig () -> Text:
+    Return chr(0).
 
 ## To tagArr () -> Text:
     Return chr(5).
@@ -1405,10 +1410,12 @@
     Return "NaN".
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt"].
     Return names contains name.
 
 ## To globalCall (name: Text, av: Text) -> Text:
+    If name is equal to "BigInt":
+        Return concat(tagBig (), jsParseIntText(decodeStr(materialize(av)))).
     If name is equal to "parseInt":
         Return jsParseIntText(decodeStr(materialize(av))).
     If name is equal to "parseFloat":
@@ -1577,6 +1584,8 @@
 ## To materialize (v: Text) -> Text:
     If startsWith(v, tagStr ()):
         Return substringAfter(v, tagStr ()).
+    If startsWith(v, tagBig ()):
+        Return substringAfter(v, tagBig ()).
     If isArrRef(v):
         Return matArr(arrElements(v), 1, "").
     If isObjRef(v):
@@ -2253,8 +2262,32 @@
         Return true.
     Return needsFloat(toks, i + 1).
 
+# A BigInt token: a decimal-literal with a trailing `n` (`10n`), or a tagBig value (`tagBig+"10"`).
+## To bigTok (t: Text) -> Bool:
+    If startsWith(t, tagBig ()):
+        Return true.
+    If length of t is less than 2:
+        Return false.
+    If item (length of t) of t is not equal to "n":
+        Return false.
+    Return isIntStr(strSliceLoop(t, 1, (length of t) - 1, "")).
+
+## To hasBigTok (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If bigTok(concat(item i of toks, "")):
+        Return true.
+    Return hasBigTok(toks, i + 1).
+
+# A BigInt arithmetic expression: strip the tagBig markers (native reads the `n` suffix / plain digits)
+# and evaluate with arbitrary-precision BigInt; the result stays a tagBig value.
+## To bigintEval (expr: Text) -> Text:
+    Return concat(tagBig (), jsBigintEval(replaceAll(concat(expr, ""), tagBig (), ""))).
+
 ## To arithValue (expr: Text) -> Text:
     Let coerced be coerceNumToks(split(expr, " "), 1, "").
+    If hasBigTok(split(concat(coerced, ""), " "), 1):
+        Return bigintEval(concat(coerced, "")).
     If arithBadTok(split(concat(coerced, ""), " "), 1):
         Return "NaN".
     If needsFloat(split(concat(coerced, ""), " "), 1):
@@ -2294,6 +2327,8 @@
     If startsWith(tok, chr(1)):
         Return concat(tagStr (), "function").
     Let v be evalValue(litToStr(tok)).
+    If startsWith(v, tagBig ()):
+        Return concat(tagStr (), "bigint").
     If startsWith(v, tagStr ()):
         Return concat(tagStr (), "string").
     If isArrRef(v):
@@ -5615,10 +5650,17 @@
     heapSet(alias, "v2").
     Return heapGet(h).
 
+# console.log renders a top-level BigInt with a trailing `n` (its inspect form) — distinct from
+# String(10n) / `10n + ""`, which drop it. Other values format via materialize as usual.
+## To bigDisplay (v: Text) -> Text:
+    If startsWith(v, tagBig ()):
+        Return concat(substringAfter(v, tagBig ()), "n").
+    Return materialize(v).
+
 ## To consoleFmt (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
         Return acc.
-    Let piece be materialize(jsEvalIn(trim(item i of args), concat(env, ""))).
+    Let piece be bigDisplay(jsEvalIn(trim(item i of args), concat(env, ""))).
     If i is equal to 1:
         Return consoleFmt(args, i + 1, env, piece).
     Return consoleFmt(args, i + 1, env, concat(concat(acc, " "), piece)).
