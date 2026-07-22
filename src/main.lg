@@ -5653,8 +5653,84 @@
 ## To desugarObjMethods (s: Text) -> Text:
     Return domWalk(split(s, " "), 1, "", "", "").
 
+# Class-body ASI: a class field terminated by a newline (`class C { a\n b = 1\n m(){} }`) has no
+# `;`, so after normJs collapses the newline classWalk can't tell where one member ends and the next
+# begins. This pre-pass (raw source, after quote-normalization) inserts ` ; ` at each newline that is
+# at the TOP level of a class body (brace/paren/bracket depth 0, not inside a string), unless the line
+# clearly continues (ends in an operator / `{` / `,` / `(` etc). Scoped strictly to `class … { }`
+# bodies — non-class code is returned untouched.
+## To lastNonWs (s: Text, i: Int) -> Text:
+    If i is less than 1:
+        Return "".
+    Let c be item i of s.
+    If c is equal to " ":
+        Return lastNonWs(s, i - 1).
+    If c is equal to chr(10):
+        Return lastNonWs(s, i - 1).
+    If c is equal to chr(9):
+        Return lastNonWs(s, i - 1).
+    If c is equal to chr(13):
+        Return lastNonWs(s, i - 1).
+    Return c.
+
+## To continuesLine (c: Text) -> Bool:
+    Let conts be ["", ";", chr(123), ",", "(", chr(91), "=", "+", "-", "*", "/", "%", "&", "|", ".", ":", "?", "<", ">", "!"].
+    Return conts contains c.
+
+## To insertBodySemis (s: Text, i: Int, depth: Int, sm: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If sm is equal to 1:
+        If c is equal to chr(34):
+            Return insertBodySemis(s, i + 1, depth, 0, concat(acc, c)).
+        If c is equal to chr(92):
+            If i is less than length of s:
+                Let nx be item (i + 1) of s.
+                Return insertBodySemis(s, i + 2, depth, 1, concat(concat(acc, c), nx)).
+        Return insertBodySemis(s, i + 1, depth, 1, concat(acc, c)).
+    If sm is equal to 2:
+        If c is equal to chr(96):
+            Return insertBodySemis(s, i + 1, depth, 0, concat(acc, c)).
+        Return insertBodySemis(s, i + 1, depth, 2, concat(acc, c)).
+    If c is equal to chr(34):
+        Return insertBodySemis(s, i + 1, depth, 1, concat(acc, c)).
+    If c is equal to chr(96):
+        Return insertBodySemis(s, i + 1, depth, 2, concat(acc, c)).
+    If c is equal to chr(123):
+        Return insertBodySemis(s, i + 1, depth + 1, 0, concat(acc, c)).
+    If c is equal to "(":
+        Return insertBodySemis(s, i + 1, depth + 1, 0, concat(acc, c)).
+    If c is equal to chr(91):
+        Return insertBodySemis(s, i + 1, depth + 1, 0, concat(acc, c)).
+    If c is equal to chr(125):
+        Return insertBodySemis(s, i + 1, depth - 1, 0, concat(acc, c)).
+    If c is equal to ")":
+        Return insertBodySemis(s, i + 1, depth - 1, 0, concat(acc, c)).
+    If c is equal to chr(93):
+        Return insertBodySemis(s, i + 1, depth - 1, 0, concat(acc, c)).
+    If c is equal to chr(10):
+        If depth is equal to 0:
+            If continuesLine(lastNonWs(concat(acc, ""), length of acc)):
+                Return insertBodySemis(s, i + 1, depth, 0, concat(acc, " ")).
+            Return insertBodySemis(s, i + 1, depth, 0, concat(acc, " ; ")).
+        Return insertBodySemis(s, i + 1, depth, 0, concat(acc, " ")).
+    Return insertBodySemis(s, i + 1, depth, 0, concat(acc, c)).
+
+## To classBodySemis (s: Text) -> Text:
+    If substringBefore(s, "class ") is equal to s:
+        Return s.
+    Let bef be substringBefore(s, "class ").
+    Let aft be substringAfter(s, "class ").
+    Let head be substringBefore(aft, chr(123)).
+    Let afterBrace be substringAfter(aft, chr(123)).
+    Let body be braceBody(afterBrace, 1, 0, "").
+    Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+    Let fixedBody be insertBodySemis(concat(body, ""), 1, 0, 0, "").
+    Return concat(concat(concat(concat(concat(concat(bef, "class "), head), chr(123)), fixedBody), chr(125)), classBodySemis(concat(remainder, ""))).
+
 ## To normalizeJs (s: Text) -> Text:
-    Let sq be convertQuotes(s, 1, 0, "").
+    Let sq be classBodySemis(convertQuotes(s, 1, 0, "")).
     Let rx be desugarRegexLits(sq, 1, "", false, "", "").
     Let templated be desugarTemplates(rx, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
