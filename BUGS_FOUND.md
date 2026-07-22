@@ -1169,3 +1169,17 @@ extending `commaDepthSplit` to track `[]` and `{}` depth (it already tracked `()
 commas inside strings, nested arrays, and nested objects no longer split. `["abc","a,b,c"]`,
 `[[1,2],[3]]`, `[{a:1},{a:2}]` all correct; function-arg splitting, `Map.set("k","a,b")`, `Math.max`,
 `reduce` unaffected. New `squote-diff` fuzzer. **105 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**Iteration & spread over Set / Map / string + for-of destructuring (2026-07-22).** `iterElements`
+(the engine of spread `[...x]` and `for-of`) only knew arrays and generators, so `[...set]`→empty,
+`new Map([["a",1]])`→empty (size 0), `for (const c of "abc")`→nothing, and a destructuring loop var
+`for (const [k,v] of …)`→`NaN=NaN` even over a plain array. Extended `iterElements` to yield a Set's
+values (`__set_vals`), a Map's `[k,v]` entries (new `mapEntriesArr`), and a string's characters (new
+`strToCharArr`, on the chr-encoded content so it round-trips). Wired `new Map([[k,v],…])` to populate
+via a new `mapFromEntries`. And made the for-of/for-in loop variable destructure — `bindLoopVar` routes
+an `[…]`/`{…}` pattern through `destructureArr`/`destructureObj`, a plain name binds directly.
+`[...set]`, `[..."hello"]`, `new Map([...])`, `for (const c of str)`, `for (const [k,v] of map)` /
+arrays / `Object.entries` all match Node; plain for-of, array spread, existing Set/Map ops unaffected.
+New `iterspread-diff` fuzzer. **106 jsint fuzzers, 0 diffs; gate GREEN.**

@@ -1152,10 +1152,53 @@
 
 # The elements to iterate for for-of / spread: an array's own elements, or a generator's collected
 # yields.
+## To strToCharArrLoop (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let ch be concat(tagStr (), item i of s).
+    If i is equal to 1:
+        Return strToCharArrLoop(s, i + 1, ch).
+    Return strToCharArrLoop(s, i + 1, concat(concat(acc, tagArrSep ()), ch)).
+
+## To strToCharArr (s: Text) -> Text:
+    If s is equal to "":
+        Return newArr(concat(tagArr (), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), strToCharArrLoop(s, 1, "")), tagArrEnd ())).
+
 ## To iterElements (v: Text) -> Seq of Text:
     If isGenerator(v):
         Return arrElements(objGet(concat(v, ""), "__gen_values")).
+    If isSet(concat(v, "")):
+        Return arrElements(objGet(concat(v, ""), "__set_vals")).
+    If isMap(concat(v, "")):
+        Return arrElements(mapEntriesArr(concat(v, ""))).
+    If startsWith(concat(v, ""), tagStr ()):
+        Return arrElements(strToCharArr(materialize(concat(v, "")))).
     Return arrElements(concat(v, "")).
+
+# The [key, value] pairs of a Map as a real array-of-2-arrays value (for [...map] / for-of / entries).
+## To mapEntriesLoop (keys: Seq of Text, vals: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of keys:
+        Return acc.
+    Let pair be newArr(concat(concat(tagArr (), concat(concat(item i of keys, tagArrSep ()), item i of vals)), tagArrEnd ())).
+    If i is equal to 1:
+        Return mapEntriesLoop(keys, vals, i + 1, pair).
+    Return mapEntriesLoop(keys, vals, i + 1, concat(concat(acc, tagArrSep ()), pair)).
+
+## To mapEntriesArr (m: Text) -> Text:
+    Return newArr(concat(concat(tagArr (), mapEntriesLoop(arrElements(objGet(concat(m, ""), "__map_keys")), arrElements(objGet(concat(m, ""), "__map_vals")), 1, "")), tagArrEnd ())).
+
+# Build a Map from an iterable of [key, value] pairs — new Map([["a",1],["b",2]]).
+## To mapFromEntriesLoop (entries: Seq of Text, i: Int, m: Text) -> Text:
+    If i is greater than length of entries:
+        Return m.
+    Let pair be item i of entries.
+    Let k be arrGet(concat(pair, ""), 0).
+    Let v be arrGet(concat(pair, ""), 1).
+    Return mapFromEntriesLoop(entries, i + 1, mapSet(m, k, v)).
+
+## To mapFromEntries (entriesVal: Text, m: Text) -> Text:
+    Return mapFromEntriesLoop(iterElements(entriesVal), 1, m).
 
 # p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
 # id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
@@ -2943,7 +2986,9 @@
       If markerInBody(concat(expr, ""), "new Map (") is equal to false:
         Let bef be substringBefore(expr, "new Map (").
         Let aft be substringAfter(expr, "new Map (").
-        Return resolveMethods(trim(concat(concat(bef, newMap()), methodRest(aft))), env).
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newMap()), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, mapFromEntries(jsEvalIn(trim(methodArg(aft)), env), newMap())), methodRest(aft))), env).
     If substringBefore(expr, "new Set (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Set (") is equal to false:
         Let bef be substringBefore(expr, "new Set (").
@@ -4213,13 +4258,22 @@
         Return forStmt(stmt, afterUpdate).
     Return env.
 
+# The for-of / for-in loop variable may be a destructuring pattern (`for (const [k,v] of …)`), so
+# bind it per element through destructureArr/Obj; a plain name binds directly.
+## To bindLoopVar (varName: Text, el: Text, env: Text) -> Text:
+    If startsWith(varName, chr(91)):
+        Return destructureArr(varName, el, env).
+    If startsWith(varName, chr(123)):
+        Return destructureObj(varName, el, env).
+    Return envSet(env, varName, el).
+
 ## To forOfLoop (els: Seq of Text, i: Int, varName: Text, body: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     If i is greater than length of els:
         Return env.
     Let el be item i of els.
-    Let e2 be envSet(env, varName, el).
+    Let e2 be bindLoopVar(concat(varName, ""), el, env).
     Let afterBody be runBlockStr(concat(body, ""), e2).
     Return forOfLoop(els, i + 1, varName, body, afterBody).
 
