@@ -1194,3 +1194,19 @@ the name to `"undefined"`. `let x`→undefined, `typeof x`→"undefined", `x ?? 
 true, `let a,b; a=1; b=2`→3 (multi-declare), and later assignment (`let x; x=5`) all match Node;
 initialized declarations, destructuring, and object/array literals unaffected. Locked with new cases in
 `decl-diff`. **106 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**ES2022 class fields (public + private #) (2026-07-22).** A class body field declaration —
+`class A { p = 5; … }` or `#p = 5` or a bare `x;` — was mis-parsed (`classWalk` only understood
+methods, so it grabbed the NEXT method's parens/braces → NaN / garbage like `vthis.n=v`). Added field
+detection: a member whose name is a plain identifier (not constructor/get/set/static/async) NOT
+followed by `(` is a field. `x = expr ;` initializes to expr, a bare `x ;` to undefined; both become
+`this . x = …` accumulated into a new `fields` thread that `superFirst` injects into the constructor
+AFTER `super`. A `#private` name is just an unusually-spelled property key, so private fields work with
+zero extra logic. `class A{p=5}`, multiple fields, `#p=5`, field + explicit constructor (`n=0;
+constructor(v){this.n=v}`), private mutation (`#x=this.#x+1`), and reference-typed field values
+(`items=[]` then push) all match Node; methods, constructors, `extends`/`super`, `static`, and
+getters unaffected. New `classfields-diff` fuzzer. **107 jsint fuzzers, 0 diffs; gate GREEN.** (Field
+values containing a top-level `;` — e.g. an inline `function(){…;…}` field — aren't split yet; simple/
+literal/arrow/array/object values, the overwhelming majority, are.)

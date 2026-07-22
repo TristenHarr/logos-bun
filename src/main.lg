@@ -4680,51 +4680,79 @@
 # (args)` and run FIRST — it invokes the parent constructor with THIS, populating inherited
 # fields+methods — then the child's own method assignments (which override the parent's), then
 # the rest of the child ctor body.
-## To superFirst (parent: Text, cbody: Text, methods: Text) -> Text:
+## To superFirst (parent: Text, cbody: Text, methods: Text, fields: Text) -> Text:
     If parent is equal to "":
-        Return concat(methods, cbody).
+        Return concat(concat(methods, fields), cbody).
     Let afterOpen be substringAfter(cbody, chr(40)).
     Let sargs be balancedArg(concat(afterOpen, ""), 1, 0, "").
     Let afterClose be strSliceLoop(afterOpen, (length of sargs) + 2, length of afterOpen, "").
     Let restBody be trim(substringAfter(concat(afterClose, ""), ";")).
     Let superCall be concat(concat(concat(concat("__super__ ", parent), " ( "), sargs), " ) ; ").
-    Return concat(concat(superCall, methods), restBody).
+    Return concat(concat(concat(superCall, methods), fields), restBody).
 
 # A `static m(){…}` member binds `__static_<Class>_m = function(…){…}` at class-definition time
 # (it belongs to the class, not instances) — dispatched by resolveCalls when the receiver of a
 # call is a class name. Every other member is an instance method assigned onto `this`.
-## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text, statics: Text) -> Text:
+# A class-body member is a FIELD (not a method) when its name is a plain identifier — not
+# constructor/get/set/static/async — that is NOT immediately followed by `(`. `x = expr ;` initializes
+# to expr, a bare `x ;` to undefined; both become `this . x = …` prepended into the constructor (after
+# super). A `#private` name is just an unusually-spelled property key, so private fields fall out free.
+## To isClassField (name: Text, tok2: Text) -> Bool:
+    If name is equal to "constructor":
+        Return false.
+    If name is equal to "static":
+        Return false.
+    If name is equal to "get":
+        Return false.
+    If name is equal to "set":
+        Return false.
+    If name is equal to "async":
+        Return false.
+    If tok2 is equal to chr(40):
+        Return false.
+    Return true.
+
+## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text, statics: Text, fields: Text) -> Text:
     Let b be trim(body).
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
-        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods))), " "), chr(125)).
+        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods, fields))), " "), chr(125)).
         Return concat(statics, fnDef).
     Let name be item 1 of split(b, " ").
+    If isClassField(name, item 2 of split(b, " ")):
+        If item 2 of split(b, " ") is equal to "=":
+            Let fval be trim(substringBefore(substringAfter(b, " = "), " ; ")).
+            Let frest be trim(substringAfter(substringAfter(b, " = "), " ; ")).
+            Let finit be concat(concat(concat("this . ", name), concat(" = ", fval)), " ; ").
+            Return classWalk(cname, parent, frest, cparams, cbody, methods, statics, concat(fields, finit)).
+        Let brest be trim(substringAfter(b, " ; ")).
+        Let binit be concat(concat("this . ", name), " = undefined ; ").
+        Return classWalk(cname, parent, brest, cparams, cbody, methods, statics, concat(fields, binit)).
     Let params be trim(substringBefore(substringAfter(b, chr(40)), chr(41))).
     Let afterBrace be substringAfter(b, chr(123)).
     Let mbody be braceBody(afterBrace, 1, 0, "").
     Let rest be strSliceLoop(afterBrace, (length of mbody) + 2, length of afterBrace, "").
     If name is equal to "constructor":
-        Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics).
+        Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics, fields).
     If name is equal to "static":
         If item 2 of split(b, " ") is not equal to chr(40):
             Let sname be item 2 of split(b, " ").
             Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
             Let sbind be concat(concat(concat(concat(sHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
-            Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind)).
+            Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind), fields).
     If name is equal to "get":
         If item 2 of split(b, " ") is not equal to chr(40):
             Let gHead be concat(concat(concat("this . __get_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
             Let gAssign be concat(concat(concat(concat(gHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
-            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, gAssign), statics).
+            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, gAssign), statics, fields).
     If name is equal to "set":
         If item 2 of split(b, " ") is not equal to chr(40):
             Let stHead be concat(concat(concat("this . __set_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
             Let stAssign be concat(concat(concat(concat(stHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
-            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics).
+            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics, fields).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
     Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
-    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign), statics).
+    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign), statics, fields).
 
 ## To desugarClass (expr: Text) -> Text:
     If substringBefore(expr, "class ") is equal to expr:
@@ -4737,7 +4765,7 @@
     Let afterBrace be substringAfter(aft, chr(123)).
     Let cbody be braceBody(afterBrace, 1, 0, "").
     Let remainder be strSliceLoop(afterBrace, (length of cbody) + 2, length of afterBrace, "").
-    Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "")), " ; ").
+    Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "", "")), " ; ").
     Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
 # `async` adds no new control flow in this synchronous-drain model — an async function runs like
