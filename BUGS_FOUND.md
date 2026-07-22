@@ -709,3 +709,16 @@ stores a tagged string value, so `instanceChain` must `materialize` the parent n
 gets a `\x03A` that never matches `A`. Locked by a new `classinherit-diff` fuzzer. **82 jsint
 fuzzers × 3 seeds = 246 runs, 0 diffs vs Node.** Remaining E1: `static` methods, getters/setters,
 private `#fields` — then E2 (async/Promise).
+
+---
+
+**P7 ENGINE — E1.5 STATIC METHODS:** a `static m(){…}` class member belongs to the class, not the
+instance. The class desugar's `classWalk` now threads a `statics` accumulator: a `static` member is
+emitted as a class-definition-time binding `__static_<Class>_<m> = function(…){…}` (rather than a
+`this.m = …` instance assignment), and `resolveCalls` gains a branch that, before the object-method
+check, dispatches `Class.m(args)` to that binding when it exists. So static factories
+(`static of(v){ return new A(v) }`), static helpers, and mixing static + instance methods on one
+class all work; `A.of(7).x`, `a.m() + A.k()` verified against Node. Locked by a new
+`classstatic-diff` fuzzer. **83 jsint fuzzers × 3 seeds = 249 runs, 0 diffs vs Node.** getters/setters
+and private `#fields` remain; the class model (methods, `this`, `new`, `extends`, `super`,
+`instanceof`, `static`) now covers the overwhelming majority of real class usage.

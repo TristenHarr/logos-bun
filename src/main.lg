@@ -1053,6 +1053,11 @@
         Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, av)), rest), env).
     If length of ptoks is greater than 2:
         If item ((length of ptoks) - 1) of ptoks is equal to chr(46):
+            Let sfn be envGet(env, concat(concat(concat("__static_", item ((length of ptoks) - 2) of ptoks), "_"), lastTok)).
+            If startsWith(sfn, chr(1)):
+                Let result be callFn(sfn, inner, env).
+                Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 3, "").
+                Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
             Let recvVal be jsEvalIn(concat(item ((length of ptoks) - 2) of ptoks, ""), concat(env, "")).
             If isObjRef(recvVal):
                 Let mfn be objGet(recvVal, concat(lastTok, "")).
@@ -3801,21 +3806,30 @@
     Let superCall be concat(concat(concat(concat("__super__ ", parent), " ( "), sargs), " ) ; ").
     Return concat(concat(superCall, methods), restBody).
 
-## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text) -> Text:
+# A `static m(){…}` member binds `__static_<Class>_m = function(…){…}` at class-definition time
+# (it belongs to the class, not instances) — dispatched by resolveCalls when the receiver of a
+# call is a class name. Every other member is an instance method assigned onto `this`.
+## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text, statics: Text) -> Text:
     Let b be trim(body).
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
-        Return concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods))), " "), chr(125)).
+        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods))), " "), chr(125)).
+        Return concat(statics, fnDef).
     Let name be item 1 of split(b, " ").
     Let params be trim(substringBefore(substringAfter(b, chr(40)), chr(41))).
     Let afterBrace be substringAfter(b, chr(123)).
     Let mbody be braceBody(afterBrace, 1, 0, "").
     Let rest be strSliceLoop(afterBrace, (length of mbody) + 2, length of afterBrace, "").
     If name is equal to "constructor":
-        Return classWalk(cname, parent, rest, params, trim(mbody), methods).
+        Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics).
+    If name is equal to "static":
+        Let sname be item 2 of split(b, " ").
+        Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
+        Let sbind be concat(concat(concat(concat(sHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+        Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind)).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
     Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
-    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign)).
+    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign), statics).
 
 ## To desugarClass (expr: Text) -> Text:
     If substringBefore(expr, "class ") is equal to expr:
@@ -3828,7 +3842,7 @@
     Let afterBrace be substringAfter(aft, chr(123)).
     Let cbody be braceBody(afterBrace, 1, 0, "").
     Let remainder be strSliceLoop(afterBrace, (length of cbody) + 2, length of afterBrace, "").
-    Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "")), " ; ").
+    Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "")), " ; ").
     Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
 ## To normalizeJs (s: Text) -> Text:
