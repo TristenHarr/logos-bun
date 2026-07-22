@@ -1036,9 +1036,9 @@
 ## To materialize (v: Text) -> Text:
     If startsWith(v, tagStr ()):
         Return substringAfter(v, tagStr ()).
-    If startsWith(v, tagArr ()):
+    If isArrRef(v):
         Return matArr(arrElements(v), 1, "").
-    If isRef(v):
+    If isObjRef(v):
         Return "[object Object]".
     Return v.
 
@@ -1074,7 +1074,7 @@
     Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
 
 ## To arrElements (arrval: Text) -> Seq of Text:
-    Let inner be substringAfter(arrval, tagArr ()).
+    Let inner be substringAfter(derefObj(arrval), tagArr ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return [] of Text.
@@ -1082,7 +1082,7 @@
 
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
-        Return concat(concat(tagArr (), acc), tagArrEnd ()).
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
     Let el be trim(item i of elems).
     If startsWith(el, "..."):
         Let sEls be arrElements(evalValue(trim(substringAfter(el, "...")))).
@@ -1115,16 +1115,16 @@
     Let prefix be trim(rawPrefix).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
-    If startsWith(lastTok, tagArr ()):
+    If isArrRef(lastTok):
         Let elem be arrGet(lastTok, parseInt(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
-    If isRef(lastTok):
+    If isObjRef(lastTok):
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
     If inner is equal to "":
-        Return resolveArrays(trim(concat(concat(rawPrefix, concat(tagArr (), tagArrEnd ())), rest))).
+        Return resolveArrays(trim(concat(concat(rawPrefix, newArr(concat(tagArr (), tagArrEnd ()))), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(split(inner, ","), 1, "")), rest))).
 
 ## To splitObjEntriesDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
@@ -1149,9 +1149,11 @@
         Return objScanLast(entries, i + 1, key, substringAfter(entry, tagObjKV ())).
     Return objScanLast(entries, i + 1, key, found).
 
-# E0 object identity: an object value is a HANDLE `tagRef + heapId`; its blob (tagObj…tagObjEnd)
-# lives in the mutable heap. derefObj resolves a ref (or passes an inline blob through), so a
-# copied handle shares one mutable cell — real aliasing. newObjRef allocates a fresh handle.
+# E0 heap identity: an object OR array value is a HANDLE `tagRef + heapId`; its blob
+# (tagObj…tagObjEnd or tagArr…tagArrEnd) lives in the mutable heap. derefObj resolves a ref
+# (or passes an inline blob through), so a copied handle shares one mutable cell — real
+# aliasing. newObjRef allocates a fresh handle (heap-generic; newArr is the array-side alias).
+# isObjRef/isArrRef classify a handle by the tag of the blob it points at.
 ## To tagRef () -> Text:
     Return chr(2).
 
@@ -1168,6 +1170,25 @@
 
 ## To newObjRef (blob: Text) -> Text:
     Return concat(tagRef (), heapAlloc(blob)).
+
+## To newArr (blob: Text) -> Text:
+    Return concat(tagRef (), heapAlloc(blob)).
+
+## To isObjRef (v: Text) -> Bool:
+    Return startsWith(derefObj(v), tagObj ()).
+
+## To isArrRef (v: Text) -> Bool:
+    Return startsWith(derefObj(v), tagArr ()).
+
+# In-place array mutation (push/pop/[i]=/reverse/fill/sort): when arrval is a heap ref the
+# new blob is written THROUGH the handle (heapSet) and the same ref is returned, so every
+# alias sees the mutation and identity is preserved — real reference semantics. A non-ref
+# arrval (transitional inline blob) allocates a fresh handle.
+## To mutArr (arrval: Text, blob: Text) -> Text:
+    If isRef(concat(arrval, "")):
+        heapSet(refId(concat(arrval, "")), concat(blob, "")).
+        Return concat(arrval, "").
+    Return newArr(blob).
 
 ## To objGet (objVal: Text, key: Text) -> Text:
     Let inner be substringAfter(derefObj(objVal), tagObj ()).
@@ -1198,7 +1219,7 @@
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let pair be concat(concat(tagArr (), concat(concat(concat(tagStr (), substringBefore(entry, tagObjKV ())), tagArrSep ()), substringAfter(entry, tagObjKV ()))), tagArrEnd ()).
+    Let pair be newArr(concat(concat(tagArr (), concat(concat(concat(tagStr (), substringBefore(entry, tagObjKV ())), tagArrSep ()), substringAfter(entry, tagObjKV ()))), tagArrEnd ())).
     If i is equal to 1:
         Return objEntriesLoop(entries, i + 1, pair).
     Return objEntriesLoop(entries, i + 1, concat(concat(acc, tagArrSep ()), pair)).
@@ -1211,13 +1232,13 @@
     Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
 
 ## To objKeys (objVal: Text) -> Text:
-    Return concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 ## To objValues (objVal: Text) -> Text:
-    Return concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 ## To objEntries (objVal: Text) -> Text:
-    Return concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 ## To fromEntriesLoop (pairs: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of pairs:
@@ -1284,9 +1305,9 @@
 ## To jsonStringify (v: Text) -> Text:
     If startsWith(v, tagStr ()):
         Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
-    If startsWith(v, tagArr ()):
+    If isArrRef(v):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
-    If isRef(v):
+    If isObjRef(v):
         Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeq(v), 1, "")), encBraceR ()).
     Return v.
 
@@ -1354,7 +1375,7 @@
 
 ## To jsonBuildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
-        Return concat(concat(tagArr (), acc), tagArrEnd ()).
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
     Let val be jsonParse(item i of elems).
     If i is equal to 1:
         Return jsonBuildArr(elems, i + 1, val).
@@ -1370,7 +1391,7 @@
     If startsWith(t, encBrkL ()):
         Let innerA be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
         If innerA is equal to "":
-            Return concat(tagArr (), tagArrEnd ()).
+            Return newArr(concat(tagArr (), tagArrEnd ())).
         Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
     If startsWith(t, encQuote ()):
         Return concat(tagStr (), strSliceLoop(t, 2, (length of t) - 1, "")).
@@ -1442,7 +1463,7 @@
     Return arrSetLoop(els, i + 1, idx, newval, concat(concat(acc, tagArrSep ()), el)).
 
 ## To arrSetIdx (arrval: Text, idx: Int, newval: Text) -> Text:
-    Return concat(concat(tagArr (), arrSetLoop(arrElements(arrval), 1, idx, newval, "")), tagArrEnd ()).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrSetLoop(arrElements(arrval), 1, idx, newval, "")), tagArrEnd ())).
 
 ## To objKeyOf (keyPart: Text) -> Text:
     If startsWith(keyPart, chr(91)):
@@ -1516,7 +1537,7 @@
     Let tailToks be split(tail, " ").
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
-    If isRef(recv):
+    If isObjRef(recv):
         Let val be objGet(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
@@ -1524,7 +1545,7 @@
     Return expr.
 
 ## To propLength (v: Text) -> Int:
-    If startsWith(v, tagArr ()):
+    If isArrRef(v):
         Return length of arrElements(v).
     Return length of materialize(litToStr(v)).
 
@@ -1635,9 +1656,9 @@
     Let v be evalValue(litToStr(tok)).
     If startsWith(v, tagStr ()):
         Return concat(tagStr (), "string").
-    If startsWith(v, tagArr ()):
+    If isArrRef(v):
         Return concat(tagStr (), "object").
-    If isRef(v):
+    If isObjRef(v):
         Return concat(tagStr (), "object").
     If v is equal to "true":
         Return concat(tagStr (), "boolean").
@@ -1716,7 +1737,7 @@
     Return arrIndexOfLoop(arrElements(arrval), 1, target).
 
 ## To idxOf (raw: Text, subEval: Text) -> Int:
-    If startsWith(raw, tagArr ()):
+    If isArrRef(raw):
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
 
@@ -1732,10 +1753,10 @@
     Return arrSliceLoop(els, i + 1, endEx, nextAcc).
 
 ## To arrSlice (arrval: Text, a: Int, b: Int) -> Text:
-    Return concat(concat(tagArr (), arrSliceLoop(arrElements(arrval), a + 1, b, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), arrSliceLoop(arrElements(arrval), a + 1, b, "")), tagArrEnd ())).
 
 ## To sliceOf (raw: Text, a: Int, b: Int) -> Text:
-    If startsWith(raw, tagArr ()):
+    If isArrRef(raw):
         Return arrSlice(raw, a, b).
     Return strSlice(materialize(raw), a, b).
 
@@ -1756,7 +1777,7 @@
 ## To arrReverse (arrval: Text) -> Text:
     Let els be arrElements(arrval).
     Let n be length of els.
-    Return concat(concat(tagArr (), arrReverseLoop(els, n, "")), tagArrEnd ()).
+    Return mutArr(arrval, concat(concat(tagArr (), arrReverseLoop(els, n, "")), tagArrEnd ())).
 
 ## To arrFillLoop (n: Int, i: Int, v: Text, acc: Text) -> Text:
     If i is greater than n:
@@ -1766,7 +1787,7 @@
     Return arrFillLoop(n, i + 1, concat(v, ""), concat(concat(acc, tagArrSep ()), v)).
 
 ## To arrFill (arrval: Text, v: Text) -> Text:
-    Return concat(concat(tagArr (), arrFillLoop(length of arrElements(arrval), 1, v, "")), tagArrEnd ()).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrFillLoop(length of arrElements(arrval), 1, v, "")), tagArrEnd ())).
 
 ## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1779,7 +1800,7 @@
     Return arrMapLoop(els, i + 1, fnval, env, nextAcc).
 
 ## To arrMap (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(concat(tagArr (), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), arrMapLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ())).
 
 ## To arrOfLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -1791,8 +1812,8 @@
 
 ## To arrOf (argStr: Text, env: Text) -> Text:
     If trim(concat(argStr, "")) is equal to "":
-        Return concat(tagArr (), tagArrEnd ()).
-    Return concat(concat(tagArr (), arrOfLoop(patFields(argStr), 1, env, "")), tagArrEnd ()).
+        Return newArr(concat(tagArr (), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), arrOfLoop(patFields(argStr), 1, env, "")), tagArrEnd ())).
 
 ## To fromCharsLoop (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1810,13 +1831,13 @@
     Return fromLenLoop(i + 1, n, concat(concat(acc, tagArrSep ()), "undefined")).
 
 ## To arrFromBase (v: Text) -> Text:
-    If startsWith(v, tagArr ()):
+    If isArrRef(v):
         Return concat(v, "").
     If startsWith(v, tagStr ()):
-        Return concat(concat(tagArr (), fromCharsLoop(substringAfter(v, tagStr ()), 1, "")), tagArrEnd ()).
-    If isRef(v):
-        Return concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ()).
-    Return concat(tagArr (), tagArrEnd ()).
+        Return newArr(concat(concat(tagArr (), fromCharsLoop(substringAfter(v, tagStr ()), 1, "")), tagArrEnd ())).
+    If isObjRef(v):
+        Return newArr(concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ())).
+    Return newArr(concat(tagArr (), tagArrEnd ())).
 
 ## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
     Let afterMark be substringAfter(fnVal, chr(1)).
@@ -1837,7 +1858,7 @@
     Return arrFromMapLoop(els, i + 1, fnval, env, concat(concat(acc, tagArrSep ()), r)).
 
 ## To arrFromMap (base: Text, fnval: Text, env: Text) -> Text:
-    Return concat(concat(tagArr (), arrFromMapLoop(arrElements(base), 1, fnval, env, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), arrFromMapLoop(arrElements(base), 1, fnval, env, "")), tagArrEnd ())).
 
 ## To arrReduceLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1861,14 +1882,14 @@
 ## To arrPush (arrval: Text, val: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
-        Return concat(concat(tagArr (), val), tagArrEnd ()).
-    Return concat(concat(tagArr (), concat(concat(joinChr6(els, 1, length of els, ""), tagArrSep ()), val)), tagArrEnd ()).
+        Return mutArr(arrval, concat(concat(tagArr (), val), tagArrEnd ())).
+    Return mutArr(arrval, concat(concat(tagArr (), concat(concat(joinChr6(els, 1, length of els, ""), tagArrSep ()), val)), tagArrEnd ())).
 
 ## To arrPop (arrval: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
         Return arrval.
-    Return concat(concat(tagArr (), joinChr6(els, 1, (length of els) - 1, "")), tagArrEnd ()).
+    Return mutArr(arrval, concat(concat(tagArr (), joinChr6(els, 1, (length of els) - 1, "")), tagArrEnd ())).
 
 ## To arrConcat (a: Text, b: Text) -> Text:
     Let ea be arrElements(a).
@@ -1876,13 +1897,13 @@
     Let na be length of ea.
     Let nb be length of eb.
     If na is less than 1:
-        Return concat(concat(tagArr (), joinChr6(eb, 1, nb, "")), tagArrEnd ()).
+        Return newArr(concat(concat(tagArr (), joinChr6(eb, 1, nb, "")), tagArrEnd ())).
     If nb is less than 1:
-        Return concat(concat(tagArr (), joinChr6(ea, 1, na, "")), tagArrEnd ()).
-    Return concat(concat(tagArr (), concat(concat(joinChr6(ea, 1, na, ""), tagArrSep ()), joinChr6(eb, 1, nb, ""))), tagArrEnd ()).
+        Return newArr(concat(concat(tagArr (), joinChr6(ea, 1, na, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), concat(concat(joinChr6(ea, 1, na, ""), tagArrSep ()), joinChr6(eb, 1, nb, ""))), tagArrEnd ())).
 
 ## To concatOf (a: Text, b: Text) -> Text:
-    If startsWith(a, tagArr ()):
+    If isArrRef(a):
         Return arrConcat(a, b).
     Return concat(tagStr (), concat(materialize(a), materialize(b))).
 
@@ -1908,7 +1929,7 @@
     Return concat(tagStr (), item (i + 1) of s).
 
 ## To atOf (raw: Text, i: Int) -> Text:
-    If startsWith(raw, tagArr ()):
+    If isArrRef(raw):
         Return arrAt(raw, i).
     Return strAt(materialize(raw), i).
 
@@ -1916,7 +1937,7 @@
     If i is greater than length of els:
         Return acc.
     Let el be item i of els.
-    If startsWith(el, tagArr ()):
+    If isArrRef(el):
         Let subEls be arrElements(el).
         If length of subEls is less than 1:
             Return arrFlatLoop(els, i + 1, acc).
@@ -1929,7 +1950,7 @@
     Return arrFlatLoop(els, i + 1, concat(concat(acc, tagArrSep ()), el)).
 
 ## To arrFlat (arrval: Text) -> Text:
-    Return concat(concat(tagArr (), arrFlatLoop(arrElements(arrval), 1, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), arrFlatLoop(arrElements(arrval), 1, "")), tagArrEnd ())).
 
 ## To arrFlatMap (arrval: Text, fnval: Text, env: Text) -> Text:
     Return arrFlat(arrMap(arrval, fnval, env)).
@@ -2006,7 +2027,7 @@
     Return arrFilterLoop(els, i + 1, fnval, env, acc).
 
 ## To arrFilter (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return concat(concat(tagArr (), arrFilterLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), arrFilterLoop(arrElements(arrval), 1, fnval, env, "")), tagArrEnd ())).
 
 ## To arrSomeLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Bool:
     If i is greater than length of els:
@@ -2151,7 +2172,7 @@
     Return splitToArr(pieces, i + 1, concat(concat(acc, tagArrSep ()), piece)).
 
 ## To strSplit (s: Text, sep: Text) -> Text:
-    Return concat(concat(tagArr (), splitToArr(split(s, sep), 1, "")), tagArrEnd ()).
+    Return newArr(concat(concat(tagArr (), splitToArr(split(s, sep), 1, "")), tagArrEnd ())).
 
 ## To arrJoinLoop (els: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -2244,7 +2265,7 @@
     Return sortFold(els, i + 1, mode, fnval, env, newAcc).
 
 ## To sortArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
-    Return sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ())).
+    Return mutArr(concat(arrval, ""), sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ()))).
 
 ## To leftmostOf (expr: Text, markers: Seq of Text, i: Int, best: Text, bestPos: Int) -> Text:
     If i is greater than length of markers:
@@ -2316,7 +2337,7 @@
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, cmpResult(startsWith(jsEvalIn(trim(methodArg(aft)), env), tagArr ()))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(isArrRef(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Number . isNaN (") is not equal to expr:
         Let bef be substringBefore(expr, "Number . isNaN (").
         Let aft be substringAfter(expr, "Number . isNaN (").
@@ -3194,6 +3215,13 @@
         If frest is equal to "":
             If isSimpleName(concat(fv, "")):
                 Return envSet(env, fv, jsEvalIn(concat(s, ""), env)).
+    If hasSep(s, " . reverse ("):
+        Let rv be trim(substringBefore(s, " . reverse (")).
+        Let raft be substringAfter(s, " . reverse (").
+        Let rrest be trim(strSliceLoop(raft, (length of balancedArg(concat(raft, ""), 1, 0, "")) + 2, length of raft, "")).
+        If rrest is equal to "":
+            If isSimpleName(concat(rv, "")):
+                Return envSet(env, rv, jsEvalIn(concat(s, ""), env)).
     Let mcr be memberCompoundRewrite(concat(s, "")).
     If hasSep(mcr, " = "):
         Return execStmt(mcr, env).
@@ -3279,11 +3307,11 @@
     Return arrIndexKeys(n, i + 1, concat(concat(acc, tagArrSep ()), k)).
 
 ## To forInKeys (v: Text) -> Text:
-    If isRef(v):
+    If isObjRef(v):
         Return objKeys(v).
-    If startsWith(v, tagArr ()):
-        Return concat(concat(tagArr (), arrIndexKeys(length of arrElements(v), 1, "")), tagArrEnd ()).
-    Return concat(tagArr (), tagArrEnd ()).
+    If isArrRef(v):
+        Return newArr(concat(concat(tagArr (), arrIndexKeys(length of arrElements(v), 1, "")), tagArrEnd ())).
+    Return newArr(concat(tagArr (), tagArrEnd ())).
 
 ## To execForIn (stmt: Text, env: Text) -> Text:
     Let hdr be trim(substringBefore(substringAfter(stmt, "("), ")")).
@@ -3765,12 +3793,12 @@ Otherwise If cmd is equal to "__heap-probe":
 Otherwise If cmd is equal to "run":
     Let runSrc be readFile(item 3 of arguments).
     Let runExec be concat(tagStr (), item 1 of arguments).
-    Let runArgv be concat(concat(tagArr (), argvBuild(arguments, 3, runExec)), tagArrEnd ()).
+    Let runArgv be newArr(concat(concat(tagArr (), argvBuild(arguments, 3, runExec)), tagArrEnd ())).
     puts(jsRunFile(runSrc, runArgv)).
 Otherwise If looksLikeScript(cmd):
     Let bareSrc be readFile(cmd).
     Let bareExec be concat(tagStr (), item 1 of arguments).
-    Let bareArgv be concat(concat(tagArr (), argvBuild(arguments, 2, bareExec)), tagArrEnd ()).
+    Let bareArgv be newArr(concat(concat(tagArr (), argvBuild(arguments, 2, bareExec)), tagArrEnd ())).
     puts(jsRunFile(bareSrc, bareArgv)).
 Otherwise If isSubcommand(cmd):
     eputs("error: this command is not yet implemented in logos-bun").

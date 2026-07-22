@@ -605,3 +605,33 @@ paths emitted a raw blob instead of a handle, so `typeof {}` → number and `JSO
 self/alias/distinct identity, nested-object aliasing, 3-way alias chains, `Object.assign`-returns-target)
 — **77 jsint fuzzers × 3 seeds = 231 runs, 0 diffs vs Node.** Objects are now genuine references;
 arrays (E0 phase 2) are next on the same heap.
+
+---
+
+**P7 ENGINE — E0 HEAP VALUE MODEL (arrays → reference semantics):** the array half of the
+E0 rewrite, on the SAME native heap as objects — a value handle `tagRef + heapId` (tagRef =
+chr(2)) can point at an object blob OR an array blob, so `derefObj`/`newObjRef` are heap-generic
+and `newArr` is just the array-side alias. Landed in three fuzzer-gated substeps: **(1) readers +
+detection** — `arrElements` derefs the handle (so every array reader — index, `.length`,
+map/filter/reduce/slice/join/… — works on a ref for free), and the 13 array-detection
+`startsWith(v, tagArr())` sites became `isArrRef` while the 8 object-detection `isRef` sites
+became `isObjRef` (the `objSet` write-through gate stays `isRef`); **(2) constructors** — 26
+value-producing array constructors (literals, map/filter/slice/concat/flat/from/of/reverse-as-value,
+`Object.keys`/`values`/`entries`, `String.split`, `JSON.parse` arrays, `process.argv`) wrap their
+blob in `newArr`, so every array value is a fresh identity; **(3) mutators** — push/pop/`[i]=`/
+reverse/fill/sort write the new blob THROUGH the handle (`mutArr` → `heapSet`, return the same
+ref), so an alias (`let b=a; b.push(x); a`) sees it. Locked by a new `arralias-diff` fuzzer
+(push/pop/index/reverse/fill/sort through an alias, alias vs distinct identity, member-array
+aliasing, `Array.isArray`, `typeof`). **78 jsint fuzzers × 3 seeds = 234 runs, 0 diffs vs Node.**
+**Bugs found & fixed:** (1) the mechanical `isRef → isObjRef` sweep broke `evalValue` — its
+`isRef(trim(expr))` early-return is a load-bearing *prefix* check that hands any expression
+*starting* with a ref (e.g. `‹ref› . a`) to `resolveObjDot`; `isObjRef` strictly derefs, so a
+ref-plus-trailing failed → fell to arithmetic → NaN, silently breaking every parenthesized /
+template-literal member access (`(u.a)`, `` `${u.name}` ``). Rule banked: convert to
+`isObjRef`/`isArrRef` only at clean-VALUE dispatch sites, never at expression-prefix sites. (2)
+once arrays were refs, `resolveObjDot`'s `isRef(recv)` stole `.length` from arrays via
+`objGet(array,"length")` → undefined; scoped it to `isObjRef` (object dot-access only; arrays
+route to `resolveProps`/`resolveArrays`). (3) `Array.isArray` still tag-matched the raw blob →
+`isArrRef`. (4) `reverse` had no statement handler (sort/fill/push/pop did) so a bare
+`a.reverse();` never rebound the var — added one. Objects AND arrays are now genuine
+references; E0 is complete. E1 (classes/prototypes) is next.
