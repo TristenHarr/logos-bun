@@ -722,3 +722,20 @@ class all work; `A.of(7).x`, `a.m() + A.k()` verified against Node. Locked by a 
 `classstatic-diff` fuzzer. **83 jsint fuzzers × 3 seeds = 249 runs, 0 diffs vs Node.** getters/setters
 and private `#fields` remain; the class model (methods, `this`, `new`, `extends`, `super`,
 `instanceof`, `static`) now covers the overwhelming majority of real class usage.
+
+---
+
+**P7 ENGINE — E1.6 GETTERS/SETTERS (accessor properties):** `class T { get x(){…} set x(v){…} }`
+completes the class feature set. An accessor member desugars to a `this.__get_x = function(){…}` /
+`this.__set_x = function(v){…}` slot. Member ACCESS routes through a new `getMember` (used by
+`resolveObjDot`): a plain property returns directly, but an absent one whose `__get_<prop>` slot is
+a function invokes the getter with `this` bound (so `t.celsius` runs the getter body); the extra
+lookup only fires on an otherwise-undefined property, keeping the hot path cheap. Member ASSIGN
+routes through `assignTarget`: if the receiver has a `__set_<prop>` function it invokes it via
+`callSetter`, which binds the setter's single parameter DIRECTLY to the already-evaluated RHS (no
+re-evaluation) and runs the body with `this`. Verified: plain + computed getters, setter→getter
+round-trips, getters inside larger expressions. Locked by a new `classaccessor-diff` fuzzer.
+**84 jsint fuzzers × 3 seeds = 252 runs, 0 diffs vs Node.** The class model is now essentially
+complete — methods, `this`, `new`, `extends`, `super`, `instanceof`, `static`, get/set — leaving
+only private `#fields` (rare) before E2 (async/Promise). Scope: a getter body binds `this`+params
+but not outer locals (uncommon for accessors).

@@ -959,6 +959,27 @@
     Let doneEnv be runBlockStr(body, localEnv).
     Return envGet(doneEnv, "__ret").
 
+# Accessor properties (class `get x(){…}` / `set x(v){…}`) are stored as `__get_x` / `__set_x`
+# function-valued slots. getMember reads a plain property but, when absent, invokes the getter
+# with `this` bound to the receiver. callSetter binds the setter's single parameter DIRECTLY to
+# the already-evaluated right-hand side (no re-evaluation) and runs the body with `this`.
+## To getMember (recv: Text, prop: Text) -> Text:
+    Let direct be objGet(concat(recv, ""), concat(prop, "")).
+    If direct is not equal to "undefined":
+        Return direct.
+    Let getter be objGet(concat(recv, ""), concat("__get_", prop)).
+    If startsWith(getter, chr(1)):
+        Return callMethod(getter, "", concat(recv, ""), "").
+    Return direct.
+
+## To callSetter (fnVal: Text, thisVal: Text, value: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let baseEnv be envSet(env, "this", concat(thisVal, "")).
+    Let localEnv be envSet(baseEnv, trim(paramStr), concat(value, "")).
+    Return envGet(runBlockStr(body, localEnv), "__ret").
+
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "String", "Number", "Boolean"].
     Return names contains name.
@@ -1601,7 +1622,7 @@
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
     If isObjRef(recv):
-        Let val be objGet(recv, item 1 of tailToks).
+        Let val be getMember(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
         Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), val), restToks))).
@@ -3248,7 +3269,12 @@
 ## To assignTarget (target: Text, value: Text, env: Text) -> Text:
     If hasSep(target, " . "):
         Let base be trim(substringBefore(target, " . ")).
-        Let newobj be objSetPath(envGet(concat(env, ""), concat(base, "")), split(substringAfter(target, " . "), " . "), 1, value).
+        Let recvV be envGet(concat(env, ""), concat(base, "")).
+        Let setter be objGet(concat(recvV, ""), concat("__set_", trim(substringAfter(target, " . ")))).
+        If startsWith(setter, chr(1)):
+            Let ran be callSetter(setter, recvV, value, env).
+            Return env.
+        Let newobj be objSetPath(recvV, split(substringAfter(target, " . "), " . "), 1, value).
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
@@ -3823,10 +3849,21 @@
     If name is equal to "constructor":
         Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics).
     If name is equal to "static":
-        Let sname be item 2 of split(b, " ").
-        Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
-        Let sbind be concat(concat(concat(concat(sHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
-        Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind)).
+        If item 2 of split(b, " ") is not equal to chr(40):
+            Let sname be item 2 of split(b, " ").
+            Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
+            Let sbind be concat(concat(concat(concat(sHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+            Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sbind)).
+    If name is equal to "get":
+        If item 2 of split(b, " ") is not equal to chr(40):
+            Let gHead be concat(concat(concat("this . __get_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
+            Let gAssign be concat(concat(concat(concat(gHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, gAssign), statics).
+    If name is equal to "set":
+        If item 2 of split(b, " ") is not equal to chr(40):
+            Let stHead be concat(concat(concat("this . __set_", item 2 of split(b, " ")), concat(" = function ( ", params)), " ) ").
+            Let stAssign be concat(concat(concat(concat(stHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+            Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
     Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
     Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign), statics).
