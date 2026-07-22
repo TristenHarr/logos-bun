@@ -1553,3 +1553,17 @@ reads, nested indexing `a[1][0]`, and method calls are unchanged. New `callfromi
 programs/5 seeds, 0 diffs); full 126-fuzzer sweep GREEN. (A separate PRE-EXISTING crash remains, unrelated
 to this fix and not touched by it: a bracket index whose expression contains a member access —
 `m[m.length-1]` — panics on the Int parse; `let i=m.length-1; m[i]` works. Logged for a dedicated fix.)
+
+---
+
+**Bracket index with a member access (2026-07-22).** The ubiquitous last-element idiom `arr[arr.length-1]`
+(and `s[s.length-1]`, `a[a.length-2]`, `o[keys[i]]`, `grid[grid.length-1][0]`) PANICKED the whole runtime
+("Cannot parse '… . length - 1' as Int"). resolveArrays evaluated the index through the shallow evalValue
+and then parseInt, but resolveArrays runs BEFORE resolveProps in evalResolved, so a `.length` inside the
+brackets was still unresolved when parseInt hit it. Arithmetic indices (`m[1+1]`) and temp-var indices
+(`let i=m.length-1; m[i]`) worked, hiding it. Fixed by evaluating the index through the FULL evalResolved
+chain (new evalIndex helper) at all four index sites (array, object, string-value, string-literal) — the
+index's variables are already substituted to their values by that point, so evalResolved needs no env, and
+it resolves `.length`/nested indices/arithmetic uniformly before the parse. Plain, arithmetic, temp-var,
+nested (`a[1][0]`), and string-key indices are unchanged. New `indexexpr-diff` fuzzer (1000 programs/5
+seeds, 0 diffs); full 127-fuzzer sweep GREEN.

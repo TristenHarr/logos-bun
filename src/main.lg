@@ -1720,6 +1720,13 @@
         Return n.
     Return idx.
 
+# A bracket index is evaluated through the FULL resolve chain, not the shallow evalValue — because
+# resolveArrays runs before resolveProps in evalResolved, an index containing a member access like
+# `a[a.length-1]` would otherwise reach parseInt with `.length` still unresolved (and panic). The index's
+# variables are already substituted to their values by this point, so evalResolved needs no env.
+## To evalIndex (inner: Text) -> Text:
+    Return evalResolved(concat(inner, "")).
+
 ## To resolveArrays (expr: Text) -> Text:
     If substringBefore(expr, chr(91)) is equal to expr:
         Return expr.
@@ -1733,19 +1740,19 @@
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
     If isArrRef(lastTok):
-        Let elem be arrGet(lastTok, parseInt(evalValue(inner))).
+        Let elem be arrGet(lastTok, parseInt(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
     If isObjRef(lastTok):
-        Let got be objGet(lastTok, materialize(evalValue(inner))).
+        Let got be objGet(lastTok, materialize(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
     If startsWith(lastTok, tagStr ()):
-        Let elem be strIndexChar(materialize(concat(lastTok, "")), parseInt(evalValue(inner))).
+        Let elem be strIndexChar(materialize(concat(lastTok, "")), parseInt(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
     If startsWith(lastTok, chr(34)):
-        Let elem be strIndexChar(materialize(litToStr(concat(lastTok, ""))), parseInt(evalValue(inner))).
+        Let elem be strIndexChar(materialize(litToStr(concat(lastTok, ""))), parseInt(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
     If inner is equal to "":
