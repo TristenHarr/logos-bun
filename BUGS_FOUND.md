@@ -901,3 +901,27 @@ string, then switches to concat for the rest; dropped the erroneous outer `tagSt
 `a12b34`, `1+2+3`→`6`, `"total: "+(10+20)`→`total: 30` — all vs Node. New `collections-diff` fuzzer.
 **90 jsint fuzzers, 270 runs across seeds 1–3, 0 diffs; gate GREEN.** Symbol/BigInt/Date and regex
 literals remain.
+
+---
+
+**E4.2 regex literals `/pat/flags` (2026-07-22).** The regex *engine* has existed and been fuzzer-
+locked since E4.1 (`new RegExp`/`.test`/`.match`), but the literal *syntax* was missing — real JS
+writes `/\d+/.test(x)`, not `new RegExp("\\d+")`. Added a `desugarRegexLits` pass that runs *first*
+in `normalizeJs`, on raw source, rewriting each `/pat/flags` literal to `new RegExp("escaped-pat")`
+so it flows through the already-tested `new RegExp (` handler and matcher. The hard part is the
+classic lexing ambiguity: a `/` starts a regex only in *expression position* — after an operator /
+open-bracket / comma / statement boundary (`rxRegexPos`), or an expression keyword like `return`,
+`typeof`, `yield` (`rxKeyBefore`, word-boundary checked) — otherwise it is division. The scanner
+tracks `'`/`"`/backtick string context (so a `/` inside a string is never a regex), copies `//` and
+`/* */` comments through untouched, and captures the pattern honoring `\`-escapes and `[...]` classes
+(where `/` is literal). The pattern is emitted as an ordinary double-quoted string literal with `\`
+doubled and `"` escaped, so it survives normJs's string-encoding and `decodeStr` restores it. Flags
+are dropped (the matcher currently ignores them). `/abc/.test`, `/[a-z]+/`, `/\d+/`, `/^h/`, `let
+r=/a.c/`, `return /\d/.test(x)` — all agree with Node; division (`10/2`, `x/4/5`, `(6+4)/2`) is
+untouched. **Two pre-existing limitations surfaced (NOT regex bugs, confirmed with the explicit
+`new RegExp` form and with non-regex programs):** (1) `.test`/`.match` inside a `.map`/`.filter`
+callback returns wrong results — `["zz","b2"].map(x=>new RegExp("z").test(x))` is `[false,false]`
+not `[true,false]` (a regex-`.test`-in-callback scoping bug, next to fix); (2) `function f(){…}stmt`
+on a *single line* drops the trailing statement (a statement-splitter bug — a newline fixes it).
+New `regexlit-diff` fuzzer (argument / assignment / return positions + division survival). **91
+jsint fuzzers, 273 runs across seeds 1–3, 0 diffs; gate GREEN.**

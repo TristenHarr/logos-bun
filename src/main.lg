@@ -4320,8 +4320,196 @@
     Let wrapped be concat(concat(concat(head, chr(123)), concat(concat(" __GENRESET ; ", trim(body)), " ; return __GENMAKE ")), chr(125)).
     Return desugarGenerators(concat(concat(concat(bef, wrapped), " "), remainder)).
 
+# Regex literals (E4.2): rewrite `/pat/flags` → `new RegExp("escaped-pat")` before normJs mangles the
+# pattern's operators. This runs first on raw source so the pattern is emitted as an ordinary double-
+# quoted string literal (backslashes doubled, quotes escaped) that flows through the tested string
+# path and the `new RegExp (` handler. A `/` begins a regex only in expression position — after an
+# operator / open-bracket / comma / statement boundary, or an expression keyword (return, typeof, …);
+# otherwise it is division. `//` and `/* */` comments are copied through untouched (never regex).
+# Flags are dropped (the engine currently ignores them). Regexes inside `${…}` template holes are not
+# rewritten (backtick content is treated as an opaque string here).
+## To rxRegexPos (c: Text) -> Bool:
+    If c is equal to chr(123):
+        Return true.
+    Let ops be ["", "(", ",", "=", "[", "!", "&", "|", "?", ":", ";", "+", "-", "*", "%", "<", ">", "~", "^"].
+    Return ops contains c.
+
+## To rxIsAlpha (c: Text) -> Bool:
+    Let o be ord(c).
+    If o is greater than or equal to 65:
+        If o is less than or equal to 90:
+            Return true.
+    If o is greater than or equal to 97:
+        If o is less than or equal to 122:
+            Return true.
+    Return false.
+
+## To rxIsIdentChar (c: Text) -> Bool:
+    Let o be ord(c).
+    If o is greater than or equal to 48:
+        If o is less than or equal to 57:
+            Return true.
+    If c is equal to "_":
+        Return true.
+    If c is equal to "$":
+        Return true.
+    Return rxIsAlpha(c).
+
+## To rxIsSpace (c: Text) -> Bool:
+    If c is equal to " ":
+        Return true.
+    If c is equal to chr(9):
+        Return true.
+    If c is equal to chr(10):
+        Return true.
+    If c is equal to chr(13):
+        Return true.
+    Return false.
+
+## To rxLastSigIdx (s: Text, k: Int) -> Int:
+    If k is less than 1:
+        Return 0.
+    If rxIsSpace(item k of s):
+        Return rxLastSigIdx(s, k - 1).
+    Return k.
+
+## To rxEndsWithWord (acc: Text, w: Text) -> Bool:
+    Let e be rxLastSigIdx(acc, length of acc).
+    If e is equal to 0:
+        Return false.
+    Let m be length of w.
+    If e is less than m:
+        Return false.
+    Let tail be strSliceLoop(acc, e - m + 1, e, "").
+    If tail is not equal to w:
+        Return false.
+    If e is equal to m:
+        Return true.
+    Return rxIsIdentChar(item (e - m) of acc) is equal to false.
+
+## To rxKeyBefore (acc: Text) -> Bool:
+    If rxEndsWithWord(acc, "return"):
+        Return true.
+    If rxEndsWithWord(acc, "typeof"):
+        Return true.
+    If rxEndsWithWord(acc, "case"):
+        Return true.
+    If rxEndsWithWord(acc, "do"):
+        Return true.
+    If rxEndsWithWord(acc, "else"):
+        Return true.
+    If rxEndsWithWord(acc, "in"):
+        Return true.
+    If rxEndsWithWord(acc, "of"):
+        Return true.
+    If rxEndsWithWord(acc, "yield"):
+        Return true.
+    Return false.
+
+## To rxIsStart (lastSig: Text, acc: Text) -> Bool:
+    If rxRegexPos(lastSig):
+        Return true.
+    Return rxKeyBefore(acc).
+
+## To rxBodyEnd (s: Text, j: Int, inClass: Bool) -> Int:
+    If j is greater than length of s:
+        Return 0.
+    Let c be item j of s.
+    If c is equal to chr(92):
+        Return rxBodyEnd(s, j + 2, inClass).
+    If inClass:
+        If c is equal to chr(93):
+            Return rxBodyEnd(s, j + 1, false).
+        Return rxBodyEnd(s, j + 1, inClass).
+    If c is equal to chr(91):
+        Return rxBodyEnd(s, j + 1, true).
+    If c is equal to "/":
+        Return j.
+    Return rxBodyEnd(s, j + 1, inClass).
+
+## To rxFlagsEnd (s: Text, k: Int) -> Int:
+    If k is greater than length of s:
+        Return k.
+    If rxIsAlpha(item k of s):
+        Return rxFlagsEnd(s, k + 1).
+    Return k.
+
+## To rxLineEnd (s: Text, k: Int) -> Int:
+    If k is greater than length of s:
+        Return k.
+    If item k of s is equal to chr(10):
+        Return k.
+    Return rxLineEnd(s, k + 1).
+
+## To rxBlockEnd (s: Text, k: Int) -> Int:
+    If k is greater than length of s:
+        Return k.
+    If item k of s is equal to "*":
+        If k + 1 is less than or equal to length of s:
+            If item (k + 1) of s is equal to "/":
+                Return k + 2.
+    Return rxBlockEnd(s, k + 1).
+
+## To rxEscape (pat: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of pat:
+        Return acc.
+    Let c be item i of pat.
+    If c is equal to chr(92):
+        Return rxEscape(pat, i + 1, concat(acc, concat(chr(92), chr(92)))).
+    If c is equal to chr(34):
+        Return rxEscape(pat, i + 1, concat(acc, concat(chr(92), chr(34)))).
+    Return rxEscape(pat, i + 1, concat(acc, c)).
+
+## To rxNextOr (s: Text, j: Int) -> Text:
+    If j is greater than length of s:
+        Return "".
+    Return item j of s.
+
+## To desugarRegexLits (s: Text, i: Int, lastSig: Text, inStr: Bool, strCh: Text, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If inStr:
+        If c is equal to chr(92):
+            If i is less than length of s:
+                Let nc be item (i + 1) of s.
+                Return desugarRegexLits(s, i + 2, lastSig, true, strCh, concat(acc, concat(c, nc))).
+            Return desugarRegexLits(s, i + 1, lastSig, true, strCh, concat(acc, c)).
+        If c is equal to strCh:
+            Return desugarRegexLits(s, i + 1, strCh, false, "", concat(acc, c)).
+        Return desugarRegexLits(s, i + 1, lastSig, true, strCh, concat(acc, c)).
+    If c is equal to chr(34):
+        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+    If c is equal to chr(39):
+        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+    If c is equal to chr(96):
+        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+    If c is equal to "/":
+        Let nx be rxNextOr(s, i + 1).
+        If nx is equal to "/":
+            Let le be rxLineEnd(s, i).
+            Let seg be strSliceLoop(s, i, le - 1, "").
+            Return desugarRegexLits(s, le, lastSig, false, "", concat(acc, seg)).
+        If nx is equal to "*":
+            Let bend be rxBlockEnd(s, i + 2).
+            Let bseg be strSliceLoop(s, i, bend - 1, "").
+            Return desugarRegexLits(s, bend, lastSig, false, "", concat(acc, bseg)).
+        If rxIsStart(lastSig, acc):
+            Let closeIdx be rxBodyEnd(s, i + 1, false).
+            If closeIdx is equal to 0:
+                Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
+            Let pat be strSliceLoop(s, i + 1, closeIdx - 1, "").
+            Let repl be concat(concat("new RegExp(", chr(34)), concat(rxEscape(pat, 1, ""), concat(chr(34), ")"))).
+            Let fend be rxFlagsEnd(s, closeIdx + 1).
+            Return desugarRegexLits(s, fend, ")", false, "", concat(acc, repl)).
+        Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
+    If rxIsSpace(c):
+        Return desugarRegexLits(s, i + 1, lastSig, false, "", concat(acc, c)).
+    Return desugarRegexLits(s, i + 1, concat(c, ""), false, "", concat(acc, c)).
+
 ## To normalizeJs (s: Text) -> Text:
-    Let templated be desugarTemplates(s, 1, 0, 0, "").
+    Let rx be desugarRegexLits(s, 1, "", false, "", "").
+    Let templated be desugarTemplates(rx, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
     Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed)))), " "), 1, "").
 
