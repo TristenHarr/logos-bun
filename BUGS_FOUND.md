@@ -635,3 +635,31 @@ route to `resolveProps`/`resolveArrays`). (3) `Array.isArray` still tag-matched 
 `isArrRef`. (4) `reverse` had no statement handler (sort/fill/push/pop did) so a bare
 `a.reverse();` never rebound the var — added one. Objects AND arrays are now genuine
 references; E0 is complete. E1 (classes/prototypes) is next.
+
+---
+
+**P7 ENGINE — E1 FOUNDATION (object methods + `this` + `new` constructors):** the building
+blocks for classes, on top of the E0 heap. **(1) Method calls with `this`** — a function-valued
+property called as `obj.method(args)` now dispatches through a new `callMethod` that binds `this`
+to the receiver's heap ref, so `this.x` reads and `this.x = v` writes the receiver's own slots
+(write-through the handle — the mutation persists and every alias sees it). Wiring it took four
+coordinated fixes: (a) a method-invoke branch in `resolveCalls` (`recv . name (args)` → evaluate
+recv, if it's an object ref with a function-valued property, `callMethod` with `this`=recv); (b)
+`resolveCalls` was *stripping the parens off a `function(){}` embedded in an object literal* (its
+bare-paren fallthrough turned `function ( ) {…}` into `function  {…}`, which `funcValueOf` then
+couldn't parse) → added a `function`-definition branch that encodes it opaquely (`chr1`) in place;
+(c) `objValOf` builds a real function value for a `function`-valued object property; (d) `execStmt`'s
+fallthrough was `Return env` — **silently dropping bare call statements**, so `obj.setMethod(v);`
+never ran — now it evaluates any call-containing expression statement for its side effects. **(2)
+`new F(args)`** — a `new` branch in `resolveCalls` allocates a fresh empty heap object, runs the
+constructor with `this` bound to it (so `this.x = …` populates the instance), and yields the
+instance: distinct identity per `new`, independent state, constructor-assigned methods callable.
+**(3) User-method / built-in collision** (caught by the methodthis fuzzer — a user method literally
+named `push`): a "user-method-shadows-builtin" guard at the top of `resolveMethods` (if the leftmost
+method marker's receiver is an object ref with a function-valued property of that name, dispatch the
+user method) plus `isArrRef` guards on the push/pop/sort/fill/reverse *statement* handlers — so
+`obj.push(v)` calls the user method while `arr.push(v)` stays the built-in. Essential for classes,
+whose methods can have any name. Locked by two new fuzzers, `methodthis-diff` and `ctor-diff`.
+**80 jsint fuzzers × 3 seeds = 240 runs, 0 diffs vs Node.** Noted scope for now: a method embedded in
+an object/array literal binds `this`+params but not outer locals (assignment/return closures still
+capture); `class` sugar, `extends`/`super`/`instanceof`/static are the next E1 increments.

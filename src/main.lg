@@ -945,6 +945,18 @@
     Let doneEnv be runBlockStr(body, e2).
     Return envGet(doneEnv, "__ret").
 
+# Method invocation: a function-valued property called as `recv.method(args)` runs with `this`
+# bound to the receiver (the heap ref), so `this.x` reads/writes the receiver's own slots. this
+# is bound at CALL time (dynamic), never captured at method-definition time.
+## To callMethod (fnVal: Text, argsText: Text, thisVal: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let baseEnv be envSet(env, "this", concat(thisVal, "")).
+    Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
+    Let doneEnv be runBlockStr(body, localEnv).
+    Return envGet(doneEnv, "__ret").
+
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "String", "Number", "Boolean"].
     Return names contains name.
@@ -1013,6 +1025,20 @@
         Let result be callFn(lastTok, inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If lastTok is equal to "function":
+        Let afterBrace be substringAfter(rest, chr(123)).
+        Let body be braceBody(afterBrace, 1, 0, "").
+        Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+        Let fnval be concat(concat(concat(chr(1), encFn(trim(inner))), chr(1)), encFn(trim(body))).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), fnval), remainder), env).
+    If length of ptoks is greater than 1:
+        If item ((length of ptoks) - 1) of ptoks is equal to "new":
+            If startsWith(envGet(env, lastTok), chr(1)):
+                Let inst be newObjRef(concat(tagObj (), tagObjEnd ())).
+                Let ran be callMethod(envGet(env, lastTok), inner, inst, env).
+                Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
+                Return resolveCalls(concat(concat(concat(newPrefix, " "), concat(inst, "")), rest), env).
     Let fnVal be envGet(env, lastTok).
     If startsWith(fnVal, chr(1)):
         Let result be callFn(fnVal, inner, env).
@@ -1022,6 +1048,15 @@
         Let av be jsEvalIn(inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, av)), rest), env).
+    If length of ptoks is greater than 2:
+        If item ((length of ptoks) - 1) of ptoks is equal to chr(46):
+            Let recvVal be jsEvalIn(concat(item ((length of ptoks) - 2) of ptoks, ""), concat(env, "")).
+            If isObjRef(recvVal):
+                Let mfn be objGet(recvVal, concat(lastTok, "")).
+                If startsWith(mfn, chr(1)):
+                    Let result be callMethod(mfn, inner, recvVal, env).
+                    Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 3, "").
+                    Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
 
@@ -1470,6 +1505,17 @@
         Return materialize(evalResolved(trim(substringBefore(substringAfter(keyPart, chr(91)), chr(93))))).
     Return materialize(litToStr(keyPart)).
 
+# An object property whose value is a `function (…) {…}` becomes a real function value (a
+# method); everything else is evaluated. The value is already substituted (buildObj runs inside
+# evalResolved, post-substitute), so funcValueOf captures the defining scope — `this` is left
+# free and bound dynamically at call time by callMethod.
+## To objValOf (vraw: Text) -> Text:
+    If startsWith(trim(vraw), chr(1)):
+        Return trim(vraw).
+    If item 1 of split(trim(vraw), " ") is equal to "function":
+        Return funcValueOf(trim(vraw)).
+    Return evalResolved(vraw).
+
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return newObjRef(dedupObj(concat(concat(tagObj (), acc), tagObjEnd ()))).
@@ -1483,7 +1529,7 @@
             Return buildObj(entries, i + 1, sJoined).
         Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), sJoined)).
     Let k be objKeyOf(trim(substringBefore(entry, " : "))).
-    Let v be evalResolved(trim(substringAfter(entry, " : "))).
+    Let v be objValOf(trim(substringAfter(entry, " : "))).
     Let pair be concat(concat(k, tagObjKV ()), v).
     If acc is equal to "":
         Return buildObj(entries, i + 1, pair).
@@ -2280,6 +2326,13 @@
     Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
+    Let lmm be leftmostMethod(concat(expr, "")).
+    If substringBefore(expr, lmm) is not equal to expr:
+        Let urecv be jsEvalIn(recvExpr(concat(substringBefore(expr, lmm), "")), concat(env, "")).
+        If isObjRef(urecv):
+            If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
+                Let uaft be substringAfter(expr, lmm).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
@@ -3196,32 +3249,37 @@
         Return bindAssign(substringAfter(s, "var "), env).
     If hasSep(s, " . push ("):
         Let pv be trim(substringBefore(s, " . push (")).
-        Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
-        Return assignTarget(concat(pv, ""), arrPush(jsEvalIn(concat(pv, ""), concat(env, "")), jsEvalIn(trim(pa), concat(env, ""))), env).
+        If isArrRef(jsEvalIn(concat(pv, ""), concat(env, ""))):
+            Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
+            Return assignTarget(concat(pv, ""), arrPush(jsEvalIn(concat(pv, ""), concat(env, "")), jsEvalIn(trim(pa), concat(env, ""))), env).
     If hasSep(s, " . pop ("):
         Let ov be trim(substringBefore(s, " . pop (")).
-        Return assignTarget(concat(ov, ""), arrPop(jsEvalIn(concat(ov, ""), concat(env, ""))), env).
+        If isArrRef(jsEvalIn(concat(ov, ""), concat(env, ""))):
+            Return assignTarget(concat(ov, ""), arrPop(jsEvalIn(concat(ov, ""), concat(env, ""))), env).
     If hasSep(s, " . sort ("):
         Let sv be trim(substringBefore(s, " . sort (")).
         Let saft be substringAfter(s, " . sort (").
         Let srest be trim(strSliceLoop(saft, (length of balancedArg(concat(saft, ""), 1, 0, "")) + 2, length of saft, "")).
         If srest is equal to "":
             If isSimpleName(concat(sv, "")):
-                Return envSet(env, sv, jsEvalIn(concat(s, ""), env)).
+                If isArrRef(jsEvalIn(concat(sv, ""), concat(env, ""))):
+                    Return envSet(env, sv, jsEvalIn(concat(s, ""), env)).
     If hasSep(s, " . fill ("):
         Let fv be trim(substringBefore(s, " . fill (")).
         Let faft be substringAfter(s, " . fill (").
         Let frest be trim(strSliceLoop(faft, (length of balancedArg(concat(faft, ""), 1, 0, "")) + 2, length of faft, "")).
         If frest is equal to "":
             If isSimpleName(concat(fv, "")):
-                Return envSet(env, fv, jsEvalIn(concat(s, ""), env)).
+                If isArrRef(jsEvalIn(concat(fv, ""), concat(env, ""))):
+                    Return envSet(env, fv, jsEvalIn(concat(s, ""), env)).
     If hasSep(s, " . reverse ("):
         Let rv be trim(substringBefore(s, " . reverse (")).
         Let raft be substringAfter(s, " . reverse (").
         Let rrest be trim(strSliceLoop(raft, (length of balancedArg(concat(raft, ""), 1, 0, "")) + 2, length of raft, "")).
         If rrest is equal to "":
             If isSimpleName(concat(rv, "")):
-                Return envSet(env, rv, jsEvalIn(concat(s, ""), env)).
+                If isArrRef(jsEvalIn(concat(rv, ""), concat(env, ""))):
+                    Return envSet(env, rv, jsEvalIn(concat(s, ""), env)).
     Let mcr be memberCompoundRewrite(concat(s, "")).
     If hasSep(mcr, " = "):
         Return execStmt(mcr, env).
@@ -3248,6 +3306,9 @@
         If hasSep(lhs, chr(91)):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         Return bindAssign(s, env).
+    If hasSep(s, "("):
+        Let sideEffect be jsEvalIn(concat(s, ""), env).
+        Return env.
     Return env.
 
 ## To runBlock (stmts: Seq of Text, i: Int, env: Text) -> Text:
