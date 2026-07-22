@@ -1020,12 +1020,26 @@
         Return "undefined".
     Return jsEvalIn(item i of args, callerEnv).
 
+# A rest parameter `...name` gathers the caller's remaining positional args (from this param index to
+# the end) into a real array value, so `function f(...xs)` / `function f(a, ...rest)` see an array they
+# can map/reduce/join over — not a single arg. Must be the last parameter.
+## To restArgs (args: Seq of Text, i: Int, callerEnv: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    If trim(item i of args) is equal to "":
+        Return restArgs(args, i + 1, callerEnv, acc).
+    Let el be argAt(args, i, callerEnv).
+    Return restArgs(args, i + 1, callerEnv, appendEl(acc, el)).
+
 ## To bindParams (params: Seq of Text, args: Seq of Text, i: Int, callerEnv: Text, acc: Text) -> Text:
     If i is greater than length of params:
         Return acc.
     Let pname be trim(item i of params).
     If pname is equal to "":
         Return bindParams(params, args, i + 1, callerEnv, acc).
+    If startsWith(pname, "..."):
+        Let restVal be restArgs(args, i, callerEnv, "").
+        Return bindParams(params, args, i + 1, callerEnv, envSet(acc, trim(substringAfter(pname, "...")), restVal)).
     Let aval be argAt(args, i, callerEnv).
     If startsWith(pname, chr(123)):
         Return bindParams(params, args, i + 1, callerEnv, destructureObj(pname, aval, acc)).

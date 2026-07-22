@@ -1471,3 +1471,19 @@ callMethod actually runs the body at call time. Fixes array methods in every met
 class, `this.field`, param, chained `sort().join()`); plain-function bodies unchanged. New
 `methodarray-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 122-fuzzer sweep GREEN. This closes both
 pre-existing gaps flagged in the two prior entries (they were the same root cause).
+
+---
+
+**Rest parameters (2026-07-22).** `function f(...xs)` / `function f(a, ...rest)` didn't work — `bindParams`
+had no `...` case, so `...xs` bound a single parameter literally named `... xs` (with the dots) to one arg;
+`xs.length` came out wrong and `xs.join` empty. Added a rest branch: a parameter whose trimmed text starts
+with `...` binds the name after the dots to an array gathered from the caller's args at that index through
+the end (`restArgs`, which allocates a real heap array so map/reduce/join/length all work), and an
+argument-less call (`f()` → the single empty arg token `patFields("")` produces) yields an empty array,
+not a spurious one. Fixes `f(...xs)`, `f(a, ...rest)`, `f(a, b, ...more)`, spread of the rest back out
+(`Math.max(...ns)`), and array methods over the rest; fixed params, defaults, and destructuring patterns
+are unchanged. New `restparam-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 123-fuzzer sweep GREEN.
+KNOWN OPEN (separate, logged): rest params on object/class METHODS — `{m(...xs){…}}` — still bind wrong;
+the array is correct when returned whole (`return xs` → 3 elements) but member access inside the method
+body (`xs.length`, `typeof xs`) reads wrong, a callMethod/`this`-context interaction distinct from the
+plain-function path.
