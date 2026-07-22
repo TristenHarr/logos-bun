@@ -29,12 +29,15 @@ if (OURS) {
   const sn = () => 1 + ri(9);
   const kw = () => ["let", "const", "var"][ri(3)];
   const program = () => {
-    const k = ri(6);
+    const k = ri(9);
     if (k === 0) return `${kw()} x=${sn()};x+${sn()}`;
     if (k === 1) return `${kw()} a=${sn()};${kw()} b=${sn()};a*b`;
     if (k === 2) return `${kw()} f=x=>x*x;f(${sn()})`;
     if (k === 3) return `${kw()} n=${sn()};n>3?"big":"small"`;
     if (k === 4) return `let t=0;for(let i=0;i<${2 + ri(4)};i++){${kw()} d=i*2;t+=d};t`;
+    if (k === 5) return `let x;typeof x`;                                  // uninitialized -> "undefined"
+    if (k === 6) return `let x;x??${sn()}`;                                // undefined ?? default
+    if (k === 7) return `let x;x=${sn()};x+${sn()}`;                       // declare then assign
     return `${kw()} a=${sn()};${kw()} b=${sn()};${kw()} c=${sn()};a+b+c`;
   };
   let checked = 0;

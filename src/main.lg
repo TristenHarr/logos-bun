@@ -3877,6 +3877,8 @@
         Let pat2 be trim(strSliceLoop(concat(trimmed, ""), 1, eqAt2 - 1, "")).
         Let prhs2 be trim(strSliceLoop(concat(trimmed, ""), eqAt2 + 1, length of trimmed, "")).
         Return destructureArr(pat2, jsEvalIn(prhs2, env), env).
+    If substringBefore(assign, " = ") is equal to assign:
+        Return envSet(env, trim(assign), "undefined").
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
     If startsWith(rhs, "function ("):

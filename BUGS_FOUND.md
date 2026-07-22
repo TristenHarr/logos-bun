@@ -1183,3 +1183,14 @@ an `[…]`/`{…}` pattern through `destructureArr`/`destructureObj`, a plain na
 `[...set]`, `[..."hello"]`, `new Map([...])`, `for (const c of str)`, `for (const [k,v] of map)` /
 arrays / `Object.entries` all match Node; plain for-of, array spread, existing Set/Map ops unaffected.
 New `iterspread-diff` fuzzer. **106 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**Uninitialized `let x;` is now undefined (2026-07-22).** A declaration with no initializer bound the
+variable to NaN (and `typeof x`→"number") — `bindOne` fell through to its `name = … = … rhs` split,
+found no ` = `, and evaluated the bare name `x` (unset) → NaN. So `let x; x ?? d` gave NaN instead of
+`d`, and `x === undefined` was false. Added a guard: when the assignment text contains no ` = `, bind
+the name to `"undefined"`. `let x`→undefined, `typeof x`→"undefined", `x ?? d`→d, `x === undefined`→
+true, `let a,b; a=1; b=2`→3 (multi-declare), and later assignment (`let x; x=5`) all match Node;
+initialized declarations, destructuring, and object/array literals unaffected. Locked with new cases in
+`decl-diff`. **106 jsint fuzzers, 0 diffs; gate GREEN.**
