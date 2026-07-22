@@ -1205,7 +1205,7 @@
 # `.then` chain) settles, then read its resolved value; a non-promise operand is its own value.
 ## To awaitValue (v: Text) -> Text:
     If isPromise(v):
-        Let d be drainMicrotasks("").
+        Let d be drainMicrotasks("", "").
         Return objGet(concat(v, ""), "__pvalue").
     Return concat(v, "").
 
@@ -1352,7 +1352,7 @@
     Return firstRejection(proms, i + 1).
 
 ## To promiseAll (arrval: Text, env: Text) -> Text:
-    Let d be drainMicrotasks("").
+    Let d be drainMicrotasks("", concat(env, "")).
     Let rej be firstRejection(arrElements(concat(arrval, "")), 1).
     If rej is not equal to "__none__":
         Return newPromise("rejected", rej).
@@ -1361,14 +1361,19 @@
 # Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
 # callback on its captured value and settles the job's result promise (whose own `.then`
 # callbacks, enqueued while draining, run in turn — chained thens resolve in order).
-## To drainMicrotasks (guard: Text) -> Text:
+# The microtask callbacks (baked at .then-time) resolve their local captures inline, but a callback
+# that references a TOP-LEVEL binding (e.g. a hoisted `function $DONE(){}` — the test262 async
+# protocol) needs the module's top-level env at drain time. So the drain threads that env down to
+# callWith1; the top-level file run passes its finalEnv, giving async callbacks access to top-level
+# functions/vars.
+## To drainMicrotasks (guard: Text, env: Text) -> Text:
     Let jid be mtPop().
     If jid is equal to "":
         Return guard.
     Let job be concat(tagRef (), jid).
-    Let result be callWith1(objGet(concat(job, ""), "fn"), objGet(concat(job, ""), "val"), "").
+    Let result be callWith1(objGet(concat(job, ""), "fn"), objGet(concat(job, ""), "val"), concat(env, "")).
     Let discard be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), "fulfilled", result).
-    Return drainMicrotasks(concat(guard, "x")).
+    Return drainMicrotasks(concat(guard, "x"), env).
 
 # JS parseInt is lenient: skip leading whitespace + optional sign, take the leading digit run, ignore
 # the rest ("42px"->42), NaN if no digit. The native parseInt PANICS on any non-integer, so jsint
@@ -4808,7 +4813,7 @@
 
 ## To jsRun (program: Text) -> Text:
     Let v be runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
-    Let drained be drainMicrotasks("").
+    Let drained be drainMicrotasks("", "").
     Return v.
 
 ## To nchars (s: Text, i: Int, n: Int) -> Text:
@@ -6347,7 +6352,7 @@
     Let procObj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
     Let env0 be envSet("", "process", procObj).
     Let finalEnv be runModuleBody(src, dir, env0).
-    Let drained be drainMicrotasks("").
+    Let drained be drainMicrotasks("", concat(finalEnv, "")).
     If hasThrow(concat(finalEnv, "")):
         eputs(concat(formatThrown(envGet(concat(finalEnv, ""), "__throw")), chr(10))).
         exitWith(1).
