@@ -1094,3 +1094,19 @@ a-z), default base 10 is the decimal text, negatives keep a leading `-`; a non-n
 back to its string form (`"hi".toString()`→`hi`). `(255).toString(16)`→`ff`, `(10).toString(2)`→`1010`,
 `(3735928559).toString(16)`→`deadbeef`, `(-15).toString(16)`→`-f` all match Node. New `tostring-diff`
 fuzzer. **101 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**More native-parseInt panics: charCodeAt() / substring(neg) / Math.floor (2026-07-22).** A second
+crash-hunt found three more `Cannot parse '…' as Int` aborts, all from a method handler passing a
+missing / negative / NaN argument to the native `parseInt`: `"hi".charCodeAt()` (no arg → NaN),
+`"abc".substring(-1)` (empty 2nd arg → NaN), and `Math.floor(3.7)` (the float literal is NaN in this
+integer-only engine). Added `safeInt(text)` — parses via `jsParseIntText`, so NaN/empty/non-numeric →
+0 and a trailing fraction truncates — and routed the fragile handlers through it. `charCodeAt` now uses
+`safeInt` for the index (0 when omitted) and a new `charCodeStr` that returns `NaN` for a negative /
+out-of-range index (was 0); `substring` clamps each index to `[0,len]` via a new `clampIdx` (a negative
+becomes 0 — NOT from-end like slice — with a>b swapped and b defaulting to len); `Math.floor`/`ceil`/
+`round` render via `jsParseIntText` (identity on integers, `NaN` on NaN — they can't crash and they
+never claimed float precision this engine lacks). `charCodeAt()`→104, `charCodeAt(5)`→NaN,
+`substring(-1)`→`abc`, `substring(3,1)`→`el` (swap), `substring(-2,3)`→`hel`, `Math.floor(5)`→5, all
+match Node. New `strnumsafe-diff` fuzzer. **102 jsint fuzzers, 0 diffs; gate GREEN.**

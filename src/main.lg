@@ -1279,6 +1279,23 @@
         Return "NaN".
     Return ds.
 
+# safeInt parses a numeric arg to an Int WITHOUT ever handing the native parseInt non-integer text
+# (which panics): NaN / empty / non-numeric -> 0, a trailing fraction is truncated ("3.7"->3). Used
+# wherever a user-supplied index/count reaches a method handler (charCodeAt/substring/Math.floor/…).
+## To safeInt (t: Text) -> Int:
+    Let p be jsParseIntText(concat(t, "")).
+    If p is equal to "NaN":
+        Return 0.
+    Return parseInt(p).
+
+# charCodeAt: the UTF-16 code unit at i, or NaN (as text) for a negative / out-of-range index.
+## To charCodeStr (s: Text, i: Int) -> Text:
+    If i is less than 0:
+        Return "NaN".
+    If i + 1 is greater than length of s:
+        Return "NaN".
+    Return toText(strCharCodeAt(s, i)).
+
 # JS Number() is stricter than parseInt: the WHOLE (trimmed) string must be numeric, empty -> 0, else NaN.
 ## To jsNumberText (s: Text) -> Text:
     Let t be trim(s).
@@ -2652,10 +2669,22 @@
 ## To strTrimEnd (s: Text) -> Text:
     Return strSliceLoop(concat(s, ""), 1, trimTailIdx(concat(s, ""), length of s), "").
 
+## To clampIdx (idx: Int, n: Int) -> Int:
+    If idx is less than 0:
+        Return 0.
+    If idx is greater than n:
+        Return n.
+    Return idx.
+
+# substring clamps each index to [0, len] (a NEGATIVE index becomes 0 — NOT from-the-end, unlike
+# slice) and swaps them if a > b, so it never hands a 0/negative to the 1-based `item` builtin.
 ## To strSubstring (s: Text, a: Int, b: Int) -> Text:
-    If a is greater than b:
-        Return strSlice(s, b, a).
-    Return strSlice(s, a, b).
+    Let n be length of s.
+    Let ca be clampIdx(a, n).
+    Let cb be clampIdx(b, n).
+    If ca is greater than cb:
+        Return concat(tagStr (), strSliceLoop(s, cb + 1, ca, "")).
+    Return concat(tagStr (), strSliceLoop(s, ca + 1, cb, "")).
 
 ## To strPadStart (s: Text, target: Int, pad: Text) -> Text:
     If length of s is greater than or equal to target:
@@ -3008,20 +3037,17 @@
         Let bef be substringBefore(expr, "Math . floor (").
         Let aft be substringAfter(expr, "Math . floor (").
         Let rst be methodRest(aft).
-        Let fl be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
-        Return resolveMethods(trim(concat(concat(bef, toText(fl)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . ceil (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . ceil (").
         Let aft be substringAfter(expr, "Math . ceil (").
         Let rst be methodRest(aft).
-        Let cl be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
-        Return resolveMethods(trim(concat(concat(bef, toText(cl)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . round (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . round (").
         Let aft be substringAfter(expr, "Math . round (").
         Let rst be methodRest(aft).
-        Let rd be parseInt(jsEvalIn(trim(methodArg(aft)), env)).
-        Return resolveMethods(trim(concat(concat(bef, toText(rd)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Array . isArray (") is not equal to expr:
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
@@ -3389,7 +3415,8 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
-        Let subbed be strSubstring(sval, parseInt(jsEvalIn(trim(item 1 of args), env)), parseInt(jsEvalIn(trim(item 2 of args), env))).
+        Let subEnd be sliceEnd(item 2 of args, env).
+        Let subbed be strSubstring(sval, safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), subEnd).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), subbed), rst)), env).
     If lm is equal to " . charCodeAt (":
         Let bef be substringBefore(expr, " . charCodeAt (").
@@ -3398,8 +3425,8 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Let cc be strCharCodeAt(sval, parseInt(jsEvalIn(trim(methodArg(aft)), env))).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(cc)), rst)), env).
+        Let cc be charCodeStr(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cc), rst)), env).
     If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
