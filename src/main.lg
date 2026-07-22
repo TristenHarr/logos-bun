@@ -1574,7 +1574,7 @@
         Let afterBrace be substringAfter(rest, chr(123)).
         Let body be braceBody(afterBrace, 1, 0, "").
         Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
-        Let fnval be concat(concat(concat(chr(1), encFn(trim(inner))), chr(1)), encFn(trim(body))).
+        Let fnval be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(trim(body))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), fnval), remainder), env).
     If length of ptoks is greater than 1:

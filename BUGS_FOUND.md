@@ -1521,3 +1521,18 @@ in the same statement — `console.log(chk(-1))` — used to print a spurious va
 doConsoleLog now checks throwPending after formatting and skips the output. Direct throws, no-throw calls,
 recursion (`fib(10)` = 55), and returned values are all unchanged. New `throwprop-diff` fuzzer (1000
 programs/5 seeds, 0 diffs); full 125-fuzzer sweep GREEN. Toolchain pending-throw natives added (LOCAL).
+
+---
+
+**Rest parameters on methods (2026-07-22).** The prior rest-param fix worked for plain functions but
+`{m(...xs){…}}` / class `m(...xs){…}` still bound wrong — `xs.length` read the length of the *name string*
+(`"items".length` = 5), because the method's decoded parameter string came back EMPTY. Root cause:
+object/class method bodies are encoded through resolveCalls' function-def branch (not `funcValueOf` /
+`defineFn` like plain functions), and that branch encoded the parameter list from `inner` — which
+resolveCalls had already run `expandSpreadArgs` over, mistaking the rest *parameter* `... xs` for a spread
+*argument* and expanding it to nothing. Fixed by encoding the RAW parameter text (`item np of pieces`,
+before spread expansion) in the function-def branch; a definition's parameter list is never a spread-arg,
+so this is strictly correct and leaves normal params identical. Now method/class rest params bind a real
+array (`xs.length`/`join`/`reduce`/`[i]`, mixed `a, ...rest`) exactly like function rest params; spread
+ARGUMENTS at call sites (`f(...arr)`) are unchanged. Extended `restparam-diff` fuzzer with method/class
+shapes (1000 programs/5 seeds, 0 diffs); full 125-fuzzer sweep GREEN.

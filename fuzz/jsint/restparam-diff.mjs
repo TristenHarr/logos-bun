@@ -24,13 +24,15 @@ if (OURS) {
   const argList = () => Array.from({ length: ri(5) }, () => 1 + ri(9)).join(",");
   const program = () => {
     const args = argList();
-    const k = ri(7);
+    const k = ri(9);
     if (k === 0) return `function f(...xs){return xs.length;}console.log(f(${args}));`;
     if (k === 1) return `function f(...xs){return xs.join("-");}console.log(f(${args}));`;
     if (k === 2) return `function f(...xs){return xs.reduce((a,b)=>a+b,0);}console.log(f(${args}));`;
     if (k === 3) return `function f(a,...rest){return a+":"+rest.length;}console.log(f(${args || "0"}));`;
     if (k === 4) return `function f(...xs){return xs.map(x=>x*2).join(",");}console.log(f(${args}));`;
-    if (k === 5) return `function f(first,second,...more){return more.join("|");}console.log(f(${args || "0"}));`;
+    if (k === 5) return `let o={m(...xs){return xs.reduce((a,b)=>a+b,0);}};console.log(o.m(${args || "0"}));`;
+    if (k === 6) return `let o={m(a,...rest){return a+"|"+rest.join(",");}};console.log(o.m(${args || "0"}));`;
+    if (k === 7) return `class C{sum(...ns){return ns.length;}}console.log(new C().sum(${args}));`;
     return `function f(...xs){return xs.filter(x=>x>4).length;}console.log(f(${args}));`;
   };
   let checked = 0;
