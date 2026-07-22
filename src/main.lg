@@ -3737,10 +3737,14 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
         Let araw be jsEvalIn(trim(item 1 of args), env).
-        Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
         If isRegex(araw):
-            Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplace(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), decodeStr(concat(bv, "")), materialize(objGet(concat(araw, ""), "__regex_flags")))), rst)), env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, materialize(araw), bv)), rst)), env).
+            If startsWith(trim(item 2 of args), "function ("):
+                Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplaceFn(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), fnArgValRaw(trim(item 2 of args), env), materialize(objGet(concat(araw, ""), "__regex_flags")), env)), rst)), env).
+            Let rb2 be jsEvalIn(trim(item 2 of args), env).
+            If startsWith(rb2, chr(1)):
+                Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplaceFn(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), concat(rb2, ""), materialize(objGet(concat(araw, ""), "__regex_flags")), env)), rst)), env).
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplace(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), decodeStr(materialize(rb2)), materialize(objGet(concat(araw, ""), "__regex_flags")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplace(sval, materialize(araw), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If lm is equal to " . replaceAll (":
         Let bef be substringBefore(expr, " . replaceAll (").
         Let aft be substringAfter(expr, " . replaceAll (").
@@ -5479,8 +5483,44 @@
         Return reReplaceLoop(pat, after, repl, true, nextAcc).
     Return concat(acc, concat(before, concat(repl, after))).
 
+# Inverse of decodeStr: re-encode a raw string's structural characters back into the byte vocabulary,
+# so a value produced from DECODED text (regex replace/split results) is a well-formed jsint string.
+## To encodeStr (s: Text) -> Text:
+    Let a be replaceAll(s, " ", encSpace ()).
+    Let b be replaceAll(a, chr(91), encBrkL ()).
+    Let c be replaceAll(b, chr(93), encBrkR ()).
+    Let d be replaceAll(c, chr(123), encBraceL ()).
+    Let e be replaceAll(d, chr(125), encBraceR ()).
+    Let f be replaceAll(e, "(", encParenL ()).
+    Let g be replaceAll(f, ")", encParenR ()).
+    Let h be replaceAll(g, chr(34), encQuote ()).
+    Let ii be replaceAll(h, chr(92), encBackslash ()).
+    Return replaceAll(ii, chr(10), encNewline ()).
+
 ## To reReplace (pat: Text, text: Text, repl: Text, flags: Text) -> Text:
-    Return concat(tagStr (), reReplaceLoop(pat, text, repl, reHasG(flags), "")).
+    Return concat(tagStr (), encodeStr(reReplaceLoop(pat, text, repl, reHasG(flags), ""))).
+
+# .replace(regex, fn): like reReplaceLoop, but each match's replacement is fn(match, offset) — the
+# callback is invoked per match (via callFnIdx, match bound to param 1, offset to param 2) and its
+# returned string (decoded) spliced in. First match only, or all under the g flag.
+## To reReplaceFnLoop (pat: Text, text: Text, fnval: Text, global: Bool, env: Text, acc: Text) -> Text:
+    Let start be reSearchStart(pat, text).
+    If start is equal to 0:
+        Return concat(acc, text).
+    Let endp be reMatchEnd(pat, text, start).
+    Let before be strSliceLoop(text, 1, start - 1, "").
+    Let matched be strSliceLoop(text, start, endp - 1, "").
+    Let after be strSliceLoop(text, endp, length of text, "").
+    Let repl be decodeStr(materialize(callFnIdx(concat(fnval, ""), concat(tagStr (), matched), toText(start - 1), concat(env, "")))).
+    If global is equal to false:
+        Return concat(acc, concat(before, concat(repl, after))).
+    If endp is greater than start:
+        Let nextAcc be concat(acc, concat(before, repl)).
+        Return reReplaceFnLoop(pat, after, fnval, true, env, nextAcc).
+    Return concat(acc, concat(before, concat(repl, after))).
+
+## To reReplaceFn (pat: Text, text: Text, fnval: Text, flags: Text, env: Text) -> Text:
+    Return concat(tagStr (), encodeStr(reReplaceFnLoop(pat, text, fnval, reHasG(flags), env, ""))).
 
 ## To reSplit (pat: Text, text: Text) -> Text:
     Return strSplit(reReplaceLoop(pat, text, chr(0), true, ""), chr(0)).

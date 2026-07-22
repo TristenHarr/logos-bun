@@ -1302,3 +1302,20 @@ jsint fuzzers, 0 diffs; gate GREEN.** KNOWN 1-ULP LIMIT: the transcendentals (hy
 log/exp/atan/cbrt) on arbitrary inputs can differ from V8 in the last bit — IEEE-754 doesn't mandate
 correctly-rounded transcendentals and Rust's libm ≠ V8's fdlibm; matching exactly would need bundling
 fdlibm. Toolchain `js_math2`/`js_math_maxmin` + extended `js_math1` added (LOCAL).
+
+---
+
+**String.replace(regex, function) — a function replacer (2026-07-22).** `str.replace(/re/g, m => …)`
+gave garbage — arg 2 was always treated as a literal string. Added `reReplaceFn`/`reReplaceFnLoop`:
+each match invokes the callback (via `callFnIdx`, match bound to param 1, offset to param 2) and its
+returned string is spliced in (first match, or all under `g`). The handler now takes the function path
+both for an inline `m => …` (captured with `fnArgValRaw`) and for a variable holding a function (a
+`chr(1)` value). Fixing it surfaced a real encoding bug in the regex-replace family: `reReplace`/
+`reReplaceFn`/`reSplit` operate on DECODED text but were returning DECODED content wrapped in a string
+tag — so any structural character (`[]`/`()`/`{}`/space) in the result leaked and got re-tokenized
+(`m=>"["+m+"]"`→undefined). Added `encodeStr` (the inverse of `decodeStr`) and re-encode the result, so
+a value built from decoded text is a well-formed jsint string. `"a1b2c3".replace(/\d/g, m=>"["+m+"]")`→
+`a[1]b[2]c[3]`, `c=>c.toUpperCase()`, named replacers, and structural-char wraps all match Node; literal
+`.replace`, `.split`, and brackets in the SUBJECT unaffected. New `replacefn-diff` fuzzer. **114 jsint
+fuzzers, 0 diffs; gate GREEN.** (Arithmetic on the match — `m => m*2` — still needs string→number
+coercion, a separate gap.)
