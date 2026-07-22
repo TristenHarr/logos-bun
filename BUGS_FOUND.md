@@ -739,3 +739,24 @@ round-trips, getters inside larger expressions. Locked by a new `classaccessor-d
 complete — methods, `this`, `new`, `extends`, `super`, `instanceof`, `static`, get/set — leaving
 only private `#fields` (rare) before E2 (async/Promise). Scope: a getter body binds `this`+params
 but not outer locals (uncommon for accessors).
+
+---
+
+**P7 ENGINE — E2.1 PROMISE FOUNDATION (Promise.resolve/reject, .then, chaining, microtask
+ordering):** the first slice of async. The engine is synchronous, so a Promise is a heap object
+carrying `__pstate` (fulfilled/rejected/pending), `__pvalue`, and `__preactions` (reactions
+registered by a `.then` that ran before the promise settled). `Promise.resolve(v)` yields a
+fulfilled promise (or v itself if already a promise); `Promise.reject(e)` a rejected one.
+`p.then(f)`: if p is fulfilled, a microtask holding (f, value, result-promise-id) — a heap object
+referenced by id on a native FIFO **microtask queue** (`mt_push`/`mt_pop`, thread-local VecDeque in
+the toolchain, local-only) — is enqueued; if p is pending, a {fn,res} reaction is appended to its
+`__preactions`. `jsRun`/`jsRunFile` **drain** the queue after the main script: each job runs its
+callback on its value and `settlePromise`s the job's result promise, which enqueues that promise's
+own reactions — so **chained `.then().then()` resolves in order and microtask ordering is exact**
+(`Promise.resolve().then(f); g()` runs g before f; verified `[2,1]`, `[a,b,c]`, 3-deep chains).
+**Bug found & fixed:** `console.log` was statement-only, so an arrow callback `x=>console.log(x)`
+(desugared to `return console.log(x)`) printed nothing — added a `console.log` case to the `return`
+handler (a general fix for any callback logging), NOT to `resolveMethods` (which would have fired
+on `console.log` inside un-executed function bodies, printing prematurely). Locked by a new
+`promise-diff` fuzzer (whole programs diffed vs Node via `bun run`). **85 jsint fuzzers, 0 diffs.**
+Next: `new Promise(executor)`, `.catch`/`.finally`, `Promise.all`, then `async`/`await`.

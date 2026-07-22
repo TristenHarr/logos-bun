@@ -26,6 +26,8 @@
 ## To native heapSet (handle: Text, content: Text) -> Unit
 ## To native classTagSet (handle: Text, chain: Text) -> Unit
 ## To native classTagGet (handle: Text) -> Text
+## To native mtPush (job: Text) -> Unit
+## To native mtPop () -> Text
 
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
@@ -979,6 +981,77 @@
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
     Let localEnv be envSet(baseEnv, trim(paramStr), concat(value, "")).
     Return envGet(runBlockStr(body, localEnv), "__ret").
+
+# A Promise is a heap object carrying `__pstate` (fulfilled/rejected/pending) and `__pvalue`
+# (the value or rejection reason). The engine is synchronous, so a promise settles as soon as
+# its producer runs; `.then` callbacks are deferred onto the microtask queue and drained after
+# the main script, preserving JS ordering. callWith1 runs a one-argument callback with its
+# parameter bound directly to an already-evaluated value (no re-evaluation).
+## To newPromise (state: Text, value: Text) -> Text:
+    Let p0 be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__pstate", concat(tagStr (), state)), "__pvalue", concat(value, "")).
+    Return objSet(concat(p0, ""), "__preactions", newArr(concat(tagArr (), tagArrEnd ()))).
+
+## To isPromise (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__pstate") is not equal to "undefined".
+    Return false.
+
+# When a pending promise settles, its registered reactions (each a {fn,res} recorded by a `.then`
+# that ran before the promise was ready) are enqueued as microtasks — so a chained `.then` fires
+# once its upstream promise resolves.
+## To enqueueReactions (reactions: Seq of Text, i: Int, value: Text) -> Text:
+    If i is greater than length of reactions:
+        Return "".
+    Let r be item i of reactions.
+    Let job be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", objGet(concat(r, ""), "fn")), "val", concat(value, "")), "res", objGet(concat(r, ""), "res")).
+    mtPush(refId(concat(job, ""))).
+    Return enqueueReactions(reactions, i + 1, value).
+
+## To settlePromise (pref: Text, state: Text, value: Text) -> Text:
+    Let d1 be objSet(concat(pref, ""), "__pstate", concat(tagStr (), state)).
+    Let d2 be objSet(concat(pref, ""), "__pvalue", concat(value, "")).
+    Let d3 be enqueueReactions(arrElements(objGet(concat(pref, ""), "__preactions")), 1, concat(value, "")).
+    Return concat(pref, "").
+
+## To callWith1 (fnVal: Text, value: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let localEnv be envSet(env, trim(paramStr), concat(value, "")).
+    Return envGet(runBlockStr(body, localEnv), "__ret").
+
+# Promise.resolve(v): v if it is already a promise, else a fulfilled promise of v.
+## To promiseResolveOf (pv: Text) -> Text:
+    If isPromise(pv):
+        Return concat(pv, "").
+    Return newPromise("fulfilled", concat(pv, "")).
+
+# p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
+# id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
+# Returns a fresh pending promise the drain will settle with f's return.
+## To promiseThen (pval: Text, f: Text, env: Text) -> Text:
+    If isPromise(pval):
+        Let resultP be newPromise("pending", "undefined").
+        If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "fulfilled":
+            Let job be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", concat(f, "")), "val", objGet(concat(pval, ""), "__pvalue")), "res", concat(tagStr (), refId(concat(resultP, "")))).
+            mtPush(refId(concat(job, ""))).
+            Return resultP.
+        Let reaction be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "fn", concat(f, "")), "res", concat(tagStr (), refId(concat(resultP, "")))).
+        Let dReg be arrPush(objGet(concat(pval, ""), "__preactions"), concat(reaction, "")).
+        Return resultP.
+    Return newPromise("fulfilled", concat(pval, "")).
+
+# Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
+# callback on its captured value and settles the job's result promise (whose own `.then`
+# callbacks, enqueued while draining, run in turn — chained thens resolve in order).
+## To drainMicrotasks (guard: Text) -> Text:
+    Let jid be mtPop().
+    If jid is equal to "":
+        Return guard.
+    Let job be concat(tagRef (), jid).
+    Let result be callWith1(objGet(concat(job, ""), "fn"), objGet(concat(job, ""), "val"), "").
+    Let discard be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), "fulfilled", result).
+    Return drainMicrotasks(concat(guard, "x")).
 
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "String", "Number", "Boolean"].
@@ -2371,6 +2444,20 @@
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
+    If substringBefore(expr, "Promise . resolve (") is not equal to expr:
+        Let bef be substringBefore(expr, "Promise . resolve (").
+        Let aft be substringAfter(expr, "Promise . resolve (").
+        Return resolveMethods(trim(concat(concat(bef, promiseResolveOf(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, "Promise . reject (") is not equal to expr:
+        Let bef be substringBefore(expr, "Promise . reject (").
+        Let aft be substringAfter(expr, "Promise . reject (").
+        Return resolveMethods(trim(concat(concat(bef, newPromise("rejected", jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . then (") is not equal to expr:
+        Let bef be substringBefore(expr, " . then (").
+        Let aft be substringAfter(expr, " . then (").
+        Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
+        Let thenP be promiseThen(pval, fnArgVal(trim(methodArg(aft)), env), env).
+        Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), thenP), methodRest(aft))), env).
     If substringBefore(expr, "Math . max (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
@@ -3306,6 +3393,9 @@
     If startsWith(s, "return"):
         If startsWith(trim(substringAfter(s, "return")), "function ("):
             Return envSet(env, "__ret", funcValueOf(substitute(trim(substringAfter(s, "return")), env))).
+        If startsWith(trim(substringAfter(s, "return")), "console . log ("):
+            Let logged be doConsoleLog(balancedArg(substringAfter(trim(substringAfter(s, "return")), "console . log ("), 1, 0, ""), env).
+            Return envSet(env, "__ret", "undefined").
         Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
     If startsWith(s, "throw "):
         Return envSet(env, "__throw", jsEvalIn(substringAfter(s, "throw "), env)).
@@ -3476,7 +3566,9 @@
     Return runProgram(stmts, i + 1, execStmt(stmt, env)).
 
 ## To jsRun (program: Text) -> Text:
-    Return runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
+    Let v be runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
+    Let drained be drainMicrotasks("").
+    Return v.
 
 ## To nchars (s: Text, i: Int, n: Int) -> Text:
     If i + n is greater than length of s + 1:
@@ -3930,7 +4022,9 @@
 ## To jsRunFile (src: Text, argv: Text) -> Text:
     Let procObj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
     Let env0 be envSet("", "process", procObj).
-    Return runSink(runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, env0)).
+    Let finalEnv be runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, env0).
+    Let drained be drainMicrotasks("").
+    Return runSink(finalEnv).
 
 ## To looksLikeScript (cmd: Text) -> Bool:
     If strEndsWith(cmd, ".js"):
