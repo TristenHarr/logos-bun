@@ -3505,6 +3505,8 @@
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
+    If markerInBody(concat(expr, ""), lm):
+        Return expr.
     If lm is equal to " . reduce (":
         Let bef be substringBefore(expr, " . reduce (").
         Let aft be substringAfter(expr, " . reduce (").

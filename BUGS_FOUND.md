@@ -1451,3 +1451,23 @@ array-valued PARAM inside a METHOD body doesn't dispatch array methods — `{s()
 works, and the same body inside a plain `function` works. The divergence is callMethod (which binds
 `this`) vs callFn; the array literal/param isn't reaching arrJoin as a heap ref there. Logged for a
 dedicated increment.
+
+---
+
+**Array methods inside method bodies (2026-07-22).** `{ s(){ return [1,2,3].join("-") } }`,
+`this.items.reduce(...)`, `arr.map(...)` on a parameter — every array method returned NaN/empty when it
+sat inside an object-literal OR class method body, though it worked in a plain `function`, and
+`.length`/`[i]`/`.push` on the same array worked. Instrumentation pinned it exactly: inside the method
+the builtin-method dispatch received the WHOLE object-literal text and resolved the `.join` sitting
+inside the still-unencoded function body at object-CONSTRUCTION time — `recv` came out as `return [ 1 ,
+2 , 3 ]`, evaluating to an empty array. Plain `function` declarations dodge this because `defineFn`
+encodes their body to an opaque chr(1) blob before any method resolution runs. The builtin-method
+dispatch (the leftmostMethod family: join/map/filter/reduce/sort/some/every/find/…) was missing the same
+`markerInBody` guard the `.test`/`.match`/Map handlers already use. Added one line right after the
+leftmost method is chosen: if that method's leftmost occurrence sits inside a function body
+(`markerInBody`, via the fnBraceStack F/O/P brace-kind walk), return the expression unchanged so the
+method stays opaque until resolveCalls encodes the function; the array method then resolves normally when
+callMethod actually runs the body at call time. Fixes array methods in every method context (object,
+class, `this.field`, param, chained `sort().join()`); plain-function bodies unchanged. New
+`methodarray-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 122-fuzzer sweep GREEN. This closes both
+pre-existing gaps flagged in the two prior entries (they were the same root cause).
