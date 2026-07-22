@@ -760,3 +760,16 @@ handler (a general fix for any callback logging), NOT to `resolveMethods` (which
 on `console.log` inside un-executed function bodies, printing prematurely). Locked by a new
 `promise-diff` fuzzer (whole programs diffed vs Node via `bun run`). **85 jsint fuzzers, 0 diffs.**
 Next: `new Promise(executor)`, `.catch`/`.finally`, `Promise.all`, then `async`/`await`.
+
+---
+
+**P7 ENGINE — E2.2 `new Promise(executor)`:** wrapping a callback API as a promise. `new
+Promise((resolve, reject) => {…})` allocates a pending promise, then runs the executor
+synchronously with `resolve`/`reject` bound to **sentinel tokens** `__PRES__<id>` / `__PREJ__<id>`
+(id = the promise's heap handle). When the executor calls `resolve(v)` / `reject(e)`, `resolveCalls`
+recognizes the sentinel (checking the *value* of the callee — `envGet(env, name)` — since it runs
+before substitution) and `settlePromise`s that promise; single- and double-parameter executors both
+work (`bindReject` binds the second only when present). Chaining and `.then` on the result work as
+in E2.1. Verified: `new Promise(res=>res(42)).then(log)` → 42, 2-param, chained, `let p = new
+Promise(...)`. `promise-diff` fuzzer extended with `new Promise` cases. **85 fuzzers, 0 diffs.**
+`.catch`/`.finally`/`Promise.all` and `async`/`await` remain.

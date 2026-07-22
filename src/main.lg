@@ -1026,6 +1026,26 @@
         Return concat(pv, "").
     Return newPromise("fulfilled", concat(pv, "")).
 
+# new Promise(executor): run the executor synchronously with `resolve`/`reject` bound to sentinel
+# tokens `__PRES__<id>` / `__PREJ__<id>` (id = the pending promise's heap handle). When the
+# executor calls resolve(v)/reject(e), resolveCalls recognizes the sentinel and settles promise id.
+## To bindReject (e1: Text, params: Seq of Text, prej: Text) -> Text:
+    If length of params is greater than 1:
+        Return envSet(e1, trim(item 2 of params), prej).
+    Return e1.
+
+## To runExecutor (fnVal: Text, pres: Text, prej: Text, env: Text) -> Text:
+    Let afterMark be substringAfter(fnVal, chr(1)).
+    Let params be patFields(decFn(substringBefore(afterMark, chr(1)))).
+    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let e1 be envSet(env, trim(item 1 of params), pres).
+    Return envGet(runBlockStr(body, bindReject(e1, params, prej)), "__ret").
+
+## To newPromiseExec (executor: Text, env: Text) -> Text:
+    Let p be newPromise("pending", "undefined").
+    Let d be runExecutor(executor, concat("__PRES__", refId(concat(p, ""))), concat("__PREJ__", refId(concat(p, ""))), env).
+    Return concat(p, "").
+
 # p.then(f): if p is already fulfilled, enqueue a microtask holding (f, p's value, result-promise
 # id) — a heap object referenced by id on the queue, so no separator needs to survive f/value.
 # Returns a fresh pending promise the drain will settle with f's return.
@@ -1121,6 +1141,12 @@
         Let result be callFn(lastTok, inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If startsWith(envGet(env, lastTok), "__PRES__"):
+        Let dRes be settlePromise(concat(tagRef (), substringAfter(envGet(env, lastTok), "__PRES__")), "fulfilled", jsEvalIn(inner, env)).
+        Return resolveCalls(concat(concat(concat(joinRange(ptoks, 1, (length of ptoks) - 1, ""), " "), "undefined"), rest), env).
+    If startsWith(envGet(env, lastTok), "__PREJ__"):
+        Let dRej be settlePromise(concat(tagRef (), substringAfter(envGet(env, lastTok), "__PREJ__")), "rejected", jsEvalIn(inner, env)).
+        Return resolveCalls(concat(concat(concat(joinRange(ptoks, 1, (length of ptoks) - 1, ""), " "), "undefined"), rest), env).
     If lastTok is equal to "function":
         Let afterBrace be substringAfter(rest, chr(123)).
         Let body be braceBody(afterBrace, 1, 0, "").
@@ -2444,6 +2470,10 @@
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
+    If substringBefore(expr, "new Promise (") is not equal to expr:
+        Let bef be substringBefore(expr, "new Promise (").
+        Let aft be substringAfter(expr, "new Promise (").
+        Return resolveMethods(trim(concat(concat(bef, newPromiseExec(fnArgVal(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . resolve (") is not equal to expr:
         Let bef be substringBefore(expr, "Promise . resolve (").
         Let aft be substringAfter(expr, "Promise . resolve (").

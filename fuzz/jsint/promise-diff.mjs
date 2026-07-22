@@ -22,12 +22,15 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const sn = () => 1 + ri(9);
   const program = () => {
-    const k = ri(6), a = sn(), b = sn(), c = sn();
+    const k = ri(9), a = sn(), b = sn(), c = sn();
     if (k === 0) return `Promise.resolve(${a}).then(x=>console.log(x));console.log(${b});`;
     if (k === 1) return `Promise.resolve(${a}).then(x=>x*${b}).then(y=>console.log(y));`;
     if (k === 2) return `console.log(${a});Promise.resolve().then(()=>console.log(${b}));console.log(${c});`;
     if (k === 3) return `Promise.resolve(${a}).then(x=>x+${b}).then(y=>y*${c}).then(z=>console.log(z));`;
     if (k === 4) return `Promise.resolve(${a}).then(x=>console.log(x));Promise.resolve(${b}).then(x=>console.log(x));`;
+    if (k === 5) return `new Promise((res)=>{res(${a})}).then(x=>console.log(x));`;
+    if (k === 6) return `new Promise((resolve,reject)=>{resolve(${a})}).then(v=>console.log(v*${b}));`;
+    if (k === 7) return `new Promise((res)=>{res(${a})}).then(x=>x+${b}).then(y=>console.log(y));`;
     return `let p=Promise.resolve(${a});p.then(x=>console.log(x+${b}));console.log(${c});`;
   };
   let checked = 0;
