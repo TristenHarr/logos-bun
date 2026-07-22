@@ -663,3 +663,27 @@ whose methods can have any name. Locked by two new fuzzers, `methodthis-diff` an
 **80 jsint fuzzers × 3 seeds = 240 runs, 0 diffs vs Node.** Noted scope for now: a method embedded in
 an object/array literal binds `this`+params but not outer locals (assignment/return closures still
 capture); `class` sugar, `extends`/`super`/`instanceof`/static are the next E1 increments.
+
+---
+
+**P7 ENGINE — E1.3 CLASS SYNTAX (`class` desugar):** `class C { constructor(p){…} m(q){…} }` is
+desugared (a `desugarClass`/`classWalk` pass in `normalizeJs`, after arrows) into a constructor
+function whose methods are assigned onto `this` — `function C (p) { this.m = function(q){…} ; <ctor
+body> }` — so the E1-foundation machinery (`new`, `callMethod`, `this` write-through) carries it
+with no new runtime. `classWalk` peels one `name (params) {body}` member at a time using
+`braceBody`'s accumulated length to find each matching `}` and the remainder; the `constructor`
+member supplies the function's params + body, every other member becomes a `this.name = function`
+assignment. Verified: field init, single/multiple methods, mutating methods, array fields with
+`push`, distinct per-instance identity+state. **Three bugs fixed:** (1) **LOGOS treats a literal
+`{`/`}` inside a string literal as string interpolation** — the emitted braces had to be built via
+`chr(123)`/`chr(125)`, not written inline (a `.lg`-authoring gotcha worth remembering). (2) the
+desugar emitted the constructor function with no `;` before the following statement — BUG-32 (a
+block-closing `}` is not a statement boundary here) — so `function C(){…} let c = …` was mis-split;
+the desugar now emits a `;`. (3) **a latent E0-era precedence bug** surfaced by class methods like
+`peri(){return 2*(this.w+this.h)}`: `resolveCalls`'s bare-paren fallthrough evaluated a
+parenthesized subexpression with a *partial* pipeline (`jsEvalTernary`, no member resolution) and
+inlined the un-collapsed result, so `2*(o.w+o.h)` became `2*3+5` = 11 instead of 16 — now it
+evaluates the paren inner through the full `jsEvalIn` (member resolution + arithmetic collapse) to
+an atomic value, fixing member-access-inside-parens under outer arithmetic everywhere, not just in
+classes. Locked by a new `class-diff` fuzzer. **81 jsint fuzzers × 3 seeds = 243 runs, 0 diffs vs
+Node.** `extends`/`super`/`instanceof`/static/getters are the remaining E1 increments.

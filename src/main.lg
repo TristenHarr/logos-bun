@@ -1057,7 +1057,7 @@
                     Let result be callMethod(mfn, inner, recvVal, env).
                     Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 3, "").
                     Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
-    Let innerVal be jsEvalTernary(substitute(resolveCalls(inner, env), env)).
+    Let innerVal be jsEvalIn(inner, env).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
 
 ## To matArr (els: Seq of Text, i: Int, acc: Text) -> Text:
@@ -3721,10 +3721,42 @@
         Return desugarTemplates(s, i + 1, 2, depth - 1, concat(acc, c)).
     Return desugarTemplates(s, i + 1, 2, depth, concat(acc, c)).
 
+# Class desugar: `class C { constructor(p){ctor} m(q){body} }` becomes a constructor function
+# `function C (p) { this.m = function(q){body} ; ctor }` — each non-constructor method is assigned
+# onto `this` (an instance-own function value bound dynamically by callMethod), the constructor's
+# own params/body drive the function. classWalk peels one `name (params) {body}` member at a time,
+# using braceBody's accumulated length to find each member's matching brace and the remainder.
+## To classWalk (cname: Text, body: Text, cparams: Text, cbody: Text, methods: Text) -> Text:
+    Let b be trim(body).
+    If b is equal to "":
+        Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
+        Return concat(concat(concat(concat(concat(head, chr(123)), concat(" ", methods)), cbody), " "), chr(125)).
+    Let name be item 1 of split(b, " ").
+    Let params be trim(substringBefore(substringAfter(b, chr(40)), chr(41))).
+    Let afterBrace be substringAfter(b, chr(123)).
+    Let mbody be braceBody(afterBrace, 1, 0, "").
+    Let rest be strSliceLoop(afterBrace, (length of mbody) + 2, length of afterBrace, "").
+    If name is equal to "constructor":
+        Return classWalk(cname, rest, params, trim(mbody), methods).
+    Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
+    Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
+    Return classWalk(cname, rest, cparams, cbody, concat(methods, assign)).
+
+## To desugarClass (expr: Text) -> Text:
+    If substringBefore(expr, "class ") is equal to expr:
+        Return expr.
+    Let bef be substringBefore(expr, "class ").
+    Let aft be substringAfter(expr, "class ").
+    Let cname be item 1 of split(trim(aft), " ").
+    Let afterBrace be substringAfter(aft, chr(123)).
+    Let cbody be braceBody(afterBrace, 1, 0, "").
+    Let remainder be strSliceLoop(afterBrace, (length of cbody) + 2, length of afterBrace, "").
+    Return desugarClass(concat(concat(concat(bef, classWalk(cname, trim(cbody), "", "", "")), " ; "), remainder)).
+
 ## To normalizeJs (s: Text) -> Text:
     Let templated be desugarTemplates(s, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarArrows(normed), " "), 1, "").
+    Return joinNonEmpty(split(desugarClass(desugarArrows(normed)), " "), 1, "").
 
 ## To jsExec (program: Text) -> Text:
     Return decodeStr(materialize(jsRun(normalizeJs(program)))).
