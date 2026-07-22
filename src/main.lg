@@ -2658,6 +2658,55 @@
 ## To leftmostMethod (expr: Text) -> Text:
     Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
+# Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
+# order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
+# which would resolve e.g. `x=>/re/.test(x)` at capture time (x unbound) instead of letting the
+# enclosing `.map`/`.filter` capture the closure opaquely (the leftmostOf method family already gets
+# this right by position). `markerInBody` reports whether a marker's first occurrence sits inside a
+# FUNCTION body specifically — not an object literal or a block, whose `{...}` are evaluated in place
+# (deferring those would loop forever). `fnBraceStack` walks the prefix tokens tracking a stack of
+# brace kinds: F for a `function ( … ) {` body brace, O for every other `{`; the marker is in a
+# function body iff any F remains open. State: 0 normal · 1 saw `function`, skipping name to `(` ·
+# 2 inside the param list (pdepth) · 3 matched `)`, the next `{` is the body.
+## To popLast (s: Text) -> Text:
+    If s is equal to "":
+        Return "".
+    Return strSliceLoop(s, 1, (length of s) - 1, "").
+
+## To fnBraceStack (toks: Seq of Text, i: Int, state: Int, pdepth: Int, stack: Text) -> Text:
+    If i is greater than length of toks:
+        Return stack.
+    Let t be item i of toks.
+    If state is equal to 1:
+        If t is equal to "(":
+            Return fnBraceStack(toks, i + 1, 2, 1, stack).
+        Return fnBraceStack(toks, i + 1, 1, 0, stack).
+    If state is equal to 2:
+        If t is equal to "(":
+            Return fnBraceStack(toks, i + 1, 2, pdepth + 1, stack).
+        If t is equal to ")":
+            If pdepth is equal to 1:
+                Return fnBraceStack(toks, i + 1, 3, 0, stack).
+            Return fnBraceStack(toks, i + 1, 2, pdepth - 1, stack).
+        Return fnBraceStack(toks, i + 1, 2, pdepth, stack).
+    If state is equal to 3:
+        If t is equal to chr(123):
+            Return fnBraceStack(toks, i + 1, 0, 0, concat(stack, "F")).
+        If t is equal to chr(125):
+            Return fnBraceStack(toks, i + 1, 0, 0, popLast(stack)).
+        Return fnBraceStack(toks, i + 1, 0, 0, stack).
+    If t is equal to "function":
+        Return fnBraceStack(toks, i + 1, 1, 0, stack).
+    If t is equal to chr(123):
+        Return fnBraceStack(toks, i + 1, 0, 0, concat(stack, "O")).
+    If t is equal to chr(125):
+        Return fnBraceStack(toks, i + 1, 0, 0, popLast(stack)).
+    Return fnBraceStack(toks, i + 1, 0, 0, stack).
+
+## To markerInBody (expr: Text, marker: Text) -> Bool:
+    Let stack be fnBraceStack(split(substringBefore(expr, marker), " "), 1, 0, 0, "").
+    Return substringBefore(stack, "F") is not equal to stack.
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     Let lmm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lmm) is not equal to expr:
@@ -2667,16 +2716,19 @@
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
     If substringBefore(expr, "new Map (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new Map (") is equal to false:
         Let bef be substringBefore(expr, "new Map (").
         Let aft be substringAfter(expr, "new Map (").
         Return resolveMethods(trim(concat(concat(bef, newMap()), methodRest(aft))), env).
     If substringBefore(expr, "new Set (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new Set (") is equal to false:
         Let bef be substringBefore(expr, "new Set (").
         Let aft be substringAfter(expr, "new Set (").
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, " . set (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
         Let aft be substringAfter(expr, " . set (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
@@ -2684,12 +2736,14 @@
             Let args be splitArgsN(methodArg(aft)).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapSet(recv, jsEvalIn(trim(item 1 of args), env), jsEvalIn(trim(item 2 of args), env))), methodRest(aft))), env).
     If substringBefore(expr, " . get (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . get (") is equal to false:
         Let bef be substringBefore(expr, " . get (").
         Let aft be substringAfter(expr, " . get (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapGet(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, " . has (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . has (") is equal to false:
         Let bef be substringBefore(expr, " . has (").
         Let aft be substringAfter(expr, " . has (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
@@ -2698,22 +2752,26 @@
         If isSet(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), cmpResult(mapKeyIdx(arrElements(objGet(concat(recv, ""), "__set_vals")), 1, jsEvalIn(trim(methodArg(aft)), env)) is greater than 0)), methodRest(aft))), env).
     If substringBefore(expr, " . add (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . add (") is equal to false:
         Let bef be substringBefore(expr, " . add (").
         Let aft be substringAfter(expr, " . add (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isSet(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), setAdd(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, "new RegExp (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new RegExp (") is equal to false:
         Let bef be substringBefore(expr, "new RegExp (").
         Let aft be substringAfter(expr, "new RegExp (").
         Return resolveMethods(trim(concat(concat(bef, newRegex(decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env))), "")), methodRest(aft))), env).
     If substringBefore(expr, " . test (") is not equal to expr:
-        Let rbef be substringBefore(expr, " . test (").
-        Let raft be substringAfter(expr, " . test (").
-        Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
-        If isRegex(rrecv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env)))))), methodRest(raft))), env).
+        If markerInBody(concat(expr, ""), " . test (") is equal to false:
+            Let rbef be substringBefore(expr, " . test (").
+            Let raft be substringAfter(expr, " . test (").
+            Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
+            If isRegex(rrecv):
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env)))))), methodRest(raft))), env).
     If substringBefore(expr, " . match (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . match (") is equal to false:
         Let mbef be substringBefore(expr, " . match (").
         Let maft be substringAfter(expr, " . match (").
         Let mre be jsEvalIn(trim(methodArg(maft)), env).

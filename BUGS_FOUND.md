@@ -925,3 +925,30 @@ not `[true,false]` (a regex-`.test`-in-callback scoping bug, next to fix); (2) `
 on a *single line* drops the trailing statement (a statement-splitter bug — a newline fixes it).
 New `regexlit-diff` fuzzer (argument / assignment / return positions + division survival). **91
 jsint fuzzers, 273 runs across seeds 1–3, 0 diffs; gate GREEN.**
+
+---
+
+**Method dispatch reached into un-executed callback bodies (2026-07-22).** Landing regex literals
+surfaced that `arr.filter(x=>/re/.test(x))` — one of the most common JS idioms — returned wrong
+results, and it reproduced with the explicit `new RegExp(...)` form and with Map/Set ops, so it was
+a general dispatcher bug, not a regex one. Root cause: `resolveMethods` handles `.test`/`.match`,
+`new Map`/`new Set`/`new RegExp`, and the Map/Set ops (`.set`/`.get`/`.has`/`.add`) with fixed-order
+`If substringBefore(expr, " . X (") …` checks that fire on ANY textual occurrence — *before* the
+leftmost-method dispatch that the array/string method family (`.map`/`.filter`/`.includes`/…) goes
+through. So for `["zz","b2"].map(x=>new RegExp("z").test(x))`, the inner `.test` (and `new RegExp`)
+resolved at capture time with `x` unbound and baked `return false` into the closure body, instead of
+letting `.map` capture the closure opaquely and run the regex per element. (`.includes` in a callback
+worked precisely because it's in the position-ordered leftmostOf family.) Fix: guard those bare-
+occurrence handlers with `markerInBody`, which reports whether the marker's occurrence sits inside a
+FUNCTION body. The first cut counted raw `{`/`}` depth — but that also deferred `.test`/`.get` inside
+OBJECT LITERALS (`{r:/\d/.test("5")}`), which have no enclosing HOF, so the handler never fired and
+`resolveMethods` recursed forever → stack overflow. The real guard (`fnBraceStack`) walks the prefix
+tokens tracking a stack of brace KINDS — `F` for a `function ( … ) {` body brace (a 4-state machine
+skips the name and param list), `O` for every other `{` (object literal / block / control body) — and
+defers only when an `F` is still open. Now `arr.filter(x=>/\d/.test(x))`, `.map`, `.some`, `.every`
+match Node; object literals, `if`-blocks, function declarations, and all top-level regex/Map/Set usage
+are untouched. KNOWN-STILL-OPEN (separate, pre-existing, reproduces with a named callback too):
+`arr.map(x=>m.get(x))` where `m` is a free Map var returns NaN — inline closures capture free vars via
+`substitute` at capture time and that path doesn't carry Map/Set heap handles; proper lexical closures
+are a later fix. New `hofregex-diff` fuzzer. **92 jsint fuzzers, 276 runs across seeds 1–3, 0 diffs;
+gate GREEN.**
