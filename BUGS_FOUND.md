@@ -1411,3 +1411,25 @@ g(x){…}`, `arr.map(function sq(x){…})`, and `return function inner(x){…}` 
 exprs / arrows / declarations unchanged. New `namedfnexpr-diff` fuzzer. **119 jsint fuzzers, full sweep
 GREEN.** (Self-reference by the expression's own name inside its body — `function fact(n){…fact(n-1)…}`
 as an expression — is a separate rarer item; the name is currently dropped, not bound in the body scope.)
+
+---
+
+**Object method shorthand + accessors (2026-07-22).** `{ m(){…} }`, `{ get x(){…} }`, `{ set x(v){…} }`
+returned NaN/undefined. The eval order is resolveMethods → resolveCalls → resolveObjects, so a bare
+`name ( )` inside an object literal was consumed by resolveCalls as a function CALL before resolveObjects
+could ever build the object — a first attempt to encode it inside resolveObjects failed for exactly this
+reason (wrong layer, reverted). The correct fix is a normalizeJs desugar (`desugarObjMethods`) that runs
+BEFORE any evaluation: it rewrites `name ( params ) {` → `name : function ( params ) {`, `get x (` →
+`__get_x : function (`, `set x (` → `__set_x : function (`, after which the existing function-expression
+encoding and the `__get_`/`__set_` getMember/callSetter slots (already used by class accessors) handle
+everything. Disambiguation is a brace-kind scan: a `{` in value position (prev token ∈ `= ( [ , : return
+? || &&`) opens an OBJECT (`o` frame), otherwise a BLOCK (`b`); `(`/`[` push `p`. A method key sits
+directly inside an `o` frame right after that `{` or a top-level `,` (atKeyPos). Misreading a block as an
+object only MISSES a rewrite (harmless — resolveObjects still builds real objects); the dangerous inverse
+(a real `foo()` call rewritten) needs a value-context token immediately before `{`, which a statement- or
+`)`-terminated block never has — so calls, `if`/`for` blocks, IIFEs, and `{get: 1}`/`{set: 2}` used as
+ORDINARY keys are all untouched (verified). New `objmethod-diff` fuzzer (1000 programs/5 seeds, 0 diffs);
+full 120-fuzzer sweep GREEN. Two PRE-EXISTING gaps surfaced during testing and are NOT regressions (they
+reproduce with the explicit `key: function` form): a method call on a NESTED object property
+(`o.a.m()` → leaks the raw body) and `this.items.reduce(fn, init)` inside a method (returns the init,
+callback not applied). Those are separate engine items, logged for a future increment.

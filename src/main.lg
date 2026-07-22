@@ -5409,12 +5409,124 @@
         Return convertQuotes(s, i + 1, 0, concat(acc, c)).
     Return convertQuotes(s, i + 1, 3, concat(acc, c)).
 
+# Object method shorthand and accessors desugar to the `key : function` form the object machinery
+# already handles. It must run BEFORE resolveCalls, which would otherwise consume a bare `name ( )` as
+# a function CALL. Disambiguation is a brace-kind scan: a `{` in value position (after = ( [ , : return ?
+# || &&) opens an OBJECT (`o`), else a BLOCK (`b`); `(`/`[` push `p`. A method key sits directly inside
+# an `o` frame right after that `{` or a top-level `,`. Misreading a block as an object only misses a
+# rewrite (harmless — resolveObjects still builds real objects); the dangerous direction (a real call
+# rewritten) needs a value-context token before `{`, which a statement/`)` block never has.
+## To objStartTok (t: Text) -> Bool:
+    If t is equal to "=":
+        Return true.
+    If t is equal to "(":
+        Return true.
+    If t is equal to chr(91):
+        Return true.
+    If t is equal to ",":
+        Return true.
+    If t is equal to ":":
+        Return true.
+    If t is equal to "return":
+        Return true.
+    If t is equal to "?":
+        Return true.
+    If t is equal to "||":
+        Return true.
+    If t is equal to "&&":
+        Return true.
+    Return false.
+
+## To topChar (stack: Text) -> Text:
+    If stack is equal to "":
+        Return "".
+    Return item (length of stack) of stack.
+
+## To isWordChar1 (t: Text) -> Bool:
+    If length of t is less than 1:
+        Return false.
+    Let c be item 1 of t.
+    If c is equal to "_":
+        Return true.
+    If c is equal to "$":
+        Return true.
+    If substringBefore("abcdefghijklmnopqrstuvwxyz", c) is not equal to "abcdefghijklmnopqrstuvwxyz":
+        Return true.
+    If substringBefore("ABCDEFGHIJKLMNOPQRSTUVWXYZ", c) is not equal to "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        Return true.
+    Return false.
+
+## To domStack (stack: Text, t: Text, prev: Text) -> Text:
+    If t is equal to "(":
+        Return concat(stack, "p").
+    If t is equal to chr(91):
+        Return concat(stack, "p").
+    If t is equal to ")":
+        Return popLast(stack).
+    If t is equal to chr(93):
+        Return popLast(stack).
+    If t is equal to chr(123):
+        If objStartTok(prev):
+            Return concat(stack, "o").
+        Return concat(stack, "b").
+    If t is equal to chr(125):
+        Return popLast(stack).
+    Return stack.
+
+## To atKeyPos (stack: Text, prev: Text) -> Bool:
+    If topChar(stack) is not equal to "o":
+        Return false.
+    If prev is equal to chr(123):
+        Return true.
+    If prev is equal to ",":
+        Return true.
+    Return false.
+
+## To domNext (toks: Seq of Text, j: Int) -> Text:
+    If j is greater than length of toks:
+        Return "".
+    Return item j of toks.
+
+## To domAppend (acc: Text, t: Text) -> Text:
+    If acc is equal to "":
+        Return t.
+    Return concat(concat(acc, " "), t).
+
+## To domWalk (toks: Seq of Text, i: Int, stack: Text, prev: Text, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return acc.
+    Let t be item i of toks.
+    If atKeyPos(stack, prev):
+        If t is equal to "get":
+            If isWordChar1(domNext(toks, i + 1)):
+                If domNext(toks, i + 2) is equal to "(":
+                    Let g1 be domAppend(acc, concat("__get_", domNext(toks, i + 1))).
+                    Let g3 be domAppend(domAppend(g1, ":"), "function").
+                    Return domWalk(toks, i + 2, stack, "function", g3).
+        If t is equal to "set":
+            If isWordChar1(domNext(toks, i + 1)):
+                If domNext(toks, i + 2) is equal to "(":
+                    Let s1 be domAppend(acc, concat("__set_", domNext(toks, i + 1))).
+                    Let s3 be domAppend(domAppend(s1, ":"), "function").
+                    Return domWalk(toks, i + 2, stack, "function", s3).
+        If isWordChar1(t):
+            If domNext(toks, i + 1) is equal to "(":
+                Let m1 be domAppend(acc, t).
+                Let m3 be domAppend(domAppend(m1, ":"), "function").
+                Return domWalk(toks, i + 1, stack, "function", m3).
+    Let newStack be domStack(stack, t, prev).
+    Let newAcc be domAppend(acc, t).
+    Return domWalk(toks, i + 1, newStack, t, newAcc).
+
+## To desugarObjMethods (s: Text) -> Text:
+    Return domWalk(split(s, " "), 1, "", "", "").
+
 ## To normalizeJs (s: Text) -> Text:
     Let sq be convertQuotes(s, 1, 0, "").
     Let rx be desugarRegexLits(sq, 1, "", false, "", "").
     Let templated be desugarTemplates(rx, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed)))), " "), 1, "").
+    Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed))))), " "), 1, "").
 
 # --- Regex engine (E4): a backtracking matcher in LOGOS ---
 # JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-
