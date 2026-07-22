@@ -1139,3 +1139,16 @@ normalized expression, which is why the earlier attempt under-padded), so `"5".p
 Node; explicit-arg forms (`padStart(3,"0")`→`005`, `Math.pow(2,10)`→1024) unaffected. New
 `argsafe2-diff` fuzzer. **104 jsint fuzzers, 0 diffs; gate GREEN.** (`Math.abs("x")`→0 vs NaN and
 `Math.max(3,"y")`→3 vs NaN are NaN-coercion DIFFs, not crashes — logged.)
+
+---
+
+**Close the native-parseInt crash class: array-index assignment / process.exit / slice-end
+(2026-07-22).** The last user-facing sites feeding native `parseInt` a possibly non-integer value:
+`a["x"]=9` (a non-numeric computed index in an assignment target — `Cannot parse 'x' as Int`),
+`process.exit("x")`, and the `sliceEnd` helper (the end arg of slice/substr). Routed all three through
+`safeInt`. `a["x"]=9` no longer aborts (`a.length` stays 3, matching Node's numeric-`.length` view);
+`a[1]=9`/`a[i]=9` unaffected; slice/substring/substr end args unaffected. Only the (already type-guarded)
+`toString(radix)` argument still calls native parseInt, and it can't reach it with non-numeric text.
+The whole "handler hands native parseInt user text → panic" class — hunted across 3 sweeps this session
+(global parseInt/Number, negative index/slice, charCodeAt/substring/Math.floor, slice()/pad/at/charAt/
+repeat/Math.*, and now these) — is closed. **104 jsint fuzzers, 0 diffs; gate GREEN.**

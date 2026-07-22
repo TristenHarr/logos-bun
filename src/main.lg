@@ -2282,7 +2282,7 @@
 ## To sliceEnd (argText: Text, env: Text) -> Int:
     If trim(argText) is equal to "":
         Return 1000000.
-    Return parseInt(jsEvalIn(trim(argText), env)).
+    Return safeInt(materialize(jsEvalIn(trim(argText), env))).
 
 ## To arrReverseLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
     If i is less than 1:
@@ -4050,7 +4050,7 @@
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
-        Let iidx be parseInt(jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, ""))).
+        Let iidx be safeInt(materialize(jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, "")))).
         Let newarr be arrSetIdx(envGet(concat(env, ""), concat(ivar, "")), iidx, value).
         Return envSet(env, ivar, newarr).
     Return envSet(env, target, value).
@@ -5203,7 +5203,7 @@
 ## To doExit (arg: Text, env: Text) -> Text:
     If trim(arg) is equal to "":
         exitWith(0).
-    exitWith(parseInt(jsEvalIn(trim(arg), env))).
+    exitWith(safeInt(materialize(jsEvalIn(trim(arg), env)))).
     Return env.
 
 ## To runSink (finalEnv: Text) -> Text:
