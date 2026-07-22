@@ -2365,6 +2365,17 @@
         Return objGet(concat(v, ""), "__date_ms") is not equal to "undefined".
     Return false.
 
+# `new Error(msg)` (and TypeError/RangeError/SyntaxError/ReferenceError) is a heap object carrying a
+# `message` string and a `name` — enough for the ubiquitous `throw new Error(...)` / `e.message` /
+# `e.name` pattern. Without it an unknown constructor recursed forever (stack overflow).
+## To newError (ename: Text, msgVal: Text) -> Text:
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "message", msgVal), "name", concat(tagStr (), ename)).
+
+## To buildErrorCall (bef: Text, aft: Text, ename: Text, env: Text) -> Text:
+    If trim(methodArg(aft)) is equal to "":
+        Return concat(concat(bef, newError(ename, concat(tagStr (), ""))), methodRest(aft)).
+    Return concat(concat(bef, newError(ename, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft)).
+
 ## To dateMethod (recv: Text, mname: Text) -> Text:
     Let ms be objGet(concat(recv, ""), "__date_ms").
     If mname is equal to "getTime":
@@ -3255,6 +3266,31 @@
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, "new Error (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new Error (") is equal to false:
+        Let bef be substringBefore(expr, "new Error (").
+        Let aft be substringAfter(expr, "new Error (").
+        Return resolveMethods(trim(buildErrorCall(bef, aft, "Error", env)), env).
+    If substringBefore(expr, "new TypeError (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new TypeError (") is equal to false:
+        Let bef be substringBefore(expr, "new TypeError (").
+        Let aft be substringAfter(expr, "new TypeError (").
+        Return resolveMethods(trim(buildErrorCall(bef, aft, "TypeError", env)), env).
+    If substringBefore(expr, "new RangeError (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new RangeError (") is equal to false:
+        Let bef be substringBefore(expr, "new RangeError (").
+        Let aft be substringAfter(expr, "new RangeError (").
+        Return resolveMethods(trim(buildErrorCall(bef, aft, "RangeError", env)), env).
+    If substringBefore(expr, "new SyntaxError (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new SyntaxError (") is equal to false:
+        Let bef be substringBefore(expr, "new SyntaxError (").
+        Let aft be substringAfter(expr, "new SyntaxError (").
+        Return resolveMethods(trim(buildErrorCall(bef, aft, "SyntaxError", env)), env).
+    If substringBefore(expr, "new ReferenceError (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new ReferenceError (") is equal to false:
+        Let bef be substringBefore(expr, "new ReferenceError (").
+        Let aft be substringAfter(expr, "new ReferenceError (").
+        Return resolveMethods(trim(buildErrorCall(bef, aft, "ReferenceError", env)), env).
     If substringBefore(expr, " . set (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
@@ -4301,6 +4337,21 @@
         Return runBlockStr(catchBlock, envSet(envSet(afterTry, "__throw", ""), cparam, thrown)).
     Return afterTry.
 
+# A `finally` block runs after the try (and catch) whether or not an exception occurred, then the
+# original control-flow signal (a pending `return`/`throw` from the try/catch) resumes — unless the
+# finally itself returns or throws, which supersedes it (JS semantics). Halt flags are cleared so the
+# finally body actually executes, then restored.
+## To runFinally (finBlock: Text, incoming: Text) -> Text:
+    Let savedRet be envGet(concat(incoming, ""), "__ret").
+    Let savedThrow be envGet(concat(incoming, ""), "__throw").
+    Let cleared be envSet(envSet(concat(incoming, ""), "__ret", ""), "__throw", "").
+    Let afterFin be runBlockStr(finBlock, cleared).
+    If envGet(concat(afterFin, ""), "__ret") is not equal to "":
+        Return afterFin.
+    If envGet(concat(afterFin, ""), "__throw") is not equal to "":
+        Return afterFin.
+    Return envSet(envSet(afterFin, "__ret", savedRet), "__throw", savedThrow).
+
 ## To execTry (stmt: Text, env: Text) -> Text:
     Let afterTryBrace be substringAfter(stmt, chr(123)).
     Let tryBlock be braceBody(concat(afterTryBrace, ""), 1, 0, "").
@@ -4310,7 +4361,13 @@
         Let cparam be trim(substringBefore(substringAfter(rest1, "("), ")")).
         Let afterCP be substringAfter(rest1, ")").
         Let catchBlock be braceBody(substringAfter(afterCP, chr(123)), 1, 0, "").
-        Return tryCatchRun(afterTry, cparam, catchBlock).
+        Let afterCatch be tryCatchRun(afterTry, cparam, catchBlock).
+        Let restC be trim(substringAfter(substringAfter(afterCP, catchBlock), chr(125))).
+        If startsWith(restC, "finally"):
+            Return runFinally(braceBody(substringAfter(restC, chr(123)), 1, 0, ""), afterCatch).
+        Return afterCatch.
+    If startsWith(rest1, "finally"):
+        Return runFinally(braceBody(substringAfter(rest1, chr(123)), 1, 0, ""), afterTry).
     Return afterTry.
 
 # if-statement, braced OR braceless. The condition is extracted with balancedArg so nested parens

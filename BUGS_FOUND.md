@@ -1487,3 +1487,21 @@ KNOWN OPEN (separate, logged): rest params on object/class METHODS — `{m(...xs
 the array is correct when returned whole (`return xs` → 3 elements) but member access inside the method
 body (`xs.length`, `typeof xs`) reads wrong, a callMethod/`this`-context interaction distinct from the
 plain-function path.
+
+---
+
+**Error constructors + `finally` (2026-07-22).** `new Error("...")` STACK-OVERFLOWED — even `let e = new
+Error("hi")` on its own — because `Error` was an unknown constructor and the `new` path recursed forever
+(the same failure class `Symbol()` once had). Real code throwing errors crashed the whole runtime. Added
+`new Error(msg)` plus `TypeError`/`RangeError`/`SyntaxError`/`ReferenceError` as builtins in resolveMethods
+(each guarded by markerInBody like `new Map`/`new Set`): a heap object carrying a `message` string and a
+`name`, so `throw new Error(m)` / `e.message` / `e.name` / `` `${e.name}: ${e.message}` `` all work.
+Separately, `execTry` had NO `finally` support at all — `try{…}finally{…}` never ran the finally, and
+`try{…}catch{…}finally{…}` dropped it. Added `runFinally`: it clears the halt flags so the finally body
+executes, runs it, then restores the pending `return`/`throw` from the try/catch — unless the finally
+itself returns/throws, which supersedes (JS semantics), so `function g(){try{return 1}finally{cleanup()}}`
+runs cleanup then returns 1. New `errortry-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 124-fuzzer
+sweep GREEN. STILL OPEN (logged): a `throw` inside a CALLED function doesn't propagate to an outer
+try/catch — `function f(){throw new Error("x")} try{f()}catch(e){…}` misses it — because callFn/callMethod
+return only the value, not the pending `__throw`; threading exception state through the value-return path
+is a separate increment.
