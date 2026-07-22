@@ -1058,3 +1058,15 @@ and `strSlice`. `a[-1]`/`a[10]` → `undefined`, `[1,2,3].slice(-1)` → `[3]`, 
 New `negindex-diff` fuzzer. **98 jsint fuzzers, 0 diffs; gate GREEN.** (Non-crash DIFFs still open,
 logged: string bracket `s[-1]`→garbage not undefined; `"5"*"x"`→5 not NaN; `charCodeAt` oob→0 not NaN;
 `(10).toString(2)` radix.)
+
+---
+
+**String bracket indexing s[i] (2026-07-22).** `"hello"[0]` returned the WHOLE string, `"hello"[10]`
+too, and a variable `s[0]` produced garbage — `resolveArrays` handled array and object receivers but
+had no STRING branch, so `s[i]` fell through to array-literal construction (treating `[0]` as a new
+array). Added string handling to `resolveArrays` for both a tagStr value (resolved variable) and a
+`"…"` literal, via a new `strIndexChar(s, i)` that returns the one-char string at `i` (on the chr-
+encoded content, same length, decoded at output) or `undefined` for a negative / out-of-range index
+(unlike `.charAt`, which returns `""`). `"hello"[0]`→`h`, `[10]`/`[-1]`→`undefined`, `s[1]+s[4]`→`eo`,
+and the ubiquitous `for(i<s.length){r+=s[i]}` character walk all match Node; array/object indexing and
+array literals unaffected. New `strindex-diff` fuzzer. **99 jsint fuzzers, 0 diffs; gate GREEN.**

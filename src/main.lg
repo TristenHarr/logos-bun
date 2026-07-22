@@ -1520,6 +1520,14 @@
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
+    If startsWith(lastTok, tagStr ()):
+        Let elem be strIndexChar(materialize(concat(lastTok, "")), parseInt(evalValue(inner))).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
+    If startsWith(lastTok, chr(34)):
+        Let elem be strIndexChar(materialize(litToStr(concat(lastTok, ""))), parseInt(evalValue(inner))).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
     If inner is equal to "":
         Return resolveArrays(trim(concat(concat(rawPrefix, newArr(concat(tagArr (), tagArrEnd ()))), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(split(inner, ","), 1, "")), rest))).
@@ -2162,6 +2170,16 @@
         Return tagStr ().
     If i + 1 is greater than length of s:
         Return tagStr ().
+    Return concat(tagStr (), item (i + 1) of s).
+
+# Bracket indexing a string (s[i]) is a property access: the one-char string at i, or `undefined` for
+# a negative / out-of-range index (unlike .charAt, which returns ""). Operates on the chr-encoded
+# content (same length as the source, decoded at output).
+## To strIndexChar (s: Text, i: Int) -> Text:
+    If i is less than 0:
+        Return "undefined".
+    If i + 1 is greater than length of s:
+        Return "undefined".
     Return concat(tagStr (), item (i + 1) of s).
 
 ## To strIndexOf (s: Text, sub: Text) -> Int:
