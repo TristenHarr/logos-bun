@@ -2277,6 +2277,32 @@
 ## To arrForEach (arrval: Text, fnval: Text, env: Text) -> Text:
     Return arrForEachLoop(arrElements(arrval), 1, fnval, env).
 
+# Number.toString(radix): render an integer in base 2..36 (digits 0-9 then a-z). Default base 10 is
+# just the decimal text. Used for hex/binary formatting — (255).toString(16) === "ff".
+## To radixDigit (d: Int) -> Text:
+    If d is less than 10:
+        Return toText(d).
+    Return chr(97 + d - 10).
+
+## To intToRadixPos (n: Int, radix: Int, acc: Text) -> Text:
+    If n is equal to 0:
+        Return acc.
+    Return intToRadixPos(n // radix, radix, concat(radixDigit(n % radix), acc)).
+
+## To intToRadix (n: Int, radix: Int) -> Text:
+    If n is equal to 0:
+        Return "0".
+    If n is less than 0:
+        Return concat("-", intToRadixPos(0 - n, radix, "")).
+    Return intToRadixPos(n, radix, "").
+
+## To numToStringVal (raw: Text, argText: Text, env: Text) -> Text:
+    If isIntStr(concat(materialize(raw), "")):
+        If trim(argText) is equal to "":
+            Return concat(tagStr (), materialize(raw)).
+        Return concat(tagStr (), intToRadix(parseInt(materialize(raw)), parseInt(jsEvalIn(trim(argText), env)))).
+    Return concat(tagStr (), materialize(raw)).
+
 ## To arrPushAll (arrval: Text, args: Seq of Text, i: Int, env: Text) -> Text:
     If i is greater than length of args:
         Return arrval.
@@ -2779,7 +2805,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3118,6 +3144,15 @@
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgValRaw(trim(argStr), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFilter(raw, fnval, env)), rst)), env).
+    If lm is equal to " . toString (":
+        Let bef be substringBefore(expr, " . toString (").
+        Let aft be substringAfter(expr, " . toString (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), numToStringVal(raw, argStr, env)), rst)), env).
     If lm is equal to " . push (":
         Let bef be substringBefore(expr, " . push (").
         Let aft be substringAfter(expr, " . push (").

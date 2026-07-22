@@ -1084,3 +1084,13 @@ statement continues: the next token is `else`/`catch`/`finally`/`while` (do-whil
 `f(){}` | `g()`, `for(){}log()` splits, but `if(){}else{}`, `try{}catch{}`, `let o={a:1}`,
 `x=>{…}`, and `a.map(x=>x).join()` chains stay whole. All match Node. New `oneliner-diff` fuzzer.
 **100 jsint fuzzers, 300 runs across seeds 1–3, 0 diffs; gate GREEN.**
+
+---
+
+**Number.toString(radix) (2026-07-22).** `(255).toString(16)` returned NaN — there was no `.toString`
+handler at all, so even `(255).toString()` failed. Added a `. toString (` dispatch (position-ordered
+leftmostOf family) backed by `intToRadix(n, radix)`: renders an integer in base 2..36 (digits 0-9 then
+a-z), default base 10 is the decimal text, negatives keep a leading `-`; a non-number receiver falls
+back to its string form (`"hi".toString()`→`hi`). `(255).toString(16)`→`ff`, `(10).toString(2)`→`1010`,
+`(3735928559).toString(16)`→`deadbeef`, `(-15).toString(16)`→`-f` all match Node. New `tostring-diff`
+fuzzer. **101 jsint fuzzers, 0 diffs; gate GREEN.**
