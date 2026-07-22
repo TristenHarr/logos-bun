@@ -1296,6 +1296,14 @@
         Return "NaN".
     Return toText(strCharCodeAt(s, i)).
 
+# codePointAt is like charCodeAt but yields undefined (not NaN) for an out-of-range index.
+## To codePointStr (s: Text, i: Int) -> Text:
+    If i is less than 0:
+        Return "undefined".
+    If i + 1 is greater than length of s:
+        Return "undefined".
+    Return toText(strCharCodeAt(s, i)).
+
 # JS Number() is stricter than parseInt: the WHOLE (trimmed) string must be numeric, empty -> 0, else NaN.
 ## To jsNumberText (s: Text) -> Text:
     Let t be trim(s).
@@ -2205,6 +2213,28 @@
         Return -1.
     Return length of bef.
 
+# lastIndexOf: scan backward from the last position sub could start, return the 0-based index or -1.
+## To lastIdxScan (s: Text, sub: Text, pos: Int, sublen: Int) -> Int:
+    If pos is less than 0:
+        Return -1.
+    If strSliceLoop(s, pos + 1, pos + sublen, "") is equal to sub:
+        Return pos.
+    Return lastIdxScan(s, sub, pos - 1, sublen).
+
+## To strLastIndexOf (s: Text, sub: Text) -> Int:
+    If sub is equal to "":
+        Return length of s.
+    Return lastIdxScan(concat(s, ""), concat(sub, ""), (length of s) - (length of sub), length of sub).
+
+# substr(start, length): start may be negative (from the end), then take `length` chars, clamped to
+# the string. (Legacy but common; distinct from substring which takes start/end indices.)
+## To strSubstr (s: Text, start: Int, len: Int) -> Text:
+    Let n be length of s.
+    Let st be normSliceIdx(start, n).
+    If len is less than 0:
+        Return tagStr ().
+    Return concat(tagStr (), strSliceLoop(s, st + 1, clampIdx(st + len, n), "")).
+
 ## To arrIndexOfLoop (els: Seq of Text, i: Int, target: Text) -> Int:
     If i is greater than length of els:
         Return -1.
@@ -2834,7 +2864,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . charCodeAt (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3427,6 +3457,33 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let cc be charCodeStr(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cc), rst)), env).
+    If lm is equal to " . codePointAt (":
+        Let bef be substringBefore(expr, " . codePointAt (").
+        Let aft be substringAfter(expr, " . codePointAt (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let cc be codePointStr(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cc), rst)), env).
+    If lm is equal to " . substr (":
+        Let bef be substringBefore(expr, " . substr (").
+        Let aft be substringAfter(expr, " . substr (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Let args be splitArgs2(methodArg(aft)).
+        Let subbed be strSubstr(sval, safeInt(materialize(jsEvalIn(trim(item 1 of args), env))), sliceEnd(item 2 of args, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), subbed), rst)), env).
+    If lm is equal to " . lastIndexOf (":
+        Let bef be substringBefore(expr, " . lastIndexOf (").
+        Let aft be substringAfter(expr, " . lastIndexOf (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sval be materialize(jsEvalIn(recv, env)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(strLastIndexOf(sval, materialize(jsEvalIn(trim(methodArg(aft)), env))))), rst)), env).
     If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").

@@ -1110,3 +1110,16 @@ becomes 0 — NOT from-end like slice — with a>b swapped and b defaulting to l
 never claimed float precision this engine lacks). `charCodeAt()`→104, `charCodeAt(5)`→NaN,
 `substring(-1)`→`abc`, `substring(3,1)`→`el` (swap), `substring(-2,3)`→`hel`, `Math.floor(5)`→5, all
 match Node. New `strnumsafe-diff` fuzzer. **102 jsint fuzzers, 0 diffs; gate GREEN.**
+
+---
+
+**String methods: substr / codePointAt / lastIndexOf (2026-07-22).** Three common String methods were
+missing — `"hello".substr(1,2)`, `"a".codePointAt(0)`, and `"abcabc".lastIndexOf("b")` all returned the
+whole string (no handler → fell through). Added: `substr(start,len)` via `strSubstr` (start may be
+negative = from end, `length` chars clamped to the string, defaults to the rest — legacy semantics,
+distinct from `substring`); `codePointAt(i)` == `charCodeAt` for the BMP but yielding `undefined` (not
+NaN) for an out-of-range index (`codePointStr`); `lastIndexOf(sub)` via `strLastIndexOf`/`lastIdxScan`
+(scan backward from the last candidate start, 0-based index or -1). `substr(-2)`→`lo`, `substr(-3,2)`→
+`ll`, `codePointAt(1)` of "AB"→66, `codePointAt(5)` oob→undefined, `lastIndexOf("b")` of "abcabc"→4,
+`lastIndexOf("z")`→-1 all match Node; substring/indexOf/charCodeAt unaffected. New `strmethods2-diff`
+fuzzer. **103 jsint fuzzers, 0 diffs; gate GREEN.**
