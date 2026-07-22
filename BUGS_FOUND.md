@@ -1210,3 +1210,21 @@ constructor(v){this.n=v}`), private mutation (`#x=this.#x+1`), and reference-typ
 getters unaffected. New `classfields-diff` fuzzer. **107 jsint fuzzers, 0 diffs; gate GREEN.** (Field
 values containing a top-level `;` — e.g. an inline `function(){…;…}` field — aren't split yet; simple/
 literal/arrow/array/object values, the overwhelming majority, are.)
+
+---
+
+**break / continue + braceless `if` (2026-07-22).** `break` and `continue` were NO-OPS — a loop with
+`if (i===2) break` ran all iterations, and `continue` never skipped. The loops only checked `hasHalt`
+(return/throw); there was no break/continue mechanism at all, AND braceless `if (c) stmt` (without
+`{}`) didn't run its consequent (which is where the `break` usually lives). Fixed both: (1) `break`/
+`continue` set `__break`/`__continue` env flags (like `__ret`); `runBlock` stops the rest of a block on
+them; each loop (`for`/`while`/`for-of`/`for-in`) catches them after the body — break clears the flag
+and stops, continue clears it and advances (running the `for` update). They don't propagate through a
+call, unlike return. (2) `execIf` now extracts the condition with `balancedArg` (so `if (f(x))` nested
+parens survive) and, when what follows the `)` isn't `{`, runs a braceless single-statement consequent
+via `execStmt`, with inline `else` honored; `splitTop` keeps `; else` together so a braceless
+`if (c) a; else b` isn't torn apart (it was stack-overflowing). `if (i===2) break`, `if (x%2===0)
+continue`, `while(){…break}`, `for-of` break/continue, and braceless if/else-if chains all match Node;
+braced ifs, else-if, loops without break, assignments unaffected. New `breakcont-diff` fuzzer. **108
+jsint fuzzers, 0 diffs; gate GREEN.** (Labeled `break label` to an OUTER loop still breaks only the
+innermost — logged.)

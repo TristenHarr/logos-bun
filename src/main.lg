@@ -961,6 +961,21 @@
         Return true.
     Return hasThrow(env).
 
+# break / continue signal the enclosing loop via env flags (like __ret for return). runBlock stops
+# executing the rest of a block when either is set; the loop then clears the flag and stops (break) or
+# advances to the next iteration (continue). Unlike return/throw they do NOT propagate through a call.
+## To hasBreak (env: Text) -> Bool:
+    Return envGet(env, "__break") is not equal to "".
+
+## To hasContinue (env: Text) -> Bool:
+    Return envGet(env, "__continue") is not equal to "".
+
+## To clearBreak (env: Text) -> Text:
+    Return envSet(env, "__break", "").
+
+## To clearContinue (env: Text) -> Text:
+    Return envSet(env, "__continue", "").
+
 ## To argAt (args: Seq of Text, i: Int, callerEnv: Text) -> Text:
     If i is greater than length of args:
         Return "undefined".
@@ -3957,6 +3972,8 @@
         Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
     If c is equal to ";":
         If depth is equal to 0:
+            If splitWordIs(s, splitSkipSpaces(s, i + 1), "else"):
+                Return splitTop(s, i + 1, 0, concat(acc, c)).
             Return splitTop(s, i + 1, 0, concat(acc, chr(10))).
         Return splitTop(s, i + 1, depth, concat(acc, c)).
     Return splitTop(s, i + 1, depth, concat(acc, c)).
@@ -3979,19 +3996,35 @@
         Return tryCatchRun(afterTry, cparam, catchBlock).
     Return afterTry.
 
+# if-statement, braced OR braceless. The condition is extracted with balancedArg so nested parens
+# (`if (f(x))`) survive; what follows is a `{ … }` block or, for a braceless if, a single statement
+# (`if (c) break;` / `if (c) return x;`) that runs via execStmt. An inline `else` (no `;` before it)
+# is honored in both forms.
 ## To execIf (stmt: Text, env: Text) -> Text:
-    Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
-    Let afterBrace be substringAfter(stmt, chr(123)).
-    Let thenBlock be braceBody(afterBrace, 1, 0, "").
+    Let inner be substringAfter(stmt, "(").
+    Let condRaw be balancedArg(concat(inner, ""), 1, 0, "").
+    Let cond be trim(condRaw).
+    Let afterCond be trim(strSliceLoop(inner, (length of condRaw) + 2, length of inner, "")).
+    If startsWith(afterCond, chr(123)):
+        Let thenBlock be braceBody(substringAfter(afterCond, chr(123)), 1, 0, "").
+        If boolOf(jsEvalIn(cond, env)):
+            Return runBlockStr(thenBlock, env).
+        Let afterClose be trim(substringAfter(substringAfter(afterCond, chr(123)), chr(125))).
+        If startsWith(afterClose, "else"):
+            Let afterElse be trim(substringAfter(afterClose, "else")).
+            If startsWith(afterElse, "if "):
+                Return execIf(afterElse, env).
+            Let elseBlock be braceBody(substringAfter(afterElse, chr(123)), 1, 0, "").
+            Return runBlockStr(elseBlock, env).
+        Return env.
+    Let consequent be trim(substringBefore(afterCond, " else ")).
     If boolOf(jsEvalIn(cond, env)):
-        Return runBlockStr(thenBlock, env).
-    Let afterClose be trim(substringAfter(substringAfter(afterBrace, thenBlock), chr(125))).
-    If startsWith(afterClose, "else"):
-        Let afterElse be trim(substringAfter(afterClose, "else")).
-        If startsWith(afterElse, "if "):
-            Return execIf(afterElse, env).
-        Let elseBlock be braceBody(substringAfter(afterElse, chr(123)), 1, 0, "").
-        Return runBlockStr(elseBlock, env).
+        Return execStmt(consequent, env).
+    If substringBefore(afterCond, " else ") is not equal to afterCond:
+        Let elsePart be trim(substringAfter(afterCond, " else ")).
+        If startsWith(elsePart, "if "):
+            Return execIf(elsePart, env).
+        Return execStmt(elsePart, env).
     Return env.
 
 ## To braceBody (s: Text, i: Int, depth: Int, acc: Text) -> Text:
@@ -4112,6 +4145,14 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If s is equal to "break":
+        Return envSet(env, "__break", "1").
+    If startsWith(s, "break "):
+        Return envSet(env, "__break", "1").
+    If s is equal to "continue":
+        Return envSet(env, "__continue", "1").
+    If startsWith(s, "continue "):
+        Return envSet(env, "__continue", "1").
     If s is equal to "__GENRESET":
         genReset().
         Return env.
@@ -4235,6 +4276,10 @@
         Return env.
     If hasHalt(env):
         Return env.
+    If hasBreak(env):
+        Return env.
+    If hasContinue(env):
+        Return env.
     Let st be item i of stmts.
     Return runBlock(stmts, i + 1, execStmt(st, env)).
 
@@ -4244,7 +4289,14 @@
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
     If boolOf(jsEvalIn(cond, env)):
-        Return execWhile(stmt, runBlockStr(body, env)).
+        Let afterBody be runBlockStr(body, env).
+        If hasHalt(afterBody):
+            Return afterBody.
+        If hasBreak(afterBody):
+            Return clearBreak(afterBody).
+        If hasContinue(afterBody):
+            Return execWhile(stmt, clearContinue(afterBody)).
+        Return execWhile(stmt, afterBody).
     Return env.
 
 ## To forStmt (stmt: Text, env: Text) -> Text:
@@ -4256,8 +4308,13 @@
         Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
         Let update be trim(item 3 of parts).
         Let afterBody be runBlockStr(body, env).
-        Let afterUpdate be execStmt(update, afterBody).
-        Return forStmt(stmt, afterUpdate).
+        If hasHalt(afterBody):
+            Return afterBody.
+        If hasBreak(afterBody):
+            Return clearBreak(afterBody).
+        If hasContinue(afterBody):
+            Return forStmt(stmt, execStmt(update, clearContinue(afterBody))).
+        Return forStmt(stmt, execStmt(update, afterBody)).
     Return env.
 
 # The for-of / for-in loop variable may be a destructuring pattern (`for (const [k,v] of …)`), so
@@ -4277,6 +4334,12 @@
     Let el be item i of els.
     Let e2 be bindLoopVar(concat(varName, ""), el, env).
     Let afterBody be runBlockStr(concat(body, ""), e2).
+    If hasHalt(afterBody):
+        Return afterBody.
+    If hasBreak(afterBody):
+        Return clearBreak(afterBody).
+    If hasContinue(afterBody):
+        Return forOfLoop(els, i + 1, varName, body, clearContinue(afterBody)).
     Return forOfLoop(els, i + 1, varName, body, afterBody).
 
 ## To execForOf (stmt: Text, env: Text) -> Text:
