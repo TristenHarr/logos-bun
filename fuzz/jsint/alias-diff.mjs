@@ -1,8 +1,9 @@
-// fuzz/jsint/memberassign-diff — member/index ASSIGNMENT: o.p = v updates (or adds)
-// a property; a[i] = v replaces an element. Objects now carry reference semantics (E0
-// heap handles), so a write is seen through every alias; the aliasing property itself is
-// locked by alias-diff. Random build/update programs diffed vs Node (byte-exact via
-// JSON.stringify).
+// fuzz/jsint/alias-diff — the E0 heap value-model lock. Objects are HANDLES into a
+// native heap, so JS reference semantics hold: an alias (`let p=o`) shares one mutable
+// cell, a write through the alias is seen through the original, and identity is real
+// (`o===o` true, `{}!=={}` false, `typeof {}` object). Object.assign mutates and returns
+// the SAME target. This is the property the old value-model string engine structurally
+// could not have; it gates classes / Map-Set-by-identity / the whole spine. Diffed vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -26,13 +27,18 @@ if (OURS) {
   const sn = () => 1 + ri(9);
   const key = () => "abcde"[ri(5)];
   const program = () => {
-    const k = ri(6);
-    if (k === 0) return `let o={a:${sn()},b:${sn()}};o.a=${sn()};JSON.stringify(o)`;
-    if (k === 1) return `let o={a:${sn()}};o.${key()}=${sn()};JSON.stringify(o)`;   // update or add
-    if (k === 2) return `let a=[${sn()},${sn()},${sn()}];a[${ri(3)}]=${sn()};a.join(",")`;
-    if (k === 3) return `let o={n:0};for(let i=1;i<=${2 + ri(4)};i++){o.n=o.n+i};o.n`;
-    if (k === 4) return `let o={};o.x=${sn()};o.y=${sn()};o.x+o.y`;                    // build by assignment
-    return `let a=[0,0,0];for(let i=0;i<3;i++){a[i]=i*i};a.join(",")`;
+    const k = ri(10);
+    const a = key(), b = key(), va = sn(), vb = sn();
+    if (k === 0) return `let o={${a}:${va}};let p=o;p.${a}=${vb};o.${a}`;               // write-through
+    if (k === 1) return `let o={};let p=o;p.${a}=${vb};JSON.stringify(o)`;               // add-through-alias
+    if (k === 2) return `let o={};o===o`;                                                // self-identity
+    if (k === 3) return `({})===({})`;                                                   // distinct literals
+    if (k === 4) return `let x={};let y={};x===y`;                                       // distinct vars
+    if (k === 5) return `let o={};let p=o;o===p`;                                        // alias-identity
+    if (k === 6) return `typeof {${a}:${va}}`;                                           // typeof object
+    if (k === 7) return `let o={${a}:{${b}:${va}}};let p=o.${a};p.${b}=${vb};o.${a}.${b}`; // nested alias
+    if (k === 8) return `let a={${a}:1};let b=a;let c=b;c.${a}=${vb};a.${a}`;            // 3-way chain
+    return `let o={${a}:${va}};Object.assign(o,{${b}:${vb}})===o`;                        // assign returns target
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {
@@ -43,6 +49,6 @@ if (OURS) {
     if (got !== ref) fails.push(`jsExec(${JSON.stringify(p)}): ours=${JSON.stringify(got)} node=${JSON.stringify(ref)}`);
     checked++;
   }
-  if (!fails.length) console.log(`PASS jsint-memberassign: ${checked} member-assignment programs agree with Node (seed ${seed})`);
+  if (!fails.length) console.log(`PASS jsint-alias: ${checked} alias/identity programs agree with Node (seed ${seed})`);
 }
-if (fails.length) { for (const f of fails.slice(0, 20)) console.error("FAIL jsint-memberassign: " + f); process.exit(1); }
+if (fails.length) { for (const f of fails.slice(0, 20)) console.error("FAIL jsint-alias: " + f); process.exit(1); }

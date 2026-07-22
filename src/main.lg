@@ -1038,7 +1038,7 @@
         Return substringAfter(v, tagStr ()).
     If startsWith(v, tagArr ()):
         Return matArr(arrElements(v), 1, "").
-    If startsWith(v, tagObj ()):
+    If isRef(v):
         Return "[object Object]".
     Return v.
 
@@ -1119,7 +1119,7 @@
         Let elem be arrGet(lastTok, parseInt(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
-    If startsWith(lastTok, tagObj ()):
+    If isRef(lastTok):
         Let got be objGet(lastTok, materialize(evalValue(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
@@ -1149,8 +1149,28 @@
         Return objScanLast(entries, i + 1, key, substringAfter(entry, tagObjKV ())).
     Return objScanLast(entries, i + 1, key, found).
 
+# E0 object identity: an object value is a HANDLE `tagRef + heapId`; its blob (tagObj…tagObjEnd)
+# lives in the mutable heap. derefObj resolves a ref (or passes an inline blob through), so a
+# copied handle shares one mutable cell — real aliasing. newObjRef allocates a fresh handle.
+## To tagRef () -> Text:
+    Return chr(2).
+
+## To isRef (v: Text) -> Bool:
+    Return startsWith(v, tagRef ()).
+
+## To refId (v: Text) -> Text:
+    Return substringAfter(v, tagRef ()).
+
+## To derefObj (v: Text) -> Text:
+    If startsWith(v, tagRef ()):
+        Return heapGet(substringAfter(v, tagRef ())).
+    Return v.
+
+## To newObjRef (blob: Text) -> Text:
+    Return concat(tagRef (), heapAlloc(blob)).
+
 ## To objGet (objVal: Text, key: Text) -> Text:
-    Let inner be substringAfter(objVal, tagObj ()).
+    Let inner be substringAfter(derefObj(objVal), tagObj ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return "undefined".
@@ -1184,7 +1204,7 @@
     Return objEntriesLoop(entries, i + 1, concat(concat(acc, tagArrSep ()), pair)).
 
 ## To objEntrySeq (objVal: Text) -> Seq of Text:
-    Let inner be substringAfter(objVal, tagObj ()).
+    Let inner be substringAfter(derefObj(objVal), tagObj ()).
     Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
     If content is equal to "":
         Return [] of Text.
@@ -1207,7 +1227,7 @@
     Return fromEntriesLoop(pairs, i + 1, objSet(acc, pk, arrGet(concat(pair, ""), 1))).
 
 ## To objFromEntries (arrval: Text) -> Text:
-    Return fromEntriesLoop(arrElements(arrval), 1, concat(tagObj (), tagObjEnd ())).
+    Return newObjRef(fromEntriesLoop(arrElements(arrval), 1, concat(tagObj (), tagObjEnd ()))).
 
 ## To assignMergeEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
@@ -1222,7 +1242,9 @@
     Return assignLoop(args, i + 1, env, assignMergeEntries(objEntrySeq(concat(src, "")), 1, acc)).
 
 ## To objAssign (argStr: Text, env: Text) -> Text:
-    Return assignLoop(patFields(argStr), 1, env, concat(tagObj (), tagObjEnd ())).
+    Let args be patFields(argStr).
+    Let target be jsEvalIn(trim(item 1 of args), concat(env, "")).
+    Return assignLoop(args, 2, env, concat(target, "")).
 
 ## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
@@ -1264,7 +1286,7 @@
         Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
     If startsWith(v, tagArr ()):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
-    If startsWith(v, tagObj ()):
+    If isRef(v):
         Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeq(v), 1, "")), encBraceR ()).
     Return v.
 
@@ -1320,7 +1342,7 @@
 
 ## To jsonBuildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
-        Return concat(concat(tagObj (), acc), tagObjEnd ()).
+        Return newObjRef(concat(concat(tagObj (), acc), tagObjEnd ())).
     Let entry be item i of entries.
     Let keyRaw be encTrim(substringBefore(entry, ":")).
     Let k be strSliceLoop(keyRaw, 2, (length of keyRaw) - 1, "").
@@ -1343,7 +1365,7 @@
     If startsWith(t, encBraceL ()):
         Let innerO be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
         If innerO is equal to "":
-            Return concat(tagObj (), tagObjEnd ()).
+            Return newObjRef(concat(tagObj (), tagObjEnd ())).
         Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, ""), chr(10)), 1, "").
     If startsWith(t, encBrkL ()):
         Let innerA be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
@@ -1389,17 +1411,23 @@
     Return concat(concat(tagObj (), dedupEmit(splitObjEntriesDepth(content, 1, 0, ""), 1, "", "")), tagObjEnd ()).
 
 # Member/index write. objSet appends key=val then dedupes (first-position, last-value),
-# so an existing key is updated in place and a new key is appended. arrSetIdx replaces
-# the element at idx. Both return a NEW container value; the caller rebinds the variable
-# (value semantics — correct for `o.p = v; use o` on the same variable, but an aliased
-# `p = o; p.p = v` won't be seen through o — that needs true reference semantics).
-## To objSet (objval: Text, key: Text, newval: Text) -> Text:
-    Let inner be substringAfter(objval, tagObj ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
-    Let newEntry be concat(concat(key, tagObjKV ()), newval).
+# so an existing key is updated in place and a new key is appended. When objval is a heap
+# ref the new blob is written THROUGH the handle (heapSet) and the same ref is returned, so
+# every alias sees the mutation and identity is preserved — real reference semantics.
+## To objSetBlob (content: Text, newEntry: Text) -> Text:
     If content is equal to "":
         Return concat(concat(tagObj (), newEntry), tagObjEnd ()).
     Return dedupObj(concat(concat(tagObj (), concat(concat(content, tagObjSep ()), newEntry)), tagObjEnd ())).
+
+## To objSet (objval: Text, key: Text, newval: Text) -> Text:
+    Let blob be derefObj(concat(objval, "")).
+    Let inner be substringAfter(blob, tagObj ()).
+    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let newBlob be objSetBlob(content, concat(concat(key, tagObjKV ()), newval)).
+    If isRef(concat(objval, "")):
+        heapSet(refId(concat(objval, "")), concat(newBlob, "")).
+        Return concat(objval, "").
+    Return newBlob.
 
 ## To arrSetLoop (els: Seq of Text, i: Int, idx: Int, newval: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -1423,7 +1451,7 @@
 
 ## To buildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
-        Return dedupObj(concat(concat(tagObj (), acc), tagObjEnd ())).
+        Return newObjRef(dedupObj(concat(concat(tagObj (), acc), tagObjEnd ()))).
     Let entry be trim(item i of entries).
     If startsWith(entry, "..."):
         Let sE be objEntrySeq(evalResolved(trim(substringAfter(entry, "...")))).
@@ -1474,7 +1502,7 @@
     Let inner be trim(item np of pieces).
     Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
     If inner is equal to "":
-        Return resolveObjects(trim(concat(concat(prefix, concat(tagObj (), tagObjEnd ())), rest))).
+        Return resolveObjects(trim(concat(concat(prefix, newObjRef(concat(tagObj (), tagObjEnd ()))), rest))).
     Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, 0, ""), chr(10)), 1, "")), rest))).
 
 ## To dotSep () -> Text:
@@ -1488,7 +1516,7 @@
     Let tailToks be split(tail, " ").
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
-    If startsWith(recv, tagObj ()):
+    If isRef(recv):
         Let val be objGet(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
@@ -1587,7 +1615,7 @@
         Return trim(expr).
     If startsWith(trim(expr), tagArr ()):
         Return trim(expr).
-    If startsWith(trim(expr), tagObj ()):
+    If isRef(trim(expr)):
         Return trim(expr).
     If trim(expr) is equal to "true":
         Return "true".
@@ -1609,7 +1637,7 @@
         Return concat(tagStr (), "string").
     If startsWith(v, tagArr ()):
         Return concat(tagStr (), "object").
-    If startsWith(v, tagObj ()):
+    If isRef(v):
         Return concat(tagStr (), "object").
     If v is equal to "true":
         Return concat(tagStr (), "boolean").
@@ -1786,7 +1814,7 @@
         Return concat(v, "").
     If startsWith(v, tagStr ()):
         Return concat(concat(tagArr (), fromCharsLoop(substringAfter(v, tagStr ()), 1, "")), tagArrEnd ()).
-    If startsWith(v, tagObj ()):
+    If isRef(v):
         Return concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ()).
     Return concat(tagArr (), tagArrEnd ()).
 
@@ -3251,7 +3279,7 @@
     Return arrIndexKeys(n, i + 1, concat(concat(acc, tagArrSep ()), k)).
 
 ## To forInKeys (v: Text) -> Text:
-    If startsWith(v, tagObj ()):
+    If isRef(v):
         Return objKeys(v).
     If startsWith(v, tagArr ()):
         Return concat(concat(tagArr (), arrIndexKeys(length of arrElements(v), 1, "")), tagArrEnd ()).
@@ -3650,7 +3678,7 @@
     Return argvBuild(args, i + 1, concat(concat(acc, tagArrSep ()), el)).
 
 ## To jsRunFile (src: Text, argv: Text) -> Text:
-    Let procObj be objSet(concat(tagObj (), tagObjEnd ()), "argv", argv).
+    Let procObj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
     Let env0 be envSet("", "process", procObj).
     Return runSink(runBlock(split(splitTop(normalizeJs(src), 1, 0, ""), chr(10)), 1, env0)).
 
