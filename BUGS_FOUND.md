@@ -1349,3 +1349,24 @@ showed `5` not `5n`. `10n+20n`→`30n`, `2n**100n`, `9007199254740993n+1n`, `20n
 integer/float arithmetic, split, and everything else unaffected. New `bigint-diff` fuzzer. **116 jsint
 fuzzers, 0 diffs; gate GREEN.** Toolchain `js_bigint_eval` added (LOCAL). (Bitwise BigInt ops and
 BigInt↔Number mixing errors are a later concern.)
+
+---
+
+**Date — the deterministic UTC surface (2026-07-22).** `new Date(ms)` and its getter family did not
+exist. Added a Date object as a heap object carrying a `__date_ms` millisecond timestamp, backed by two
+toolchain natives: `js_date_now` (wall-clock ms) and `js_date_field(ms, field)` — a manual epoch→civil-
+date conversion (Howard Hinnant's algorithm, no chrono dependency) that extracts any UTC calendar field.
+`new Date(ms)` / `new Date()` construct; `Date.now()` reads the clock; `getTime`/`valueOf` return the raw
+ms; the whole `getUTC*` family (FullYear/Month/Date/Day/Hours/Minutes/Seconds/Milliseconds) and
+`toISOString`/`toJSON` render bit-exact — leap years, century non-leaps (2100 is NOT a leap year), and
+negative pre-epoch timestamps all land correctly (`new Date(-1)`→`1969-12-31T23:59:59.999Z`,
+`new Date(1700000000000).toISOString()`→`2023-11-14T22:13:20.000Z`, `new Date(1582934400000)`→Feb 29
+2020). `typeof new Date()`→"object". Two dispatch seams were needed: `resolveMethods` gained a Date
+branch (an `isDateObj` receiver routes its method through `dateMethod`), and — the subtle one — the Date
+method names had to be added to `leftmostMethod`'s positional allowlist, or `d.getTime()` returned NaN
+because the leftmost-method scan never recognized the call at all (the object was built fine;
+`d.__date_ms` read `5` — only the *method* dispatch was gated). `Date.now()` is wall-clock so only its
+`typeof`/relational shape is fuzzed; every UTC field is diffed over a ~1938→2200 range including
+negatives. New `date-diff` fuzzer (1515 programs/5 seeds, 0 diffs). **117 jsint fuzzers, 0 diffs; full
+sweep GREEN.** Toolchain `js_date_now`/`js_date_field` added (LOCAL). (`Date.UTC`, local-TZ getters, the
+string-argument `new Date("...")` parser, and `console.log(dateObj)` ISO rendering are later concerns.)

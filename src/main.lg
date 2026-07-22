@@ -53,6 +53,10 @@
 
 ## To native jsMathMaxMin (op: Text, joined: Text) -> Text
 
+## To native jsDateNow () -> Text
+
+## To native jsDateField (ms: Text, field: Text) -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -2323,6 +2327,55 @@
         Return objGet(concat(v, ""), "__symbol") is not equal to "undefined".
     Return false.
 
+# A Date is a heap object carrying a __date_ms millisecond timestamp; its getter methods route to
+# jsDateField (a manual UTC epoch→civil-date conversion in the toolchain), getTime/valueOf return the
+# raw ms, and toISOString/toJSON render the ISO-8601 string. `typeof` reports "object" (isObjRef).
+## To newDate (ms: Text) -> Text:
+    Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__date_ms", materialize(ms)).
+
+## To isDateObj (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__date_ms") is not equal to "undefined".
+    Return false.
+
+## To dateMethod (recv: Text, mname: Text) -> Text:
+    Let ms be objGet(concat(recv, ""), "__date_ms").
+    If mname is equal to "getTime":
+        Return ms.
+    If mname is equal to "valueOf":
+        Return ms.
+    If mname is equal to "getUTCFullYear":
+        Return jsDateField(ms, "year").
+    If mname is equal to "getFullYear":
+        Return jsDateField(ms, "year").
+    If mname is equal to "getUTCMonth":
+        Return jsDateField(ms, "month").
+    If mname is equal to "getMonth":
+        Return jsDateField(ms, "month").
+    If mname is equal to "getUTCDate":
+        Return jsDateField(ms, "date").
+    If mname is equal to "getDate":
+        Return jsDateField(ms, "date").
+    If mname is equal to "getUTCHours":
+        Return jsDateField(ms, "hours").
+    If mname is equal to "getUTCMinutes":
+        Return jsDateField(ms, "minutes").
+    If mname is equal to "getUTCSeconds":
+        Return jsDateField(ms, "seconds").
+    If mname is equal to "getUTCMilliseconds":
+        Return jsDateField(ms, "ms").
+    If mname is equal to "getMilliseconds":
+        Return jsDateField(ms, "ms").
+    If mname is equal to "getUTCDay":
+        Return jsDateField(ms, "day").
+    If mname is equal to "getDay":
+        Return jsDateField(ms, "day").
+    If mname is equal to "toISOString":
+        Return concat(tagStr (), jsDateField(ms, "iso")).
+    If mname is equal to "toJSON":
+        Return concat(tagStr (), jsDateField(ms, "iso")).
+    Return "NaN".
+
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
         Return concat(tagStr (), "function").
@@ -3080,7 +3133,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3136,6 +3189,9 @@
     If substringBefore(expr, lmm) is not equal to expr:
         Let urecv be jsEvalIn(recvExpr(concat(substringBefore(expr, lmm), "")), concat(env, "")).
         If isObjRef(urecv):
+            If isDateObj(urecv):
+                Let uaft be substringAfter(expr, lmm).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), dateMethod(urecv, trim(substringBefore(substringAfter(lmm, " . "), " (")))), methodRest(uaft))), env).
             If startsWith(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), chr(1)):
                 Let uaft be substringAfter(expr, lmm).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), callMethod(objGet(urecv, trim(substringBefore(substringAfter(lmm, " . "), " ("))), methodArg(uaft), urecv, env)), methodRest(uaft))), env).
@@ -3146,6 +3202,18 @@
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newSymbol("")), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newSymbol(materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))), env).
+    If substringBefore(expr, "new Date (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new Date (") is equal to false:
+        Let bef be substringBefore(expr, "new Date (").
+        Let aft be substringAfter(expr, "new Date (").
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newDate(jsDateNow())), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, newDate(materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))), env).
+    If substringBefore(expr, "Date . now (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Date . now (") is equal to false:
+        Let bef be substringBefore(expr, "Date . now (").
+        Let aft be substringAfter(expr, "Date . now (").
+        Return resolveMethods(trim(concat(concat(bef, jsDateNow()), methodRest(aft))), env).
     If substringBefore(expr, "new Map (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Map (") is equal to false:
         Let bef be substringBefore(expr, "new Map (").
