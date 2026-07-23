@@ -5017,9 +5017,11 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
         Let args be splitArgs2(methodArg(aft)).
-        Let av be materialize(jsEvalIn(trim(item 1 of args), env)).
+        Let araw be jsEvalIn(trim(item 1 of args), env).
         Let bv be materialize(jsEvalIn(trim(item 2 of args), env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplaceAll(sval, av, bv)), rst)), env).
+        If isRegex(araw):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), reReplace(decodeStr(materialize(objGet(concat(araw, ""), "__regex_src"))), decodeStr(concat(sval, "")), decodeStr(concat(bv, "")), concat(materialize(objGet(concat(araw, ""), "__regex_flags")), "g"))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), strReplaceAll(sval, materialize(araw), bv)), rst)), env).
     If lm is equal to " . findIndex (":
         Let bef be substringBefore(expr, " . findIndex (").
         Let aft be substringAfter(expr, " . findIndex (").

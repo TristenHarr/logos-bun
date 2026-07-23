@@ -2223,3 +2223,12 @@ OBJECT braces (`let o={}`) are present, so the marker isn't recognized as in-bod
 adds the separate object-in-parens receiver crash. Both need deeper work (fix `fnBraceStack` for nested
 `{}`, and the `({expr})` receiver path); reverted clean rather than ship a partial fix. The common form
 `[…].map(x=>x.toString())` and user-class `toString` both work.
+
+**`String.replaceAll` with a regex argument (2026-07-23, 37th engine fix).** `"aaa".replaceAll(/a/g,"b")`
+→"aaa" (no replacement) — the dispatch materialized the first argument as a literal string, so a regex
+was never applied (string-pattern `replaceAll` and `replace(/…/g)` both already worked). Now it checks
+`isRegex` and routes to the same global `reReplace` as `.replace`, forcing the `g` flag. `replaceAll(/[0-9]/g,
+"#")`, `replaceAll(/\d+/g,"N")`, `replaceAll(/\./g,"/")` all correct; string-pattern `replaceAll`
+unchanged. New `replaceallre-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Capture-group `$1`
+backrefs / matching a regex WITH `(…)` groups remain a separate bigger item — the regex engine doesn't
+track capture groups, Cluster G.)
