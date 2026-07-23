@@ -2004,6 +2004,31 @@
 # Object.defineProperty(o,k,desc): a data descriptor's `value` is written onto o (our objects don't
 # track writable/enumerable/configurable, so only `value` is honoured — the common case). Object.
 # getOwnPropertyDescriptor(o,k) returns a fresh {value, writable:true, enumerable:true, configurable:true}.
+# Array index-iterators: keys() -> [0..n-1], entries() -> [[i, el], …] (values() just returns the
+# array — spreading/iterating it yields the elements). Returned as plain arrays, which spread and
+# for-of like the real iterators for the common `[...arr.keys()]` / `for(const[i,x]of arr.entries())`.
+## To arrKeysLoop (n: Int, i: Int, acc: Text) -> Text:
+    If i is greater than or equal to n:
+        Return acc.
+    If acc is equal to "":
+        Return arrKeysLoop(n, i + 1, toText(i)).
+    Return arrKeysLoop(n, i + 1, concat(concat(acc, tagArrSep ()), toText(i))).
+
+## To arrKeysArr (arrval: Text) -> Text:
+    Return newArr(concat(concat(tagArr (), arrKeysLoop(length of arrElements(arrval), 0, "")), tagArrEnd ())).
+
+## To arrEntriesLoop2 (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let pair be newArr(concat(concat(tagArr (), concat(concat(toText(i - 1), tagArrSep ()), el)), tagArrEnd ())).
+    If i is equal to 1:
+        Return arrEntriesLoop2(els, i + 1, pair).
+    Return arrEntriesLoop2(els, i + 1, concat(concat(acc, tagArrSep ()), pair)).
+
+## To arrEntriesArr (arrval: Text) -> Text:
+    Return newArr(concat(concat(tagArr (), arrEntriesLoop2(arrElements(arrval), 1, "")), tagArrEnd ())).
+
 ## To objDefineProp (o: Text, key: Text, desc: Text) -> Text:
     Let v be objGet(concat(desc, ""), "value").
     Let d be objSet(concat(o, ""), concat(key, ""), concat(v, "")).
@@ -3602,6 +3627,8 @@
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_keys")), 1, length of arrElements(objGet(concat(recv, ""), "__map_keys")), "")), tagArrEnd ()))), methodRest(aft))), env).
+        If isArrRef(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), arrKeysArr(recv)), methodRest(aft))), env).
     If substringBefore(expr, " . values (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . values (") is equal to false:
         Let bef be substringBefore(expr, " . values (").
@@ -3609,6 +3636,8 @@
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_vals")), 1, length of arrElements(objGet(concat(recv, ""), "__map_vals")), "")), tagArrEnd ()))), methodRest(aft))), env).
+        If isArrRef(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), concat(recv, "")), methodRest(aft))), env).
     If substringBefore(expr, " . entries (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . entries (") is equal to false:
         Let bef be substringBefore(expr, " . entries (").
@@ -3616,6 +3645,8 @@
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapEntriesArr(concat(recv, ""))), methodRest(aft))), env).
+        If isArrRef(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), arrEntriesArr(recv)), methodRest(aft))), env).
     If substringBefore(expr, " . get (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . get (") is equal to false:
         Let bef be substringBefore(expr, " . get (").
