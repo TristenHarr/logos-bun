@@ -18,12 +18,14 @@ if (OURS) {
   const pairs = () => "[" + Array.from({ length: 1 + ri(3) }, () => `[${ri(9)},${ri(9)}]`).join(",") + "]";
   const objs = () => "[" + Array.from({ length: 1 + ri(3) }, () => `{a:${ri(9)},b:${ri(9)}}`).join(",") + "]";
   const program = () => {
-    const k = ri(5);
+    const k = ri(7);
     if (k === 0) return `${pairs()}.map(([a,b])=>a+b).join(",")`;
     if (k === 1) return `${pairs()}.filter(([a,b])=>a<b).length`;
     if (k === 2) return `${objs()}.map(({a,b})=>a*b).join(",")`;
     if (k === 3) return `${objs()}.map(({a})=>a).join(",")`;
-    return `${pairs()}.map(x=>x[0]+x[1]).join(",")`;   // plain-param regression guard
+    if (k === 4) return `${pairs()}.reduce((s,[a,b])=>s+a+b,0)`;       // reduce + array destructure (callFn2)
+    if (k === 5) return `${objs()}.reduce((s,{a})=>s+a,0)`;           // reduce + object destructure
+    return `${pairs()}.map(x=>x[0]+x[1]).join(",")`;                  // plain-param regression guard
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {

@@ -1094,8 +1094,8 @@
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
-    Let e1 be envSet(env, trim(item 1 of params), v1).
-    Let e2 be envSet(e1, trim(item 2 of params), v2).
+    Let e1 be bindParamVal(trim(item 1 of params), v1, env).
+    Let e2 be bindParamVal(trim(item 2 of params), v2, e1).
     Let doneEnv be runBlockStr(body, e2).
     Return envGet(doneEnv, "__ret").
 

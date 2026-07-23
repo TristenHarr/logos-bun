@@ -2146,3 +2146,11 @@ receiver-less-static doctrine): `Object.freeze(x)` returns `x` (objects, arrays,
 `objfreeze-diff` fuzzer (1200 checks). Full sweep green. **Honest limitation:** we do NOT enforce
 immutability (a write to a frozen object still mutates) and `Object.isFrozen` doesn't track actual
 frozen-ness — enforcement is a separate feature; this locks the common return-value contract.
+
+**Destructuring parameter in a `reduce` callback (2026-07-23, 30th engine fix).** The #28 fix covered
+`callFnIdx` (map/filter/find/some/every/forEach) but not `callFn2`, which `reduce`/`reduceRight` use for
+their (accumulator, element) pair — so `[[1,2],[3,4]].reduce((a,[x,y])=>a+x+y,0)`→NaN and
+`Object.entries(o).reduce((s,[k,v])=>s+v,0)`→NaN. Routed `callFn2`'s two bindings through the same
+`bindParamVal`. `reduce((s,[a,b])=>…)`, `reduce((s,{a})=>…)`, `reduceRight((a,[x,y])=>…)` all correct;
+plain reduce + Math-in-reduce unaffected. Extended `destructcb-diff` with reduce cases (2400 checks/6
+seeds). Full sweep green.
