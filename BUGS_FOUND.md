@@ -1924,3 +1924,35 @@ toFixed, toString(radix), parseInt-whitespace, Array.isArray/of/flat(depth)/find
 
 **Running tally (task #32): ~60 verified defects, 11 P0 crashes** (added Map.delete). Map/Set delete
 + forEach and the `arguments` object are the impactful new items. Read-only; main.lg concurrent.
+
+---
+
+**BUG-HUNT BATCH 9 — generators-advanced / freeze / matchAll / async-return (2026-07-23).** Verified.
+
+**P1 — generator advanced protocol (cluster; basic `yield` works).**
+- `yield*` delegation: `function*g(){ yield*[1,2]; yield 3 }` → `[NaN,3]` (Node `[1,2,3]`) — the
+  delegated iterable isn't spread.
+- Generator `return` value: `function*g(){ yield 1; return 9 }` → `it.next()` after the yield gives
+  `NaN` (Node `9`) — the `return` value isn't delivered as the final `{value}`.
+- Bidirectional `next(arg)`: `function*g(){ let x=yield 1; yield x }; it.next(); it.next(5)` → `x` is
+  `undefined` (Node `5`) — a value passed INTO `next()` isn't bound to the `yield` expression.
+  (Simple `yield`/`[...g()]` iteration works; the advanced protocol does not.)
+
+**P1 — `Object.freeze` is a NO-OP.**
+- `Object.freeze(o); o.a=2` → `o.a` becomes `2` (Node `1`). freeze doesn't prevent mutation (and
+  `isFrozen` → NaN, batch 5). Frozen-object semantics unenforced.
+
+**P1 — `async function` return value not resolved.**
+- `async function f(){return 5}; f().then(v=>console.log(v))` → nothing (Node `5`). An async
+  function's plain return isn't wrapped so `.then` fires. (`await`, `Promise.resolve().then` chains
+  work — so the microtask engine is fine; the async-fn RETURN→resolve bridge is the gap.)
+
+**P1 — `matchAll`.**
+- `[..."a1b2".matchAll(/(\d)/g)].length` → `4` (Node `2`). matchAll over-yields (likely per-char, not
+  per-match).
+
+(Correct: Object.assign, object spread independence, Object.values, Object.fromEntries, `replace`
+first-literal, `at(-1)`, `repeat(0)`, `padStart` default, `Promise.resolve().then` chain, `await`.)
+
+**Running tally (task #32): ~66 verified defects, 11 P0 crashes.** Generator-advanced + async-fn-
+return + Object.freeze-noop are the notable new items. Read-only; main.lg concurrent.
