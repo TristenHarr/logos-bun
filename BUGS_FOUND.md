@@ -2137,3 +2137,12 @@ through it. `map(([a,b])=>a+b)`, `map(({a})=>a)`, `filter(([a,b])=>a<b)`, `map((
 all correct; plain-param callbacks unaffected. New `destructcb-diff` fuzzer (2400 checks/6 seeds). Full
 sweep green. (Nested patterns like `[a,[b,c]]` remain unsupported — a pre-existing `destructureArr`
 limitation that also affects `let [x,[y,z]]=…`, not this fix.)
+
+**`Object.freeze` / `Object.isFrozen` (2026-07-23, 29th engine fix).** Both were undispatched → NaN, so
+the ubiquitous `const F = Object.freeze({…})` then `F.prop` gave NaN. Added both (guarded per the
+receiver-less-static doctrine): `Object.freeze(x)` returns `x` (objects, arrays, primitives), and
+`Object.isFrozen` of a plain object is `false`. `Object.freeze({a:1}).a`→1, `Object.freeze([1,2]).length`
+→2, `Object.keys(Object.freeze({a,b}))`→2 (freeze adds no hidden field), works in a callback. New
+`objfreeze-diff` fuzzer (1200 checks). Full sweep green. **Honest limitation:** we do NOT enforce
+immutability (a write to a frozen object still mutates) and `Object.isFrozen` doesn't track actual
+frozen-ness — enforcement is a separate feature; this locks the common return-value contract.

@@ -4447,6 +4447,19 @@
         Let aft be substringAfter(expr, "Object . assign (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objAssign(methodArg(aft), env)), rst)), env).
+    If substringBefore(expr, "Object . freeze (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . freeze (") is equal to false:
+        Let bef be substringBefore(expr, "Object . freeze (").
+        Let aft be substringAfter(expr, "Object . freeze (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, jsEvalIn(trim(methodArg(aft)), env)), rst)), env).
+    If substringBefore(expr, "Object . isFrozen (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . isFrozen (") is equal to false:
+        Let bef be substringBefore(expr, "Object . isFrozen (").
+        Let aft be substringAfter(expr, "Object . isFrozen (").
+        Let rst be methodRest(aft).
+        Let discard be jsEvalIn(trim(methodArg(aft)), env).
+        Return resolveMethods(trim(concat(concat(bef, "false"), rst)), env).
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
