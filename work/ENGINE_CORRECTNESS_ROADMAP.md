@@ -1,5 +1,7 @@
 # Engine correctness roadmap — fix-order for the 2026-07-23 bug-hunt (~35 defects)
 
+> **PROGRESS (2026-07-23, engine freed):** LANDED — 4 crashes fixed (`%0`, `**`-neg-exp, `~`-non-int, `0xFF|0x100`/hex-literal) [2179ffa,41e787e]; Cluster C strict-eq [7d30c94]; hex/bin/oct literals [41e787e]; Cluster D do-while [62b9eda]. REMAINING crashes: `+"str"`, `exec`-groups, `defineProperty`, `getOwnPropertyDescriptor`, `Error.toString`, tagged-template, `Map.delete`. Next clusters: A (ToNumber), E (null-throw), F (hoisting), B/G/H/J/K/L/M. Each = a bounded TDD fix (RED fuzzer→fix→sweep→commit).
+
 The raw finds are logged chronologically in `BUGS_FOUND.md`; this is the **fix plan**. The key
 insight from the hunt: the defects **cluster by shared root cause**, so a single well-placed fix
 often closes several bugs at once. Ordered by (impact × leverage), highest first. Task #32.
