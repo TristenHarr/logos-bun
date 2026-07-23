@@ -3234,6 +3234,47 @@
 ## To sortArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
     Return mutArr(concat(arrval, ""), sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ()))).
 
+## To negIdx (idx: Int, n: Int) -> Int:
+    If idx is less than 0:
+        Return idx + n.
+    Return idx.
+
+## To arrFindLastLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+    If i is less than 1:
+        Return "undefined".
+    Let el be item i of els.
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+        Return el.
+    Return arrFindLastLoop(els, i - 1, fnval, env).
+
+## To arrFindLast (arrval: Text, fnval: Text, env: Text) -> Text:
+    Let els be arrElements(arrval).
+    Return arrFindLastLoop(els, length of els, fnval, env).
+
+## To arrFindLastIndexLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Int:
+    If i is less than 1:
+        Return -1.
+    Let el be item i of els.
+    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+        Return i - 1.
+    Return arrFindLastIndexLoop(els, i - 1, fnval, env).
+
+## To arrFindLastIndex (arrval: Text, fnval: Text, env: Text) -> Int:
+    Let els be arrElements(arrval).
+    Return arrFindLastIndexLoop(els, length of els, fnval, env).
+
+## To toSortedArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
+    Return newArr(sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ()))).
+
+## To toReversedArr (arrval: Text) -> Text:
+    Let els be arrElements(arrval).
+    Return newArr(concat(concat(tagArr (), arrReverseLoop(els, length of els, "")), tagArrEnd ())).
+
+## To withArr (arrval: Text, idx: Int, newval: Text) -> Text:
+    Let els be arrElements(arrval).
+    Let ridx be negIdx(idx, length of els).
+    Return newArr(concat(concat(tagArr (), arrSetLoop(els, 1, ridx, newval, "")), tagArrEnd ())).
+
 ## To leftmostOf (expr: Text, markers: Seq of Text, i: Int, best: Text, bestPos: Int) -> Text:
     If i is greater than length of markers:
         Return best.
@@ -3244,7 +3285,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3849,6 +3890,57 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReverse(raw)), rst)), env).
+    If lm is equal to " . toSorted (":
+        Let bef be substringBefore(expr, " . toSorted (").
+        Let aft be substringAfter(expr, " . toSorted (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        If trim(concat(argStr, "")) is equal to "":
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), toSortedArr(raw, "default", "", env)), rst)), env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toSortedArr(raw, "cmp", fnval, env)), rst)), env).
+    If lm is equal to " . toReversed (":
+        Let bef be substringBefore(expr, " . toReversed (").
+        Let aft be substringAfter(expr, " . toReversed (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toReversedArr(raw)), rst)), env).
+    If lm is equal to " . with (":
+        Let bef be substringBefore(expr, " . with (").
+        Let aft be substringAfter(expr, " . with (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let args be splitArgs2(methodArg(aft)).
+        Let wi be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
+        Let wv be jsEvalIn(trim(item 2 of args), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), withArr(raw, wi, wv)), rst)), env).
+    If lm is equal to " . findLast (":
+        Let bef be substringBefore(expr, " . findLast (").
+        Let aft be substringAfter(expr, " . findLast (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFindLast(raw, fnval, env)), rst)), env).
+    If lm is equal to " . findLastIndex (":
+        Let bef be substringBefore(expr, " . findLastIndex (").
+        Let aft be substringAfter(expr, " . findLastIndex (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let fnval be fnArgValRaw(trim(argStr), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(arrFindLastIndex(raw, fnval, env))), rst)), env).
     If lm is equal to " . fill (":
         Let bef be substringBefore(expr, " . fill (").
         Let aft be substringAfter(expr, " . fill (").
