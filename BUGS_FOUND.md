@@ -2284,3 +2284,21 @@ instead of silently doing nothing): **(a)** sparse-array grow — `a[2]=9` on `a
 **(c)** arrow **default params** — `((a=1,b=2)=>a+b)()`→`NaN`; **(d)** bracket-key-with-dot dispatch —
 `a[a.length-1]=9` is misrouted to the dot-assign path because `assignTarget`'s `hasSep(target," . ")`
 guard fires on the `.` *inside* the bracket key (fix staged: `hasSep`→`hasTopSep` on that guard).
+
+**Computed bracket-key assignment targets (2026-07-23, 41st engine fix).** Two bugs in the
+`assignTarget` bracket path, both in *how the target is parsed*:
+1. **Dispatch** — `a[a.length-1]=9` wrote nothing (`→` array unchanged). The entry guard
+   `hasSep(target," . ")` saw the `.` *inside* the bracket key (`a.length`) and routed the whole
+   statement to the dot-assign path, where `base` parsed as `a [ a` → dead write. Fixed by making
+   that guard depth-aware (`hasTopSep`): a `.` nested inside `[…]` no longer counts as a top-level
+   member assignment, so the statement correctly takes the bracket branch.
+2. **Key extraction** — surfaced by the new `bracketkey-diff` fuzzer: `a[a[0]+1]=v` wrote `a[1]`
+   instead of `a[2]`. The key was pulled with `substringBefore(substringAfter(target,"["),"]")`, which
+   stops at the *first* `]` — the inner `a[0]`'s — truncating the key to `a[0`. New `balancedBrk`
+   helper (the `[…]` analogue of `balancedArg`) walks to the *matching* `]`, so a computed key
+   containing its own bracket is evaluated whole (`a[0]+1` → `2`). Same "stops at first `]`" class as
+   the earlier nested-destructuring fix. `a[a.length-1]`, `a[a[0]+1]`, `a[b[0]+1]`, method-call keys
+   (`o[k.toLowerCase()]`), `for`-loop `a[i]=i*i`, string-concat keys all correct; simple `a[i]`/`o[k]`
+   unchanged. Bracket *reads* already balanced correctly. New `bracketkey-diff` fuzzer (2400 checks/6
+   seeds). Full sweep green. (Still open in the same area: mixed access `a[i].b=v` / `a.b[i]=v`, and
+   the identical first-`]` truncation in the `delete a[…]` path — both pre-existing, out of scope.)

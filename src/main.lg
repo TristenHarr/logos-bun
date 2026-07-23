@@ -3615,6 +3615,22 @@
         Return balancedArg(s, i + 1, depth - 1, concat(acc, c)).
     Return balancedArg(s, i + 1, depth, concat(acc, c)).
 
+# Like balancedArg but for `[…]`: given the text just AFTER an opening `[`, return everything up to
+# its MATCHING `]`, so a computed key that itself contains a bracket (`a[a[0]+1]`) is not truncated
+# at the first `]`. String-literal brackets are special-char-encoded, so only structural `[`/`]` move
+# the depth.
+## To balancedBrk (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(91):
+        Return balancedBrk(s, i + 1, depth + 1, concat(acc, c)).
+    If c is equal to chr(93):
+        If depth is equal to 0:
+            Return acc.
+        Return balancedBrk(s, i + 1, depth - 1, concat(acc, c)).
+    Return balancedBrk(s, i + 1, depth, concat(acc, c)).
+
 ## To methodArg (aft: Text) -> Text:
     Return balancedArg(aft, 1, 0, "").
 
@@ -5839,7 +5855,7 @@
     Return envGet(concat(env, ""), concat(base, "")).
 
 ## To assignTarget (target: Text, value: Text, env: Text) -> Text:
-    If hasSep(target, " . "):
+    If hasTopSep(target, " . "):
         Let base be trim(substringBefore(target, " . ")).
         Let recvV be assignRecv(concat(base, ""), concat(env, "")).
         Let setter be objGet(concat(recvV, ""), concat("__set_", trim(substringAfter(target, " . ")))).
@@ -5852,7 +5868,7 @@
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
-        Let keyVal be jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, "")).
+        Let keyVal be jsEvalIn(trim(balancedBrk(substringAfter(target, chr(91)), 1, 0, "")), concat(env, "")).
         Let recvV be assignRecv(concat(ivar, ""), concat(env, "")).
         If isObjRef(recvV):
             Let oset be objSet(recvV, materialize(keyVal), value).
