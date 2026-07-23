@@ -2335,3 +2335,27 @@ NOT collide — verified `((a="x")=>a)("")`→`""` (binds the empty string, defa
 earlier param `(function(x,y=x*2){return y})(5)`→10, and `((a)=>a)()`→undefined all match Node;
 partial-supply + explicit-arg cases unchanged. New `defaultparam-diff` fuzzer (2400 checks/6 seeds,
 incl. the empty-string-literal guard). Full sweep green.
+
+**Function-declaration hoisting (2026-07-23, 44th engine fix).** A `function NAME(…){…}` used before
+its textual position returned `NaN` — declarations weren't hoisted, so a forward reference (and any
+mutually-recursive pair) saw no binding. New `hoistFns` pre-pass binds every top-level function
+declaration in a block into the env *before* the statements run, applied in `runBlockStr` (function
+bodies + `if`/`for`/`while`/`try` blocks) and `runModuleBody` (the `bun run file.js` top level). It
+uses `defineFn`, which does NOT substitute the body, so a sibling hoisted function (or any free name)
+resolves via the inherited env at call time — mutual recursion works. `(function(){return f(3);
+function f(n){return n+1}})()`→4, mutual `isEven`/`isOdd`, `fact(n)` used before its own declaration,
+helper called inside a loop before declaration, and top-level `greet(); function greet(){…}` /
+`console.log(fact(5)); function fact(){…}` via `bun run` (→120) all match Node; declared-first,
+function expressions (`let f=()=>…`), object methods, and closures unchanged. Codegen: reuse of a
+`Seq of Text` local across two calls forces a borrowed-slice type — so `runBlockStr`/`runModuleBody`
+bind the split *text* once (`flat`) and call `split(concat(flat,""),chr(10))` twice (two owned Seqs),
+one for `hoistFns`, one for `runBlock`. New `hoisting-diff` fuzzer (2400 checks/6 seeds, all
+IIFE-wrapped). Full sweep green.
+
+Discovered while probing (pre-existing, NOT caused by the hoisting change — reverting all of it still
+reproduced): in the **`__js` inline REPL path only**, a program whose LAST statement is `console.log(…)`
+(or a bare statement-form) crashes with a stack overflow / returns `NaN`, because `runProgram`
+evaluates the trailing statement with `jsEvalIn` (expression semantics) and `console.log` as an
+expression recurses in `resolveCalls`. The real `bun run file.js` path (`runModuleBody`→`runBlock`)
+is unaffected — `console.log("plain")` in a file prints correctly. Deferred: `runProgram` should run a
+trailing statement-form via `execStmt` (side effect, value `undefined`) rather than `jsEvalIn`.

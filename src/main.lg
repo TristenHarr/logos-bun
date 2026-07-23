@@ -5618,8 +5618,22 @@
         Return braceBody(s, i + 1, depth - 1, concat(acc, c)).
     Return braceBody(s, i + 1, depth, concat(acc, c)).
 
+# Function DECLARATIONS hoist to the top of their block: a `function NAME(…){…}` statement is
+# usable before its textual position (and mutually-recursive declarations see each other). Before
+# running a block we bind every top-level function declaration into the env, then execute the
+# statements in order. `defineFn` does NOT substitute the body, so free names (incl. sibling
+# hoisted functions) resolve via the inherited env at call time.
+## To hoistFns (stmts: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of stmts:
+        Return env.
+    Let st be trim(item i of stmts).
+    If startsWith(st, "function "):
+        Return hoistFns(stmts, i + 1, defineFn(st, env)).
+    Return hoistFns(stmts, i + 1, env).
+
 ## To runBlockStr (body: Text, env: Text) -> Text:
-    Return runBlock(split(splitTop(body, 1, 0, ""), chr(10)), 1, env).
+    Let flat be splitTop(body, 1, 0, "").
+    Return runBlock(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, env)).
 
 ## To switchMatchIdx (clauses: Seq of Text, i: Int, disc: Text, env: Text) -> Int:
     If i is greater than length of clauses:
@@ -7805,7 +7819,8 @@
     Let joined be joinImportLines(split(src, chr(10)), 1, "", "").
     Let importedEnv be applyImports(split(joined, chr(10)), 1, dir, baseEnv).
     Let body be stripModuleSyntax(joined).
-    Return runBlock(split(splitTop(normalizeJs(body), 1, 0, ""), chr(10)), 1, importedEnv).
+    Let flat be splitTop(normalizeJs(body), 1, 0, "").
+    Return runBlock(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, importedEnv)).
 
 ## To loadModule (resolved: Text) -> Text:
     If moduleCacheHas(resolved) is equal to "1":
