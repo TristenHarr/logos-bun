@@ -2676,7 +2676,8 @@
     If startsWith(trim(expr), tagArr ()):
         Return trim(expr).
     If isRef(trim(expr)):
-        Return trim(expr).
+        If hasSep(trim(expr), " ") is equal to false:
+            Return trim(expr).
     If trim(expr) is equal to "true":
         Return "true".
     If trim(expr) is equal to "false":
@@ -2695,6 +2696,9 @@
         Return jsNumberText(trim(expr)).
     If hasStr(expr):
         Return concatTerms(split(expr, " + "), 1, "").
+    If hasSep(expr, tagRef ()):
+        If hasSep(expr, " + "):
+            Return concatTerms(split(expr, " + "), 1, "").
     Return arithValue(expr).
 
 # A Symbol is a heap object carrying a __symbol description — unique by identity (=== compares the

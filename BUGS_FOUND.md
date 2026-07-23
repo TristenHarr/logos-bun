@@ -2037,3 +2037,18 @@ is ToNumber, the identity in a numeric context — so the native integer evaluat
 `typeofunary-diff` fuzzer (unary prefixes over number/string/bool operands + `typeof` precedence vs
 binary `+`). Known limit (pathological, not real-world, not fuzzer-reachable): quadruple-nested
 alternating signs `+-+-5` still panics — the flattened integer evaluator folds only one leading sign.
+
+**Cluster B — array ToPrimitive in `+` (2026-07-23, 20th engine fix).** An array/object on the LEFT of
+`+` collapsed to its heap id — `[1,2,3] + ""`→`0 + ""`, `[[1],[2]] + ""`→`2 + ""` (2 = the outer
+array's id) — while the right side worked (`"" + [1,2,3]`→"1,2,3"). **Root cause:** `evalValue`'s
+`isRef` early-return fired whenever the expression merely *started* with a ref (`chr(2)`), so
+`<ref> + ""` was returned whole as a "ref" and then materialized to `id + ""` (tag stripped). Fixed by
+taking that early-return only for a BARE ref (no trailing space). Second gap: `[1] + 1` / `[]+[]` /
+`5+[1]` have no string literal, so they routed to `arithValue`→NaN; but `+` with an array/object
+operand is string-concatenation (ToPrimitive). `plusStep`'s fallback already does the right
+materialized concat, so `evalValue` now routes a `+` expression containing a ref to `concatTerms`.
+`[1,2]+[3,4]`→"1,23,4", `[1]+1`→"11", `[]+[]`→"", `[1]+[2]+[3]`→"123", `[1,2]+{}`→"1,2[object Object]"
+all correct; arithmetic without refs unaffected (`1+2`→3, `"5"-2`→3). `toprimitive-diff` fuzzer (2400
+checks/6 seeds, arrays+numbers+strings). **Object-specific follow-ups (separate, NOT this fix):** a
+leading `{}` parses as a BLOCK not an object literal (`{} + 1`→1 in Node) and `("r=" + ({} + []))`
+still crashes (ERR:101) — object-literal parsing, distinct from array ToPrimitive.
