@@ -769,6 +769,17 @@
         Return true.
     Return false.
 
+# `===`/`!==` require SAME TYPE. cmpVals compares the materialized values (tag stripped), so a number
+# and a same-valued string (`1` vs `"1"`) would collapse equal. A tagStr-tagged string is only ever
+# strictly-equal to another string; strClassMatch gates that (both-string or both-non-string). Every
+# other type pair already differs textually under cmpVals ("true" vs "1", "null" vs "0", …).
+## To strClassMatch (a: Text, b: Text) -> Bool:
+    If startsWith(a, tagStr ()):
+        Return startsWith(b, tagStr ()).
+    If startsWith(b, tagStr ()):
+        Return false.
+    Return true.
+
 ## To jsEvalCmp (expr: Text) -> Text:
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
@@ -786,14 +797,22 @@
         Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        Let sa be evalValue(item 1 of parts).
+        Let sb be evalValue(item 2 of parts).
+        If strClassMatch(concat(sa, ""), concat(sb, "")) is equal to false:
             Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
+        If eitherNaN(sa, sb):
+            Return "false".
+        Return cmpResult(cmpVals(sa, sb) is equal to 0).
     If hasSep(expr, " !== "):
         Let parts be split(expr, " !== ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        Let na be evalValue(item 1 of parts).
+        Let nb be evalValue(item 2 of parts).
+        If strClassMatch(concat(na, ""), concat(nb, "")) is equal to false:
             Return "true".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
+        If eitherNaN(na, nb):
+            Return "true".
+        Return cmpResult(cmpVals(na, nb) is not equal to 0).
     If hasSep(expr, " == "):
         Let parts be split(expr, " == ").
         If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
