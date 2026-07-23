@@ -2409,6 +2409,20 @@
     Let ops be ["+", "-", "*", "%", "/", "**", "(", ")"].
     Return ops contains t.
 
+# A radix number LITERAL in source (`0xFF`/`0b101`/`0o17`) — distinct from the parseInt/Number string
+# paths. jsNumberText converts the prefixed token to its decimal value; a bare tagStr string never
+# starts with `0x`/`0b`/`0o` so this can't misfire on string values.
+## To radixLit (t: Text) -> Bool:
+    If hasSep(t, " "):
+        Return false.
+    If hasHexPrefix(t):
+        Return true.
+    If hasBinPrefix(t):
+        Return true.
+    If hasOctPrefix(t):
+        Return true.
+    Return false.
+
 ## To coerceNumTok (t: Text) -> Text:
     If t is equal to "null":
         Return "0".
@@ -2416,6 +2430,8 @@
         Return "1".
     If t is equal to "false":
         Return "0".
+    If radixLit(concat(t, "")):
+        Return jsNumberText(concat(t, "")).
     Return t.
 
 ## To coerceNumToks (toks: Seq of Text, i: Int, acc: Text) -> Text:
@@ -2526,6 +2542,8 @@
         Return "-Infinity".
     If trim(expr) is equal to "NaN":
         Return "NaN".
+    If radixLit(trim(expr)):
+        Return jsNumberText(trim(expr)).
     If hasStr(expr):
         Return concatTerms(split(expr, " + "), 1, "").
     Return arithValue(expr).
