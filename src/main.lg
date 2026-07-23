@@ -2402,11 +2402,56 @@
         Return concat(tagStr (), content).
     Return tok.
 
+# A term is EXACTLY a single quoted string literal when nothing (but whitespace) follows the closing
+# quote — so `"a - b"` is a string but `"5" - 2` is a string operand followed by a real operator.
+## To strLitOnly (t: Text) -> Bool:
+    If startsWith(t, chr(34)) is equal to false:
+        Return false.
+    Return trim(substringAfter(substringAfter(t, chr(34)), chr(34))) is equal to "".
+
+## To arithOpTok (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    Let tk be item i of toks.
+    If tk is equal to "-":
+        Return true.
+    If tk is equal to "*":
+        Return true.
+    If tk is equal to "/":
+        Return true.
+    If tk is equal to "%":
+        Return true.
+    If tk is equal to "**":
+        Return true.
+    Return arithOpTok(toks, i + 1).
+
+# A top-level `-`/`*`/`/`/`%`/`**` operator token (space-delimited) marks a numeric expression; `+`
+# is excluded (it is string-concatenation-or-add, handled by concatTerms/plusStep).
+## To hasTopArithOp (t: Text) -> Bool:
+    Return arithOpTok(split(t, " "), 1).
+
+# A concatTerms term (post ` + ` split). `-`/`*`/`/`/`%` are ALWAYS numeric, so a term carrying one
+# routes to arithValue where coerceNumTok runs ToNumber on any string operand; a bare string literal
+# / already-tagged value / array / opaque function stays as-is (never re-read as arithmetic).
+# A tagged string VALUE (a resolved `<tagStr>…` operand) stores its internal spaces as encSpace, so
+# a REAL space after it means a trailing operator — `<tagStr>5 - 2` (from `x - 2`, x="5") splits on
+# spaces and routes to arithValue (ToNumber), while a pure string value has no real spaces and stays
+# a string. Hence the tagStr short-circuit sits BELOW hasTopArithOp.
 ## To termValue (t: Text) -> Text:
-    Let lit be litToStr(concat(t, "")).
-    If startsWith(lit, tagStr ()):
-        Return lit.
-    Return evalValue(trim(t)).
+    Let tt be trim(t).
+    If startsWith(tt, chr(34)):
+        If strLitOnly(tt):
+            Return litToStr(tt).
+        Return arithValue(tt).
+    If startsWith(tt, tagArr ()):
+        Return evalValue(tt).
+    If startsWith(tt, chr(1)):
+        Return evalValue(tt).
+    If hasTopArithOp(tt):
+        Return arithValue(tt).
+    If startsWith(tt, tagStr ()):
+        Return tt.
+    Return evalValue(tt).
 
 ## To plusStep (acc: Text, v: Text) -> Text:
     If startsWith(acc, tagStr ()):
@@ -2463,6 +2508,49 @@
         Return true.
     Return false.
 
+# Strict JS numeric string: optional sign, digits with at most one decimal point (`5`, `-3`, `3.14`,
+# `.5`, `5.`). Unlike parseFloat this is all-or-nothing — a trailing `px` makes it NaN.
+## To numStrBody (x: Text) -> Text:
+    If startsWith(x, "-"):
+        Return substringAfter(x, "-").
+    If startsWith(x, "+"):
+        Return substringAfter(x, "+").
+    Return x.
+
+## To isNumericStr (x: Text) -> Bool:
+    If x is equal to "":
+        Return false.
+    Let body be numStrBody(concat(x, "")).
+    If body is equal to "":
+        Return false.
+    If floatTok(body):
+        Let ip be substringBefore(body, ".").
+        Let fp be substringAfter(body, ".").
+        If hasSep(fp, "."):
+            Return false.
+        If ip is equal to "":
+            If fp is equal to "":
+                Return false.
+            Return allDigits(fp, 1).
+        If fp is equal to "":
+            Return allDigits(ip, 1).
+        If allDigits(ip, 1):
+            Return allDigits(fp, 1).
+        Return false.
+    Return allDigits(body, 1).
+
+# ToNumber for a string: decoded (string-internal spaces are stored as encSpace) then whitespace-
+# trimmed, ""→0 (JS Number("")===0), a valid numeric string→itself (leading `+` dropped), else→NaN.
+## To jsStrToNum (s: Text) -> Text:
+    Let x be trim(decodeStr(concat(s, ""))).
+    If x is equal to "":
+        Return "0".
+    If isNumericStr(concat(x, "")):
+        If startsWith(x, "+"):
+            Return substringAfter(x, "+").
+        Return x.
+    Return "NaN".
+
 ## To coerceNumTok (t: Text) -> Text:
     If t is equal to "null":
         Return "0".
@@ -2470,6 +2558,8 @@
         Return "1".
     If t is equal to "false":
         Return "0".
+    If startsWith(t, tagStr ()):
+        Return jsStrToNum(materialize(concat(t, ""))).
     If radixLit(concat(t, "")):
         Return jsNumberText(concat(t, "")).
     Return t.
@@ -2548,8 +2638,20 @@
 ## To bigintEval (expr: Text) -> Text:
     Return concat(tagBig (), jsBigintEval(replaceAll(concat(expr, ""), tagBig (), ""))).
 
+# Replace every `"..."` string literal in an arithmetic expression with its ToNumber value BEFORE
+# tokenizing on spaces — so a whitespace-padded numeric string (`" 3 "`) survives (its internal
+# spaces would otherwise shatter it across tokens). A no-op when the expression has no quotes.
+## To coerceStrLits (expr: Text) -> Text:
+    If hasSep(expr, chr(34)) is equal to false:
+        Return expr.
+    Let before be substringBefore(expr, chr(34)).
+    Let afterFirst be substringAfter(expr, chr(34)).
+    Let content be substringBefore(afterFirst, chr(34)).
+    Let rest be substringAfter(afterFirst, chr(34)).
+    Return concat(concat(before, jsStrToNum(content)), coerceStrLits(rest)).
+
 ## To arithValue (expr: Text) -> Text:
-    Let coerced be coerceNumToks(split(expr, " "), 1, "").
+    Let coerced be coerceNumToks(split(coerceStrLits(concat(expr, "")), " "), 1, "").
     If hasBigTok(split(concat(coerced, ""), " "), 1):
         Return bigintEval(concat(coerced, "")).
     If arithBadTok(split(concat(coerced, ""), " "), 1):

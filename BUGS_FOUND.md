@@ -1975,3 +1975,29 @@ parsers. A persistent-mutable-CLOSURE capture attempt — heap-boxed captured en
 the accumulator `acc(); a(5); a(3)` → 8 working, but it turned the counter `()=>++c` from NaN into a
 stack-overflow (a regression) and touches the core call path, so it was reverted to the known-good baking
 model; it is scoped as a dedicated increment now that this in-function-`++` prerequisite is fixed.)
+
+---
+
+**Cluster A — ToNumber at the numeric-operator boundary (2026-07-23, 16th engine fix).** `-`/`*`/`/`/`%`
+are ALWAYS numeric in JS: a string operand is coerced via ToNumber. jsint didn't — `"5" - 2` returned
+the LEFT operand (`"5"`, because `litToStr` extracted the quoted `5` and silently dropped the ` - 2`),
+and `10 - "4"` (string on the right) **stack-overflowed** (`termValue` fell back to `evalValue`, which
+re-entered `hasStr`→`concatTerms`→`termValue` forever). Also broke string VARIABLES in arithmetic
+(`let x="5"; x-2` → the literal text `5 - 2`). **Fix:** (1) `termValue` now routes a term carrying a
+top-level `-`/`*`/`/`/`%`/`**` to `arithValue` directly (breaking the recursion), keeping a pure string
+literal / array / opaque-fn as-is; the tagStr short-circuit sits BELOW `hasTopArithOp` because a
+resolved string value stores its internal spaces as `encSpace` — so a REAL space after a `<tagStr>`
+value means a trailing operator (`<tagStr>5 - 2`), while a genuine string value (`<tagStr>a‹encSpace›-‹encSpace›b`)
+has none and stays a string. (2) A `coerceStrLits` pre-pass in `arithValue` replaces every `"..."`
+literal with its ToNumber value BEFORE tokenizing on spaces, so a whitespace-padded numeric string
+(`" 3 "` → 3) survives (its spaces would otherwise shatter it across tokens). (3) `coerceNumTok` runs
+`jsStrToNum` on a `<tagStr>` operand. `jsStrToNum` = decode (encSpace→space) → trim → strict
+`isNumericStr` (`5`/`-3`/`3.14`/`.5`/`5.`, all-or-nothing so `"42px"`→NaN) → else NaN; `""`→0. The `+`
+concat path (`concatTerms`/`plusStep`) is untouched — `"5"+2`→"52" stays. Closed: `"5"-2`=3,
+`10-"4"`=6, `"6"*2`=12, `7/"3"`=2.333…, `" 3 "-1`=2, `"abc"-1`=NaN, string-var arith, chains. New
+`tonumber-diff` fuzzer (2400 checks/6 seeds incl. the substitution path + concat regression guards).
+Still OPEN in Cluster A: unary `+"str"` (needs precedence-aware handling, `+"7"+3` = `(+"7")+3`) and
+loose `==`/`!=` coercion (`0==""`, `false==0`, `null==undefined` — the `cmpVals` textual-compare path,
+separate from arithmetic). GOTCHA banked: **string-internal spaces are `encSpace` (chr(4)), so the
+native `trim` no-ops on them — decode before any numeric parse** (cost me a debug cycle: `trim("3 ")`
+looked broken but the "space" was chr(4)).
