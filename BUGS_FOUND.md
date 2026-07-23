@@ -2001,3 +2001,15 @@ loose `==`/`!=` coercion (`0==""`, `false==0`, `null==undefined` — the `cmpVal
 separate from arithmetic). GOTCHA banked: **string-internal spaces are `encSpace` (chr(4)), so the
 native `trim` no-ops on them — decode before any numeric parse** (cost me a debug cycle: `trim("3 ")`
 looked broken but the "space" was chr(4)).
+
+**Cluster A — loose equality `==`/`!=` (2026-07-23, 17th engine fix).** `==` did a plain `cmpVals`
+(materialized textual/int compare) with no type coercion, so `0 == ""`, `false == 0`,
+`null == undefined`, `true == 1`, `0 == false`, `"" == false`, `1 == true`, `"1" == true` all wrongly
+returned `false`. **Fix:** the real Abstract Equality Comparison in a new `looseEqVal` (jsEvalCmp's
+`==` branch now calls it, `!=` negates it): same type → strict (`sameTypeEq`: numbers via `numEqTxt`,
+else materialized compare); `null`≈`undefined` **and only each other** (`null == 0` stays false);
+`boolean` → ToNumber then recurse; `number`↔`string` → compare as numbers (reuses the Cluster-A
+`jsToNumberOf`/`jsStrToNum`). `NaN` equals nothing; object identity unchanged. New `jsType` classifier
++ `looseeq-diff` fuzzer (2400 checks/6 seeds across null/undefined/bool/number/string/NaN/whitespace-
+string mixes). `5.0 == 5`→true, `" 1 " == 1`→true. **Cluster A arithmetic + equality now DONE; only
+unary `+"str"` (precedence-aware crash) remains open.**

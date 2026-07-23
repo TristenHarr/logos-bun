@@ -815,14 +815,10 @@
         Return cmpResult(cmpVals(na, nb) is not equal to 0).
     If hasSep(expr, " == "):
         Let parts be split(expr, " == ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is equal to 0).
+        Return looseEqVal(evalValue(item 1 of parts), evalValue(item 2 of parts)).
     If hasSep(expr, " != "):
         Let parts be split(expr, " != ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "true".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is not equal to 0).
+        Return notOf(looseEqVal(evalValue(item 1 of parts), evalValue(item 2 of parts))).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
         If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
@@ -2803,6 +2799,82 @@
         If isIntStr(concat(b, "")):
             Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
     Return compareText(concat(a, ""), concat(b, "")).
+
+# The JS type of a normalized value, for abstract equality.
+## To jsType (v: Text) -> Text:
+    If v is equal to "null":
+        Return "null".
+    If v is equal to "undefined":
+        Return "undefined".
+    If v is equal to "true":
+        Return "boolean".
+    If v is equal to "false":
+        Return "boolean".
+    If startsWith(v, tagStr ()):
+        Return "string".
+    If isObjRef(v):
+        Return "object".
+    If isArrRef(v):
+        Return "object".
+    Return "number".
+
+# ToNumber of an already-normalized value (string via jsStrToNum, bool→0/1, null→0, undefined→NaN).
+## To jsToNumberOf (v: Text) -> Text:
+    If startsWith(v, tagStr ()):
+        Return jsStrToNum(materialize(concat(v, ""))).
+    If v is equal to "true":
+        Return "1".
+    If v is equal to "false":
+        Return "0".
+    If v is equal to "null":
+        Return "0".
+    If v is equal to "undefined":
+        Return "NaN".
+    If v is equal to "":
+        Return "0".
+    Return v.
+
+# Numeric equality of two number-typed values: NaN is equal to nothing, identical text is equal, else
+# a numeric magnitude compare (int-exact; identical float text already caught by the text shortcut).
+## To numEqTxt (a: Text, b: Text) -> Text:
+    If a is equal to "NaN":
+        Return "false".
+    If b is equal to "NaN":
+        Return "false".
+    If a is equal to b:
+        Return "true".
+    Return cmpResult(cmpVals(a, b) is equal to 0).
+
+# Same-type `==` is `===`: numbers compare numerically, everything else by materialized value.
+## To sameTypeEq (a: Text, b: Text, t: Text) -> Text:
+    If t is equal to "number":
+        Return numEqTxt(a, b).
+    Return cmpResult(cmpVals(a, b) is equal to 0).
+
+# The Abstract Equality Comparison (`==`): same type → strict; null≈undefined (and only each other);
+# boolean → ToNumber; number↔string → compare as numbers. (Object↔primitive ToPrimitive is Cluster B.)
+## To looseEqVal (a: Text, b: Text) -> Text:
+    Let ta be jsType(concat(a, "")).
+    Let tb be jsType(concat(b, "")).
+    If ta is equal to tb:
+        Return sameTypeEq(a, b, ta).
+    If isNullish(a):
+        If isNullish(b):
+            Return "true".
+        Return "false".
+    If isNullish(b):
+        Return "false".
+    If ta is equal to "boolean":
+        Return looseEqVal(jsToNumberOf(a), concat(b, "")).
+    If tb is equal to "boolean":
+        Return looseEqVal(concat(a, ""), jsToNumberOf(b)).
+    If ta is equal to "number":
+        If tb is equal to "string":
+            Return numEqTxt(concat(a, ""), jsToNumberOf(b)).
+    If ta is equal to "string":
+        If tb is equal to "number":
+            Return numEqTxt(jsToNumberOf(a), concat(b, "")).
+    Return "false".
 
 ## To maxInt (a: Int, b: Int) -> Int:
     If a is greater than b:
