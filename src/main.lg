@@ -1068,8 +1068,14 @@
 ## To clearContinue (env: Text) -> Text:
     Return envSet(env, "__continue", "").
 
+# An empty positional arg slot means NO argument was passed (a call like `f()` tokenizes to a single
+# empty field, and elisions leave empty fields), so it reads as `undefined` — this is what lets a
+# default parameter fire when its slot is omitted. A real empty-string literal is a non-empty token
+# (`""`), so it does NOT collide.
 ## To argAt (args: Seq of Text, i: Int, callerEnv: Text) -> Text:
     If i is greater than length of args:
+        Return "undefined".
+    If trim(item i of args) is equal to "":
         Return "undefined".
     Return jsEvalIn(item i of args, callerEnv).
 

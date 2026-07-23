@@ -2319,3 +2319,19 @@ made LOGOS pass it as a borrowed slice (type mismatch) and tripped E0382 — fix
 `item i of els` to a `Let` first and passing fresh `arrElements(…)` calls (owned Seq), with the
 reusable value being the `Int` `curLen`. New `sparsegrow-diff` fuzzer (2400 checks/6 seeds). Full
 sweep green.
+
+**Default parameters when ALL args are omitted (2026-07-23, 43rd engine fix).** `((a=1,b=2)=>a+b)()`
+→`NaN` and `(function(a=5){return a})()`→`NaN`. Partial omission already worked (`(a=1,b=2)=>…`
+called `(10)`→`12`, trailing `(a,b=3)`→ default fires; explicit `undefined`→ default fires) — the
+default machinery (`bindParams` → `defaultOr(argAt(...), defExpr)`) was fine. The gap was `argAt`: a
+call `f()` tokenizes to a single *empty* arg field, and `argAt` returned `jsEvalIn("")` (empty
+string) instead of `undefined`, so `defaultOr` (which fires only on `"undefined"`) saw a "present"
+arg and skipped the default → the param became `""` → arithmetic `NaN`. Trailing params defaulted
+correctly only because their index was truly past `length`. Fix: `argAt` treats an empty positional
+slot (`trim(item i of args) == ""`) as `undefined`. Semantically correct everywhere (an empty slot =
+no argument; elisions too), and a real empty-string literal is a non-empty token (`""`), so it does
+NOT collide — verified `((a="x")=>a)("")`→`""` (binds the empty string, default does NOT fire).
+`((a=1,b=2)=>a+b)()`→3, `(function(a=5){})()`→5, `((a="hi")=>a)()`→"hi", default referencing an
+earlier param `(function(x,y=x*2){return y})(5)`→10, and `((a)=>a)()`→undefined all match Node;
+partial-supply + explicit-arg cases unchanged. New `defaultparam-diff` fuzzer (2400 checks/6 seeds,
+incl. the empty-string-literal guard). Full sweep green.
