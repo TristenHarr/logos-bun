@@ -1929,6 +1929,10 @@
     Let prefix be trim(rawPrefix).
     Let ptoks be split(prefix, " ").
     Let lastTok be item (length of ptoks) of ptoks.
+    If isNullish(lastTok):
+        Let te be throwSet(newError("TypeError", concat(tagStr (), concat("Cannot read properties of ", lastTok)))).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), "undefined"), rest))).
     If isArrRef(lastTok):
         Let elem be arrGet(lastTok, parseInt(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
@@ -2509,6 +2513,11 @@
     Let tailToks be split(tail, " ").
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
+    If isNullish(recv):
+        Let te be throwSet(newError("TypeError", concat(tagStr (), concat("Cannot read properties of ", recv)))).
+        Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+        Let restToks be joinRange(tailToks, 2, length of tailToks, "").
+        Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks))).
     If isObjRef(recv):
         Let val be getMember(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
@@ -6531,7 +6540,10 @@
         If startsWith(trim(substringAfter(s, "return")), "console . log ("):
             Let logged be doConsoleLog(balancedArg(substringAfter(trim(substringAfter(s, "return")), "console . log ("), 1, 0, ""), env).
             Return envSet(env, "__ret", "undefined").
-        Return envSet(env, "__ret", jsEvalIn(substringAfter(s, "return"), env)).
+        Let retVal be jsEvalIn(substringAfter(s, "return"), env).
+        If throwPending() is equal to "1":
+            Return env.
+        Return envSet(env, "__ret", retVal).
     If startsWith(s, "throw "):
         Return envSet(env, "__throw", jsEvalIn(substringAfter(s, "throw "), env)).
     If startsWith(s, "try "):

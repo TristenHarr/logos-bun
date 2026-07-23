@@ -2699,3 +2699,22 @@ values Node renders as plain decimal). Regression caught + fixed by the sweep: `
 misfired on hex literals ending in `e` (`0x48e+3` → glued) — the decimal-mantissa test closed it. Full
 sweep green (386/386). DEFERRED (documented): magnitudes ≥ ~1e18 (scientific/BigInt display, shared with
 the plain large-integer-literal overflow) → NaN not a crash.
+
+**Reading a property off null/undefined throws TypeError (2026-07-23, 65th engine fix).** `null.x`,
+`undefined.foo`, `null["k"]`, and a chained `o.a.b` where `a` is null all silently returned NaN instead
+of throwing — `resolveObjDot`/`resolveArrays` returned the expression unchanged when the receiver wasn't
+an object ref, so the `.x`/`[k]` fell through to a NaN coercion. Now a nullish receiver (isNullish) raises
+a `TypeError` through the existing thread-local pending-throw channel (`throwSet(newError("TypeError",
+"Cannot read properties of null"))`), substituting `undefined` for the access so evaluation still
+completes and `drainPendingThrow` turns the pending throw into `__throw` after the statement. The one
+gap that made this observable only in some contexts: the `return` handler set `__ret` from the evaluated
+expression BEFORE the throw could drain, so `return null.x` swallowed it — fixed by having `return` defer
+to a pending throw (return the env untouched when `throwPending()`), which also makes `return f()` where
+`f` throws propagate. `return null.x`, `let z = null.x`, `undefined.foo`, `null["x"]`, `undefined[0]`,
+and chained `({a:null}).a.b` all throw a catchable TypeError; normal member/bracket access, missing-key →
+undefined, `.length`, method calls, `null == null`, and `return f()`/normal returns are unchanged. New
+`nullaccess-diff` fuzzer (2400 checks/6 seeds, throwing + non-throwing mix, `let` and `return` forms).
+Full sweep green (388/388). KNOWN gap (documented, deferred): argument-position `f(null.x)` still loses
+the throw (the call machinery doesn't yet consult the pending-throw channel mid-argument-eval), as does a
+bare expression-statement `null.x;` (not evaluated at all); and `error.constructor.name` is undefined
+(the error object has no `constructor`) — use `e.name`/`e instanceof TypeError`, which work.
