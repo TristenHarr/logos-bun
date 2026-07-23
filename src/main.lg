@@ -5265,6 +5265,14 @@
 # binding the class desugar records. Runs before `substitute` (with env), like the static-CALL path.
 # It fires ONLY when that exact binding exists, so an instance `obj.prop` (no such binding) is left
 # untouched for ordinary member resolution.
+# `yield* iterable` delegates: it yields every value the iterable produces (an array's elements, or the
+# values a called generator already buffered), one at a time, into the current generator's yield buffer.
+## To genPushAll (els: Seq of Text, i: Int) -> Text:
+    If i is greater than length of els:
+        Return "".
+    genPush(concat(item i of els, "")).
+    Return genPushAll(els, i + 1).
+
 ## To resolveStaticProps (toks: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of toks:
         Return trim(acc).
@@ -6190,6 +6198,12 @@
         Return deleteTarget(trim(substringAfter(s, "delete ")), env).
     If s is equal to "__GENRESET":
         genReset().
+        Return env.
+    If startsWith(s, "yield * "):
+        Let dgd be genPushAll(iterElements(jsEvalIn(trim(substringAfter(s, "yield * ")), env)), 1).
+        Return env.
+    If startsWith(s, "yield* "):
+        Let dgs be genPushAll(iterElements(jsEvalIn(trim(substringAfter(s, "yield* ")), env)), 1).
         Return env.
     If startsWith(s, "yield "):
         genPush(jsEvalIn(substringAfter(s, "yield "), env)).

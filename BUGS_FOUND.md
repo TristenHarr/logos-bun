@@ -2545,3 +2545,12 @@ unchanged. New `staticfield-diff` fuzzer (2400 checks/6 seeds). Full sweep green
 *mutated from inside a method* persists only within that call — the `__static_` binding is a scalar in
 the enclosing env, the same scalar-write-back limitation as any captured scalar; documented, avoided
 in the fuzzer.)
+
+**`yield*` delegation (2026-07-23, 56th engine fix).** `yield* [1,2]` inside a generator yielded a
+single `NaN` instead of `1` then `2` — `yield*` was parsed as `yield (*[1,2])`, and the unary `*` made
+the operand NaN. Fix: a `yield*` branch (both `yield* x` and `yield * x` token forms) iterates the
+operand with `iterElements` and `genPush`es each value (`genPushAll`), delegating correctly to an
+array, a called generator's buffered values, or a string's chars. `yield* [1,2]; yield 3`→1,2,3,
+`yield 0; yield* [1,2,3]`→0,1,2,3, `yield* inner()` (generator→generator), `yield* [1,2]; yield* [3,4]`,
+and `yield* "ab"`→a,b all match Node; plain `yield` and generator loops unchanged. New `yieldstar-diff`
+fuzzer (2400 checks/6 seeds). Full sweep green.
