@@ -5328,14 +5328,22 @@
         Let adef be trim(substringAfter(field, " = ")).
         Let aval be defaultOr(arrGet(concat(arrval, ""), i - 1), adef, concat(env, "")).
         Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, avn, aval)).
+    If startsWith(field, chr(91)):
+        Return destructArrLoop(fields, i + 1, concat(arrval, ""), destructureArr(concat(field, ""), arrGet(concat(arrval, ""), i - 1), concat(env, ""))).
+    If startsWith(field, chr(123)):
+        Return destructArrLoop(fields, i + 1, concat(arrval, ""), destructureObj(concat(field, ""), arrGet(concat(arrval, ""), i - 1), concat(env, ""))).
     Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, concat(field, ""), arrGet(concat(arrval, ""), i - 1))).
 
 ## To destructureObj (pattern: Text, objval: Text, env: Text) -> Text:
     Let inner be trim(substringBefore(substringAfter(pattern, chr(123)), chr(125))).
     Return destructObjLoop(patFields(inner), 1, objval, env).
 
+# Extract the pattern's inner between the opening `[` and its MATCHING (last) `]` by dropping the
+# trailing bracket — `substringBefore(…, "]")` would stop at the FIRST `]` and truncate a nested-first
+# pattern like `[[a,b],c]` to `[a,b`.
 ## To destructureArr (pattern: Text, arrval: Text, env: Text) -> Text:
-    Let inner be trim(substringBefore(substringAfter(pattern, chr(91)), chr(93))).
+    Let afterOpen be substringAfter(pattern, chr(91)).
+    Let inner be trim(strSliceLoop(concat(afterOpen, ""), 1, (length of afterOpen) - 1, "")).
     Return destructArrLoop(patFields(inner), 1, arrval, env).
 
 ## To bindOne (assign: Text, env: Text) -> Text:

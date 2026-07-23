@@ -2240,3 +2240,13 @@ Verified independence: `let c=structuredClone(o); c.a=9` leaves `o.a` untouched,
 `c[0][0]=9` leaves the source's nested array untouched. `structuredClone({a:{b:2}})`, `[{a:1},{b:2}]`,
 primitives all correct. New `structclone-diff` fuzzer (1800 checks/6 seeds, deep-shape equality). Full
 sweep green.
+
+**Nested array destructuring (2026-07-23, 39th engine fix).** `let [x,[y,z]]=[1,[2,3]]`→NaN, and
+`.map(([a,[b,c]])=>…)` — a nested pattern in a destructuring position wasn't recursed into (it was bound
+as a variable literally named `[y,z]`). Two fixes: `destructArrLoop` now recurses on a `[…]`/`{…}` field
+via `destructureArr`/`destructureObj` on that element; and `destructureArr`'s inner extraction drops the
+matching closing bracket instead of `substringBefore(…,"]")` (which stopped at the FIRST `]` and
+truncated a nested-FIRST pattern like `[[a,b],c]`→`[a,b`). `[x,[y,z]]`, `[[a,b],c]`, `[[[x]]]`,
+`[a,{b}]`, nested in a callback, and rest all correct; flat destructuring unchanged. This also removes
+the "nested patterns unsupported" caveat from the callback-destructuring fixes. New `nestdestruct-diff`
+fuzzer (1800 checks/6 seeds, random nesting). Full sweep green.
