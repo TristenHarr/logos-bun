@@ -2086,3 +2086,11 @@ closure-application path. `parseInt` is deliberately EXCLUDED (as a callback its
 radix — the famous `map(parseInt)` gotcha). `map(Number)`→numbers, `filter(Boolean)`→truthy,
 `map(parseFloat)`→floats; arrow callbacks unaffected. New `fncallback-diff` fuzzer (2400 checks/6
 seeds). Full sweep green.
+
+**`String.split(sep, limit)` (2026-07-23, 24th engine fix).** The optional 2nd argument (result-length
+cap) was ignored — `"a,b,c".split(",", 2)`→`["a","b","c"]` (want `["a","b"]`). The dispatch took the
+whole `methodArg` as the separator; now it `splitArgsN`'s the args, uses arg 1 as the separator, and
+`splitLimit`/`arrTake` cap the result to arg 2 (both string and regex separators). `split(",", 2)`→"a|b",
+`split(",", 0)`→[], over-limit and no-limit unchanged. New `splitlimit-diff` fuzzer (2400 checks/6
+seeds). Full sweep green. (Also found, deferred: `5..toString()` stack-overflows — the double-dot
+number-method syntax; `Math.min()`/`Math.max()` with no args return NaN not ±Infinity.)
