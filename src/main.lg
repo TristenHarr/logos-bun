@@ -3632,6 +3632,79 @@
         Return arrval.
     Return mutArr(arrval, concat(concat(tagArr (), joinChr6(els, 1, (length of els) - 1, "")), tagArrEnd ())).
 
+# Join els[i..upto] with tagArrSep and NO leading separator (unlike joinChr6, which only suppresses the
+# leading sep for a range that starts at index 1) — a tagged element is never the empty string, so the
+# `acc == ""` test reliably marks "nothing appended yet".
+## To joinRange6 (els: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
+    If i is greater than upto:
+        Return acc.
+    Let e be item i of els.
+    If acc is equal to "":
+        Return joinRange6(els, i + 1, upto, concat(e, "")).
+    Return joinRange6(els, i + 1, upto, concat(concat(acc, tagArrSep ()), e)).
+
+# Join two element blobs with a tagArrSep only when both are non-empty (so a splice with an empty
+# before/items/after section doesn't leave a stray separator).
+## To sepJoin (a: Text, b: Text) -> Text:
+    If a is equal to "":
+        Return b.
+    If b is equal to "":
+        Return a.
+    Return concat(concat(a, tagArrSep ()), b).
+
+# The k-th argument's raw text (an expression), or "" if absent — a fresh split each call so the arg Seq
+# is never threaded through a consuming call.
+## To spliceArg (argStr: Text, k: Int) -> Text:
+    Let args be splitArgsN(concat(argStr, "")).
+    If k is greater than length of args:
+        Return "".
+    Return trim(item k of args).
+
+## To spliceStart (a1: Text, n: Int, env: Text) -> Int:
+    If a1 is equal to "":
+        Return 0.
+    Return normSliceIdx(safeInt(materialize(jsEvalIn(concat(a1, ""), concat(env, "")))), n).
+
+# deleteCount: absent (only a start given) removes through the end; else clamped to [0, n - start].
+## To spliceDelCount (a1: Text, a2: Text, n: Int, s: Int, env: Text) -> Int:
+    If a1 is equal to "":
+        Return 0.
+    If a2 is equal to "":
+        Return n - s.
+    Let raw be safeInt(materialize(jsEvalIn(concat(a2, ""), concat(env, "")))).
+    If raw is less than 0:
+        Return 0.
+    If raw is greater than (n - s):
+        Return n - s.
+    Return raw.
+
+# The tagArrSep-joined blob of the splice INSERT items (args 3..N), each evaluated to its element value.
+## To spliceItems (argStr: Text, k: Int, env: Text, acc: Text) -> Text:
+    Let args be splitArgsN(concat(argStr, "")).
+    If k is greater than length of args:
+        Return acc.
+    Let v be jsEvalIn(trim(item k of args), concat(env, "")).
+    Return spliceItems(concat(argStr, ""), k + 1, env, sepJoin(concat(acc, ""), concat(v, ""))).
+
+# `arr.splice(start, deleteCount, ...items)`: remove deleteCount elements at start (both normalized as JS
+# does — negative start counts from the end, an omitted deleteCount removes to the end), splice the items
+# in, and MUTATE the array in place through its heap ref (mutArr, so aliases see it); returns a new array
+# of the removed elements. Each element range is re-read fresh from the ref so the element Seq is never
+# passed to two consuming joins.
+## To arrSplice (arrval: Text, argStr: Text, env: Text) -> Text:
+    Let n be length of arrElements(concat(arrval, "")).
+    Let a1 be spliceArg(concat(argStr, ""), 1).
+    Let a2 be spliceArg(concat(argStr, ""), 2).
+    Let s be spliceStart(concat(a1, ""), n, concat(env, "")).
+    Let dc be spliceDelCount(concat(a1, ""), concat(a2, ""), n, s, concat(env, "")).
+    Let removed be joinRange6(arrElements(concat(arrval, "")), s + 1, s + dc, "").
+    Let before be joinRange6(arrElements(concat(arrval, "")), 1, s, "").
+    Let after be joinRange6(arrElements(concat(arrval, "")), s + dc + 1, n, "").
+    Let items be spliceItems(concat(argStr, ""), 3, concat(env, ""), "").
+    Let newInner be sepJoin(sepJoin(concat(before, ""), concat(items, "")), concat(after, "")).
+    Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), newInner), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), removed), tagArrEnd ())).
+
 ## To arrConcat (a: Text, b: Text) -> Text:
     Let ea be arrElements(a).
     Let eb be arrElements(b).
@@ -4176,7 +4249,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -5015,6 +5088,15 @@
         If length of iargs is greater than 1:
             Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOfFrom(raw, subEval, safeInt(materialize(jsEvalIn(trim(item 2 of iargs), env)))))), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
+    If lm is equal to " . splice (":
+        Let bef be substringBefore(expr, " . splice (").
+        Let aft be substringAfter(expr, " . splice (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let removed be arrSplice(concat(raw, ""), methodArg(aft), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), removed), rst)), env).
     If lm is equal to " . slice (":
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").

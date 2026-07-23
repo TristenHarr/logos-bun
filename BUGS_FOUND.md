@@ -2660,3 +2660,22 @@ branch rather than living in a separate grpStar function.** KNOWN LIMITATIONS (d
 capture-group EXTRACTION (`m[1]`/`m.index`) and `$N` replacement backreferences (next increment); `{n,m}`
 brace quantifiers; and catastrophic backtracking on adversarial nested-unbounded patterns (`(a+)+b`) can
 hang — inherent to backtracking engines (V8/bun included), not hit by real patterns or the fuzz corpus.
+
+**Array.prototype.splice (2026-07-23, 63rd engine fix).** `a.splice(start, deleteCount, ...items)` — one
+of the most common array mutators — was entirely unimplemented: `.splice(` wasn't in the method table, so
+the call no-op'd and the array was unchanged (`[1,2,3].splice(1,1)` left `[1,2,3]`, returned `[]`).
+Implemented `arrSplice`: normalize `start` as JS does (negative counts from the end via normSliceIdx),
+clamp `deleteCount` to `[0, n-start]` (an omitted deleteCount removes through the end), build the new
+element list as `before + items + after` (each `items` entry `jsEvalIn`'d to its element value), and MUTATE
+the array in place through its heap ref (mutArr → heapSet, so an aliasing binding sees the change), then
+return a new array of the removed elements. Registered `.splice(` in the method table and dispatched it in
+resolveMethods like `.slice` but writing through the receiver ref. `splice(1,1)`, `splice(1,2)`,
+`splice(1,0,9)` (insert), `splice(1,1,7,8)` (replace+insert), `splice(-1,1)` (negative), `splice(2)` (omit
+count), `splice(0)` (clear), start-beyond-end, insert-into-empty, string/object elements, alias-visibility,
+and the returned removed-array + post-splice array all match Node; push/slice/other array ops unchanged.
+Gotchas: `joinChr6` prepends a leading separator for any range NOT starting at index 1 (it only suppresses
+the leading sep for the whole-array case) — a sub-range join produced a stray hole (`[1,,3]`); fixed with a
+new `joinRange6` keyed on `acc == ""` (a tagged element is never the empty string). And each element range
+is re-read fresh from the ref (arrElements per join) so the element Seq is never threaded through two
+consuming joins. New `splice-diff` fuzzer (2400 checks/6 seeds, compares removed-array AND post-splice
+array). Full sweep green (384/384).
