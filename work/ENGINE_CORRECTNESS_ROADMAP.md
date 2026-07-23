@@ -176,3 +176,16 @@ its fix lands.
 ---
 *Batches 7-9 fold-in (2026-07-23). Full tally: ~66 verified defects, 11 P0 crashes. The crash table
 + Clusters A-M are the complete fix plan; task #32. No code touched (engine under concurrent edit).*
+
+## Cluster A — PROBE 2 (2026-07-23): the site + why a naive fix is catastrophic
+
+The arithmetic-coercion site IS `evalValue` (~line 2587): `If hasStr(expr): Return concatTerms(…)` —
+any string-containing expression routes to concat. BUT gating that on "has a top-level `+`" (concat
+only if `+` present, else `arithValue`) is CATASTROPHIC: **210 of 280 fuzzers went red**. That
+`hasStr` branch is the chokepoint for ALL string expressions — `typeof x`, method-call results, JSON,
+bare strings — and `arithValue` returns NaN for every non-arithmetic one. The sweep caught it and it
+was reverted clean (no commit). The REAL fix must DISCRIMINATE a genuine `-`/`*`/`/`/`%` expression
+between two number-or-numeric-string terms from typeof/method/JSON/bare-string (all `hasStr`=true) —
+e.g. tokenize and check the top-level operator is arithmetic with numeric-coercible operands, only
+then coerce. Non-trivial. **Cluster A stays OPEN** (both `coerceNumTok` and this `evalValue` approaches
+probed and reverted; the discrimination is the crux).
