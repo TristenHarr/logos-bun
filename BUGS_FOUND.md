@@ -2013,3 +2013,15 @@ else materialized compare); `null`≈`undefined` **and only each other** (`null 
 + `looseeq-diff` fuzzer (2400 checks/6 seeds across null/undefined/bool/number/string/NaN/whitespace-
 string mixes). `5.0 == 5`→true, `" 1 " == 1`→true. **Cluster A arithmetic + equality now DONE; only
 unary `+"str"` (precedence-aware crash) remains open.**
+
+**Cluster A — unary `+"str"` (2026-07-23, 18th engine fix; Cluster A CLOSED).** `+"7"` stack-overflowed
+(unary `+` is excluded from the arithmetic-operator set — correctly, since binary `+` is concat — so
+the `+ "7"` term fell through `termValue` to `evalValue` and looped). Unary minus already worked
+(`-"7"`→-7, because `-` IS an arith op). **Fix:** a leading unary `+` (not `++`) is ToNumber, which is
+exactly what `arithValue` does to its operand — so `termValue` strips the leading `+` and routes the
+rest to `arithValue`. Precedence is automatic: `concatTerms` already split on ` + `, so `+"7" + 3`
+arrives as the separate term `+"7"` (→7) then `+ 3` → 10; `+"7" - 2` → 5; `+"abc"`→NaN; `+""`→0;
+`3 + +"7"`→10. tonumber-diff fuzzer extended with unary-plus + precedence cases (2400/6 seeds). Full
+sweep green. **NOTE (separate pre-existing bug, NOT this fix):** `typeof +"7"` / `typeof -"7"` panic
+(`Cannot parse '+' as Int`) — typeof doesn't parenthesize a unary-prefixed operand; `typeof (+"7")`
+works. Filed for a future typeof fix.

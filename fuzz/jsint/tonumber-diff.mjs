@@ -22,13 +22,15 @@ if (OURS) {
   const operand = () => { const k = ri(4); return k === 0 ? num() : k === 1 ? numStr() : k === 2 ? numStr() : badStr(); };
   const arithOp = () => ["-", "*", "/", "%"][ri(4)];
   const program = () => {
-    const k = ri(7);
+    const k = ri(9);
     if (k === 0) return `${operand()} ${arithOp()} ${operand()}`;                     // binary numeric
     if (k === 1) return `${numStr()} + ${num()}`;                                     // concat guard
     if (k === 2) return `${num()} + ${numStr()}`;                                     // concat guard
     if (k === 3) return `${operand()} ${arithOp()} ${operand()} ${arithOp()} ${operand()}`; // chain
     if (k === 4) return `(${numStr()} ${arithOp()} ${num()}) + "!"`;                  // arith then concat
     if (k === 5) return `let a = ${operand()}; a ${arithOp()} ${operand()}`;          // string VAR in arith (substitution)
+    if (k === 6) return `+${operand()}`;                                              // unary plus (ToNumber)
+    if (k === 7) return `+${numStr()} ${arithOp()} ${num()}`;                         // unary plus precedence
     return `let s = ${badStr()}; s + "!"`;                                            // string VAR concat guard
   };
   let checked = 0;

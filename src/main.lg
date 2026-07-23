@@ -2435,6 +2435,9 @@
 # a string. Hence the tagStr short-circuit sits BELOW hasTopArithOp.
 ## To termValue (t: Text) -> Text:
     Let tt be trim(t).
+    If startsWith(tt, "+"):
+        If startsWith(tt, "++") is equal to false:
+            Return arithValue(trim(substringAfter(tt, "+"))).
     If startsWith(tt, chr(34)):
         If strLitOnly(tt):
             Return litToStr(tt).
