@@ -3282,13 +3282,22 @@
         Return newArr(concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ())).
     Return newArr(concat(tagArr (), tagArrEnd ())).
 
+# Bind a single already-evaluated VALUE to a callback parameter, honoring a destructuring pattern
+# (`[a,b]` / `{x,y}`) — so `.map(([a,b]) => …)` / `.map(({x,y}) => …)` work like a named function.
+## To bindParamVal (pname: Text, val: Text, acc: Text) -> Text:
+    If startsWith(pname, chr(123)):
+        Return destructureObj(pname, val, acc).
+    If startsWith(pname, chr(91)):
+        Return destructureArr(pname, val, acc).
+    Return envSet(acc, pname, val).
+
 ## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
-    Let e1 be envSet(env, trim(item 1 of params), el).
+    Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 1:
-        Return envGet(runBlockStr(body, envSet(e1, trim(item 2 of params), idx)), "__ret").
+        Return envGet(runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)), "__ret").
     Return envGet(runBlockStr(body, e1), "__ret").
 
 ## To arrFromMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:

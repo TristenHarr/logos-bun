@@ -2125,3 +2125,15 @@ statics (Object/JSON/Array/Number/String/Promise/Reflect), matching Math. `map(o
 `map(o=>JSON.stringify(o))`, `filter(x=>Number.isInteger(x))` all correct now; direct static calls
 unaffected. New `staticcallback-diff` fuzzer (2400 checks/6 seeds). Full sweep green. **Doctrine: a
 receiver-less static marker in `resolveMethods` MUST carry a `markerInBody` guard.**
+
+**Destructuring parameter in a callback (2026-07-23, 28th engine fix).** `.map(([a,b])=>a+b)`→NaN,
+`.map(({n,v})=>n+v)`→NaN, `Object.entries(o).map(([k,v])=>k+v)`→NaN — a destructuring pattern in a
+map/filter/find/some/every/forEach callback param wasn't destructured. A NAMED function
+(`let f=([a,b])=>…; f([1,2])`→3) worked because `callFn` uses `bindParams` (destructuring-aware), but
+`callFnIdx` (the per-element applier for those methods) bound `item 1 of params` — the whole pattern —
+as one variable name. Added `bindParamVal`, which honors a `[…]`/`{…}` pattern via the same
+`destructureArr`/`destructureObj` the named path uses, and routed `callFnIdx`'s element + index binding
+through it. `map(([a,b])=>a+b)`, `map(({a})=>a)`, `filter(([a,b])=>a<b)`, `map(([a,...r])=>…)` (rest)
+all correct; plain-param callbacks unaffected. New `destructcb-diff` fuzzer (2400 checks/6 seeds). Full
+sweep green. (Nested patterns like `[a,[b,c]]` remain unsupported — a pre-existing `destructureArr`
+limitation that also affects `let [x,[y,z]]=…`, not this fix.)
