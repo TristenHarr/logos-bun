@@ -5360,8 +5360,118 @@
                 Return k.
     Return "".
 
+# Depth decrement clamped at 0. The toolchain monomorphizes a recursive scan on its constant int args,
+# and a bare `depth - 1` reached from `depth == 0` folds to a `-1` specialization whose name is invalid
+# Rust; routing every close-group decrement through this call breaks that constant-fold (and a stray
+# unmatched close never drives the depth negative).
+## To depthDec (d: Int) -> Int:
+    If d is equal to 0:
+        Return 0.
+    Return d - 1.
+
+# The index of the first TOP-LEVEL bare `=` (assignment) token, skipping any `=` nested inside
+# (…)/[…]/{…} (a default param, a computed-key side effect). A single `=` is only ever an assignment —
+# `==`/`===`/`<=`/`>=`/`!=`/`=>` are distinct tokens — so this is an unambiguous assignment probe. The
+# `g` accumulator grows to a runtime value after the first token, halting the constant-arg monomorphizer
+# (like topTernaryQ/tokHasTopSep) so the `Seq` param keeps one generic type across the recursion.
+## To firstTopAssignIdx (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let t be item i of toks.
+    If t is equal to "(":
+        Return firstTopAssignIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to chr(91):
+        Return firstTopAssignIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to chr(123):
+        Return firstTopAssignIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to ")":
+        Return firstTopAssignIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If t is equal to chr(93):
+        Return firstTopAssignIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If t is equal to chr(125):
+        Return firstTopAssignIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If depth is equal to 0:
+        If t is equal to "=":
+            Return i.
+    Return firstTopAssignIdx(toks, i + 1, depth, concat(g, t)).
+
+# The index of the first TOP-LEVEL `=>` (arrow) token — an assignment's `=` that follows a top-level
+# `=>` is the arrow's BODY, not an assignment (`(a) => a = 1` is an arrow, not `((a) => a) = 1`). The
+# `g` accumulator halts the constant-arg monomorphizer (see firstTopAssignIdx).
+## To firstTopArrowIdx (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let t be item i of toks.
+    If t is equal to "(":
+        Return firstTopArrowIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to chr(91):
+        Return firstTopArrowIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to chr(123):
+        Return firstTopArrowIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to ")":
+        Return firstTopArrowIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If t is equal to chr(93):
+        Return firstTopArrowIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If t is equal to chr(125):
+        Return firstTopArrowIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    If depth is equal to 0:
+        If t is equal to "=>":
+            Return i.
+    Return firstTopArrowIdx(toks, i + 1, depth, concat(g, t)).
+
+# The token index of the `)` that closes the leading `(` (scanning from a stream whose first token is
+# `(`); 0 if unbalanced. Only `(`/`)` move the depth, so a `)` inside a call's own parens is skipped. The
+# `g` accumulator halts the constant-arg monomorphizer (see firstTopAssignIdx).
+## To parenCloseIdx (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let t be item i of toks.
+    If t is equal to "(":
+        Return parenCloseIdx(toks, i + 1, depth + 1, concat(g, t)).
+    If t is equal to ")":
+        If depth is equal to 1:
+            Return i.
+        Return parenCloseIdx(toks, i + 1, depthDec(depth), concat(g, t)).
+    Return parenCloseIdx(toks, i + 1, depth, concat(g, t)).
+
+# Strip a redundant `( … )` that wraps the WHOLE expression (its `(` matches the last token), so a
+# parenthesized assignment expression `( m[n] = v )` is seen at the top level. A `(` whose match is NOT
+# the last token (`(a) + (b)`, an IIFE `(fn)()`, an arrow `(x) => x`) is left intact.
+## To stripParenWrap (s: Text) -> Text:
+    Let t be trim(s).
+    Let toks be split(concat(t, ""), " ").
+    If length of toks is less than 3:
+        Return t.
+    If item 1 of toks is not equal to "(":
+        Return t.
+    Let ci be parenCloseIdx(toks, 1, 0, "").
+    If ci is equal to length of toks:
+        Return stripParenWrap(trim(joinRange(toks, 2, ci - 1, ""))).
+    Return t.
+
+# Assignment binds looser than the conditional `?:`, so an assignment is the outer operator only when its
+# top-level `=` precedes any top-level `?` (`a = b ? c : d` = `a = (b?c:d)`, but `a ? b : c = d` is the
+# ternary with an assignment in its else-branch).
+## To assignIsOuter (eqIdx: Int, qIdx: Int) -> Bool:
+    If qIdx is equal to 0:
+        Return true.
+    Return eqIdx is less than qIdx.
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
+    Let asgn be stripParenWrap(concat(te, "")).
+    Let atks be split(concat(asgn, ""), " ").
+    Let eqIdx be firstTopAssignIdx(atks, 1, 0, "").
+    If eqIdx is greater than 0:
+        If assignIsOuter(eqIdx, topTernaryQ(atks, 1, 0, "")):
+            If assignIsOuter(eqIdx, firstTopArrowIdx(atks, 1, 0, "")):
+                Let alhs be trim(joinRange(atks, 1, eqIdx - 1, "")).
+                Let arhs be joinRange(atks, eqIdx + 1, length of atks, "").
+                Let arv be jsEvalIn(concat(arhs, ""), env).
+                If isMemberTarget(concat(alhs, "")):
+                    Let awrite be assignTarget(concat(alhs, ""), concat(arv, ""), env).
+                    Return arv.
+                Return arv.
     If startsWith(te, "await "):
         Return awaitValue(jsEvalIn(substringAfter(te, "await "), env)).
     Let tks be split(te, " ").

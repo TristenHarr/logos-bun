@@ -2603,3 +2603,32 @@ the `b`/block frame a destructuring `let {a}=o` pattern lives in), a bare identi
 `{a,b,sum(){…}}` all match Node; normal `{a:1,b:2}`, method shorthand, getters/setters, and — critically
 — destructuring `let {a}=o` (a pattern, left untouched) unchanged. New `objshorthand-diff` fuzzer (2400
 checks/6 seeds). Full sweep green (378/378).
+
+**Assignment as an EXPRESSION (2026-07-23, 61st engine fix).** The keystone memoization idiom
+`return memo[n] = fib(n-1) + fib(n-2)` returned NaN and wrote nothing — assignment was only handled as a
+STATEMENT (execStmt), so in value position (`return`, a function argument, an assignment RHS) it fell
+through to plain expression eval, which has no assignment operator → NaN, no write. Fixed in `jsEvalIn`:
+a top-level bare `=` token (found by `firstTopAssignIdx`, skipping any `=` nested in `(…)`/`[…]`/`{…}` —
+a default param or computed-key side effect) is an assignment expression when its `=` precedes any
+top-level `?` (assignment binds looser than `?:`, so `a = b ? c : d` = `a = (b?c:d)`) AND any top-level
+`=>` (so an arrow body `(a) => a = 1` is not mistaken for one); redundant outer parens are stripped
+first (`stripParenWrap`). For a member/dot/bracket target it does the heap write via `assignTarget`
+(globally visible in every position) and returns the assigned value; for a scalar it returns the value
+(the write is moot in `return`/arg position). `return memo[n]=…` (memoized fib→55), `return m[k]=v`,
+chained `a[i]=b[j]=v`, scalar `return x=v`, parenthesized `(m[k]=v)`, an arg `id(m[k]=v)`, and `x = c ?
+a : b` all match Node; comparisons (`==`/`===`/`<=`), object literals, arrows (incl. default params),
+and spread are untouched. Bonus: statement-level chained assignment now works (execStmt's RHS routes
+through the same jsEvalIn path). Toolchain gotcha: the constant-arg monomorphizer folds a recursive
+scanner's `depth - 1` reached from `depth == 0` into a `-1`-named specialization (invalid Rust), and
+without a growing accumulator arg it also diverges the `Seq` param's type across specializations — so
+each scanner (`firstTopAssignIdx`/`firstTopArrowIdx`/`parenCloseIdx`) carries a `g` accumulator that
+turns runtime after the first token (halting monomorphization, like `topTernaryQ`/`tokHasTopSep`) and
+routes every decrement through a clamped `depthDec`. New `assignexpr-diff` fuzzer (2400 checks/6 seeds,
+two-step reads to avoid the confounder below). Full sweep green (380/380). SEPARATE pre-existing bug
+surfaced (NOT this fix, documented): an inline mutator call in a `+` expression loses its heap write to
+a later read in the same expression — `f(5)+","+JSON.stringify(m)` where `f` writes `m` reads a stale
+`m` (side-effect/evaluation-order gap in binary-op operand eval); two-step `let r=f(5); …` is correct.
+STILL DEEP: an embedded assignment inside a comparison inside a `while` condition (`while((v=x[i++])!==
+undefined)`) still crashes (the `i++`/NaN-parse family); a scalar assignment in a non-return position
+(`f(x=5)` outer-scope read, a bare `cond ? x=5 : y=5` statement) returns the right value but does not
+propagate the binding.
