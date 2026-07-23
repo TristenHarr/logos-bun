@@ -773,7 +773,7 @@
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
     If startsWith(trim(expr), "~ "):
-        Return toText(jsBnot(parseInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
+        Return toText(jsBnot(safeInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
         If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
@@ -2443,6 +2443,10 @@
         Return false.
     If item i of toks is equal to "/":
         Return true.
+    If item i of toks is equal to "%":
+        Return true.
+    If item i of toks is equal to "**":
+        Return true.
     If floatTok(concat(item i of toks, "")):
         Return true.
     Return needsFloat(toks, i + 1).
@@ -2476,7 +2480,10 @@
     If arithBadTok(split(concat(coerced, ""), " "), 1):
         Return "NaN".
     If needsFloat(split(concat(coerced, ""), " "), 1):
-        Return jsArithF64(concat(coerced, "")).
+        Let fr be jsArithF64(concat(coerced, "")).
+        If fr is equal to "-0":
+            Return "0".
+        Return fr.
     Return toText(evalParens(coerced)).
 
 ## To evalValue (expr: Text) -> Text:
