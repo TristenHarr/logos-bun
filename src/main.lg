@@ -2662,6 +2662,8 @@
     Let body be numStrBody(concat(x, "")).
     If body is equal to "":
         Return false.
+    If sciTok(concat(x, "")):
+        Return true.
     If floatTok(body):
         Let ip be substringBefore(body, ".").
         Let fp be substringAfter(body, ".").
@@ -2684,6 +2686,11 @@
     Let x be trim(decodeStr(concat(s, ""))).
     If x is equal to "":
         Return "0".
+    If sciTok(concat(x, "")):
+        Let sv be jsParseFloat(concat(x, "")).
+        If sciSafe(concat(sv, "")):
+            Return sv.
+        Return "NaN".
     If isNumericStr(concat(x, "")):
         If startsWith(x, "+"):
             Return substringAfter(x, "+").
@@ -2701,6 +2708,11 @@
         Return jsStrToNum(materialize(concat(t, ""))).
     If radixLit(concat(t, "")):
         Return jsNumberText(concat(t, "")).
+    If sciTok(concat(t, "")):
+        Let sv be jsParseFloat(concat(t, "")).
+        If sciSafe(concat(sv, "")):
+            Return sv.
+        Return "NaN".
     Return t.
 
 ## To coerceNumToks (toks: Seq of Text, i: Int, acc: Text) -> Text:
@@ -2739,6 +2751,38 @@
     If substringBefore(t, ".") is equal to t:
         Return false.
     Return true.
+
+# The exponent part of scientific notation: an optionally-`+`-signed integer (isIntStr already allows a
+# leading `-`).
+## To validExp (e: Text) -> Bool:
+    If startsWith(e, "+"):
+        Return isIntStr(substringAfter(e, "+")).
+    Return isIntStr(e).
+
+# A STRICT scientific-notation numeric token (`1e3`, `2.5e2`, `1e-2`, `+3E+4`): a decimal mantissa, one
+# `e`/`E`, then a signed-integer exponent. Strict (no trailing junk) so coercion / Number() can
+# canonicalize it to decimal via the native jsParseFloat while `Number("1e3px")` stays NaN. `floatTok`
+# only sees a decimal point, so an integer-mantissa exponent (`1e3`) needs this separate probe.
+## To sciTok (t: Text) -> Bool:
+    If t is equal to "":
+        Return false.
+    Let u be replaceAll(concat(t, ""), "E", "e").
+    If substringBefore(u, "e") is equal to u:
+        Return false.
+    Let man be substringBefore(u, "e").
+    Let rest be substringAfter(u, "e").
+    If hasSep(rest, "e"):
+        Return false.
+    If isNumericStr(concat(man, "")) is equal to false:
+        Return false.
+    Return validExp(concat(rest, "")).
+
+# A jsParseFloat result the engine's i64/f64 display can represent without overflowing: its integer part
+# is under 19 digits (i64 tops out at 19). JS's scientific display for magnitudes >= 1e21 (and integers
+# beyond i64) is a separate, deferred feature — plain `100000000000000000000` overflows the same way — so
+# a scientific literal that expands past this range falls back to NaN rather than crashing the Int parse.
+## To sciSafe (v: Text) -> Bool:
+    Return length of numStrBody(substringBefore(concat(v, ""), ".")) is less than 19.
 
 # Division or a decimal literal means the exact i64 path can't represent the result — route those to
 # the native IEEE-754 evaluator (the same f64 JS uses). Pure integer + - * stays on evalParens.
@@ -6993,6 +7037,11 @@
             If i is less than length of s:
                 If digitChar(item (i + 1) of s):
                     Return normJs(s, i + 1, inStr, concat(acc, c)).
+    If expSignChar(c):
+        If expMarkerEnd(concat(acc, "")):
+            If i is less than length of s:
+                If digitChar(item (i + 1) of s):
+                    Return normJs(s, i + 1, inStr, concat(acc, c)).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
         Return normJs(s, i + 3, inStr, concat(acc, spaced(op3))).
@@ -7012,6 +7061,71 @@
     If o is greater than 57:
         Return false.
     Return true.
+
+## To expSignChar (c: Text) -> Bool:
+    If c is equal to "-":
+        Return true.
+    If c is equal to "+":
+        Return true.
+    Return false.
+
+# A char that continues an unbroken number/identifier run (alphanumeric or `.`) — used to walk back to
+# the start of the token `acc` currently ends with.
+## To numRunChar (c: Text) -> Bool:
+    If c is equal to ".":
+        Return true.
+    Let o be ord(c).
+    If o is greater than 47:
+        If o is less than 58:
+            Return true.
+    If o is greater than 96:
+        If o is less than 123:
+            Return true.
+    If o is greater than 64:
+        If o is less than 91:
+            Return true.
+    Return false.
+
+## To trailNumStart (acc: Text, i: Int) -> Int:
+    If i is less than 1:
+        Return 1.
+    If numRunChar(item i of acc):
+        Return trailNumStart(acc, i - 1).
+    Return i + 1.
+
+# Every char is a decimal digit or `.` — a valid scientific MANTISSA, which excludes a hex/bin/oct run
+# (`0x48`, whose `x`/`b`/`o` fails here) so its trailing `e`/`b` hex digit is not mistaken for an exponent.
+## To allDecChar (s: Text, i: Int) -> Bool:
+    If i is greater than length of s:
+        Return true.
+    Let c be item i of s.
+    If c is equal to ".":
+        Return allDecChar(s, i + 1).
+    If digitChar(c):
+        Return allDecChar(s, i + 1).
+    Return false.
+
+# True when `acc` ends with a scientific exponent marker `e`/`E` that immediately follows a digit AND the
+# whole trailing number run before it is a decimal mantissa — so a `-`/`+` next is the exponent's sign
+# (`1e-2`), not a binary operator. The digit-before test rejects an identifier ending in `e` (`somee - 2`);
+# the decimal-mantissa test rejects a hex literal ending in `e` (`0x48e + 3`, where `e` is a hex digit).
+## To expMarkerEnd (acc: Text) -> Bool:
+    If length of acc is less than 2:
+        Return false.
+    Let lc be item (length of acc) of acc.
+    If expEChar(lc) is equal to false:
+        Return false.
+    If digitChar(item ((length of acc) - 1) of acc) is equal to false:
+        Return false.
+    Let st be trailNumStart(concat(acc, ""), length of acc).
+    Return allDecChar(strSliceLoop(concat(acc, ""), st, (length of acc) - 1, ""), 1).
+
+## To expEChar (c: Text) -> Bool:
+    If c is equal to "e":
+        Return true.
+    If c is equal to "E":
+        Return true.
+    Return false.
 
 ## To lastCharOf (s: Text) -> Text:
     If s is equal to "":

@@ -2679,3 +2679,23 @@ new `joinRange6` keyed on `acc == ""` (a tagged element is never the empty strin
 is re-read fresh from the ref (arrElements per join) so the element Seq is never threaded through two
 consuming joins. New `splice-diff` fuzzer (2400 checks/6 seeds, compares removed-array AND post-splice
 array). Full sweep green (384/384).
+
+**Scientific notation `1e3`/`2e-2` (2026-07-23, 64th engine fix).** An integer-mantissa exponent was NaN
+everywhere — `Number("1e3")`, the literal `1e3`, `+"3e2"`, `1e3+5`, `(5e3).toString()` — while a decimal
+mantissa (`2.5e3`) worked. Root cause: `floatTok` only recognized a decimal POINT, so `1e3` (no dot) was
+neither an int (`isIntStr` fails on the `e`) nor a float, and the arithmetic path called it bad → NaN. Two
+fixes: (1) a strict `sciTok` (decimal mantissa + `e`/`E` + signed-integer exponent) recognized in
+`coerceNumTok`, `jsStrToNum`, and `isNumericStr`, canonicalizing the token to decimal via the native
+`jsParseFloat` — with a magnitude guard `sciSafe` (integer part < 19 digits) so a literal that would
+overflow the i64 display falls back to NaN instead of CRASHING the Int parse (this also stops the
+pre-existing `1.5e30`/`6.022e23` panic — JS's scientific DISPLAY for ≥1e21 and integers past i64 is a
+separate deferred feature); (2) the tokenizer (`normJs`) now keeps a signed exponent (`1e-2`/`1e+2`)
+together instead of splitting at the `-`/`+`, guarded by `expMarkerEnd` (the `e` must follow a digit AND
+the whole trailing run must be a decimal mantissa — so `somee - 2` stays a subtraction and a hex literal
+`0x48e + 3`, whose `e` is a hex digit, is not glued). `1e3`, `1e-2`, `1e+2`, `1.5e-3`, `3E4`, `Number("…")`,
+arithmetic, and `.toString()` all match Node; `0x48e+3`/`0x5e+29` hex-plus-add, `var e-2` subtraction, and
+every existing numeric test unchanged. New `scinotation-diff` fuzzer (1800 checks/6 seeds, restricted to
+values Node renders as plain decimal). Regression caught + fixed by the sweep: `expMarkerEnd`'s first cut
+misfired on hex literals ending in `e` (`0x48e+3` → glued) — the decimal-mantissa test closed it. Full
+sweep green (386/386). DEFERRED (documented): magnitudes ≥ ~1e18 (scientific/BigInt display, shared with
+the plain large-integer-literal overflow) → NaN not a crash.
