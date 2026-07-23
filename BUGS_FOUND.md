@@ -2025,3 +2025,15 @@ arrives as the separate term `+"7"` (→7) then `+ 3` → 10; `+"7" - 2` → 5; 
 sweep green. **NOTE (separate pre-existing bug, NOT this fix):** `typeof +"7"` / `typeof -"7"` panic
 (`Cannot parse '+' as Int`) — typeof doesn't parenthesize a unary-prefixed operand; `typeof (+"7")`
 works. Filed for a future typeof fix.
+
+**`typeof` of a unary-prefixed operand (2026-07-23, 19th engine fix).** `typeof` grabbed only the first
+space-token as its operand, so a unary prefix broke it: `typeof -5` **panicked** (`jsEval("-")`),
+`typeof !0` leaked the operand (`"number 0"` instead of `"boolean"`), `typeof ~5`→`"number 5"`. **Fix:**
+`resolveTypeof` now consumes the full unary-prefix chain (`!-3` = `!(-3)`) plus its one primary via
+`typeofOperandLen`, evaluates that unary expression, and classifies the value with a shared `typeOfVal`
+(refactored out of `typeOfTag`). Also `arithValue` strips a leading unary `+` (`stripUnaryPlus`) — it
+is ToNumber, the identity in a numeric context — so the native integer evaluator never chokes on a bare
+`+` prefix (`+-3`→-3, `typeof +-3`→"number"). `typeof -5`/`!0`/`~5`/`+"7"`/`!-3` all correct now.
+`typeofunary-diff` fuzzer (unary prefixes over number/string/bool operands + `typeof` precedence vs
+binary `+`). Known limit (pathological, not real-world, not fuzzer-reachable): quadruple-nested
+alternating signs `+-+-5` still panics — the flattened integer evaluator folds only one leading sign.

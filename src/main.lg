@@ -2649,8 +2649,16 @@
     Let rest be substringAfter(afterFirst, chr(34)).
     Return concat(concat(before, jsStrToNum(content)), coerceStrLits(rest)).
 
+# A leading unary `+` is ToNumber, which is the identity in a numeric context (the operand is about
+# to be evaluated numerically) — strip it so the native integer evaluator never sees a bare `+`
+# prefix (`+ - 3` → `- 3`). Nested (`+ + 3`) unwinds recursively.
+## To stripUnaryPlus (e: Text) -> Text:
+    If startsWith(trim(e), "+ "):
+        Return stripUnaryPlus(trim(substringAfter(trim(e), "+ "))).
+    Return e.
+
 ## To arithValue (expr: Text) -> Text:
-    Let coerced be coerceNumToks(split(coerceStrLits(concat(expr, "")), " "), 1, "").
+    Let coerced be coerceNumToks(split(stripUnaryPlus(coerceStrLits(concat(expr, ""))), " "), 1, "").
     If hasBigTok(split(concat(coerced, ""), " "), 1):
         Return bigintEval(concat(coerced, "")).
     If arithBadTok(split(concat(coerced, ""), " "), 1):
@@ -2759,10 +2767,11 @@
         Return concat(tagStr (), jsDateField(ms, "iso")).
     Return "NaN".
 
-## To typeOfTag (tok: Text) -> Text:
-    If startsWith(tok, chr(1)):
+# The `typeof` of an already-evaluated value (functions are opaque chr(1) closures; typeof null is
+# "object"; a heap Symbol reports "symbol", every other ref "object").
+## To typeOfVal (v: Text) -> Text:
+    If startsWith(v, chr(1)):
         Return concat(tagStr (), "function").
-    Let v be evalValue(litToStr(tok)).
     If startsWith(v, tagBig ()):
         Return concat(tagStr (), "bigint").
     If startsWith(v, tagStr ()):
@@ -2783,6 +2792,31 @@
         Return concat(tagStr (), "undefined").
     Return concat(tagStr (), "number").
 
+## To typeOfTag (tok: Text) -> Text:
+    If startsWith(tok, chr(1)):
+        Return concat(tagStr (), "function").
+    Return typeOfVal(evalValue(litToStr(tok))).
+
+## To isUnaryPrefix (tok: Text) -> Bool:
+    If tok is equal to "+":
+        Return true.
+    If tok is equal to "-":
+        Return true.
+    If tok is equal to "!":
+        Return true.
+    If tok is equal to "~":
+        Return true.
+    Return false.
+
+# The last token index of a unary operand: a run of leading unary prefixes (`!-3` = `!(-3)`) plus the
+# single primary they apply to.
+## To typeofOperandLen (atoks: Seq of Text, i: Int) -> Int:
+    If i is greater than length of atoks:
+        Return i - 1.
+    If isUnaryPrefix(item i of atoks):
+        Return typeofOperandLen(atoks, i + 1).
+    Return i.
+
 ## To resolveTypeof (expr: Text) -> Text:
     If substringBefore(expr, "typeof ") is equal to expr:
         Return expr.
@@ -2790,6 +2824,11 @@
     Let after be substringAfter(expr, "typeof ").
     Let atoks be split(after, " ").
     Let tok be item 1 of atoks.
+    If isUnaryPrefix(tok):
+        Let opend be typeofOperandLen(atoks, 1).
+        Let operand be joinRange(atoks, 1, opend, "").
+        Let urest be joinRange(atoks, opend + 1, length of atoks, "").
+        Return resolveTypeof(trim(concat(concat(before, typeOfVal(jsEvalCmp(operand))), urest))).
     Let restToks be joinRange(atoks, 2, length of atoks, "").
     Return resolveTypeof(trim(concat(concat(before, typeOfTag(tok)), restToks))).
 
