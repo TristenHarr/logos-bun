@@ -5261,8 +5261,41 @@
     Let isInst be split(classTagGet(refId(concat(inst, ""))), ",") contains cname.
     Return resolveInstanceof(trim(concat(concat(cmpResult(isInst), " "), restR)), env).
 
+# Resolve a static-field READ `ClassName . field` → its value, using the `__static_<Class>_<field>`
+# binding the class desugar records. Runs before `substitute` (with env), like the static-CALL path.
+# It fires ONLY when that exact binding exists, so an instance `obj.prop` (no such binding) is left
+# untouched for ordinary member resolution.
+## To resolveStaticProps (toks: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return trim(acc).
+    Let cur be concat(item i of toks, "").
+    If i is less than (length of toks) - 1:
+        Let nxt be concat(item (i + 1) of toks, "").
+        Let nxt2 be concat(item (i + 2) of toks, "").
+        If nxt is equal to ".":
+            Let sv be envGet(concat(env, ""), concat(concat(concat("__static_", cur), "_"), nxt2)).
+            If sv is not equal to "":
+                Return resolveStaticProps(toks, i + 3, env, concat(concat(acc, " "), sv)).
+    Return resolveStaticProps(toks, i + 1, env, concat(concat(acc, " "), cur)).
+
+# If an assignment target `ClassName . field` names a static field (its `__static_<Class>_<field>`
+# binding exists), returns that key so the assignment can rewrite to a plain `__static_…` binding;
+# otherwise "". A static field reassigned from within a method persists only within that call (the
+# `__static_` binding is a scalar in the enclosing env, same limitation as any captured scalar).
+## To staticFieldKey (lhs: Text, env: Text) -> Text:
+    Let toks be split(concat(lhs, ""), " ").
+    If length of toks is equal to 3:
+        Let a be concat(item 1 of toks, "").
+        Let dot be concat(item 2 of toks, "").
+        Let b be concat(item 3 of toks, "").
+        If dot is equal to ".":
+            Let k be concat(concat(concat("__static_", a), "_"), b).
+            If envGet(concat(env, ""), concat(k, "")) is not equal to "":
+                Return k.
+    Return "".
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
-    Let te be trim(resolveInstanceof(resolveProcessEnv(expr), env)).
+    Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
     If startsWith(te, "await "):
         Return awaitValue(jsEvalIn(substringAfter(te, "await "), env)).
     Let tks be split(te, " ").
@@ -6263,6 +6296,9 @@
         Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
     If hasTopSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
+        Let sfk be staticFieldKey(concat(lhs, ""), concat(env, "")).
+        If sfk is not equal to "":
+            Return bindAssign(concat(concat(sfk, " = "), substringAfter(s, " = ")), env).
         If startsWith(lhs, chr(91)):
             Return destructureArr(concat(lhs, ""), jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, " . "):
@@ -6993,6 +7029,12 @@
     If name is equal to "constructor":
         Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics, fields).
     If name is equal to "static":
+        If nthTok(concat(b, ""), 3) is equal to "=":
+            Let sfname be nthTok(concat(b, ""), 2).
+            Let sfval be trim(substringBefore(substringAfter(b, " = "), " ; ")).
+            Let sfrest be trim(substringAfter(substringAfter(b, " = "), " ; ")).
+            Let sfbind be concat(concat(concat(concat("__static_", cname), concat("_", sfname)), concat(" = ", sfval)), " ; ").
+            Return classWalk(cname, parent, sfrest, cparams, cbody, methods, concat(statics, sfbind), fields).
         If nthTok(concat(b, ""), 2) is not equal to chr(40):
             Let sname be nthTok(concat(b, ""), 2).
             Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").

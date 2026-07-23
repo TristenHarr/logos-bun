@@ -2528,3 +2528,20 @@ templates, `"pre:"+o+":post"`, and Error coercion all match Node; object member 
 number concat, JSON, string-literal brackets unchanged. New `objstringify-diff` fuzzer (2400 checks/6
 seeds). Full sweep green. (Still open: the DIRECT `new Error("m").toString()` — no intermediate
 variable — is a separate stack-overflow in the method-on-a-`new`-expression receiver path.)
+
+**Static class fields (2026-07-23, 55th engine fix).** `class C { static count = 0 }` then `C.count`
+returned garbage (` . count`). The class desugar's `static` branch always treated the member as a
+METHOD, so `static x = v` desugared to a bogus `__static_C_x = function(…){}`; and even with a binding,
+the READ `C.x` didn't resolve (by the time `resolveAccess` runs, `C` is already substituted to the
+constructor function, so the class name is gone). Three coordinated fixes: (1) a static-FIELD branch in
+`classWalk` (when the token after the name is `=`) binds `__static_C_x = value` (mirroring the
+instance-field desugar); (2) `resolveStaticProps` resolves a `ClassName.field` READ to its value before
+`substitute` (with env, like the static-CALL path), firing only when that exact `__static_…` binding
+exists so instance `obj.prop` is untouched; (3) the `=` dispatch rewrites `C.field = v` to the
+`__static_…` binding via `staticFieldKey`. `static x=5`→`C.x`, multiple statics, same-scope
+`C.n=C.n+3` accumulation, `Config.timeout+Config.retries`, and a static method reading a static field
+all match Node; static methods, instance field access/assignment, nested access, array-index write
+unchanged. New `staticfield-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (A static field
+*mutated from inside a method* persists only within that call — the `__static_` binding is a scalar in
+the enclosing env, the same scalar-write-back limitation as any captured scalar; documented, avoided
+in the fuzzer.)
