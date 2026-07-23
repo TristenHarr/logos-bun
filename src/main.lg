@@ -3913,6 +3913,11 @@
         Let aft be substringAfter(expr, "Number . parseInt (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsParseIntArgs(methodArg(aft), env)), rst)), env).
+    If substringBefore(expr, "Number . parseFloat (") is not equal to expr:
+        Let bef be substringBefore(expr, "Number . parseFloat (").
+        Let aft be substringAfter(expr, "Number . parseFloat (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, jsParseFloat(decodeStr(materialize(jsEvalIn(trim(methodArg(aft)), env))))), rst)), env).
     If substringBefore(expr, "Number . MAX_SAFE_INTEGER") is not equal to expr:
         Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . MAX_SAFE_INTEGER"), "9007199254740991"), substringAfter(expr, "Number . MAX_SAFE_INTEGER"))), env).
     If substringBefore(expr, "Number . MIN_SAFE_INTEGER") is not equal to expr:
