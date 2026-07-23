@@ -1792,3 +1792,35 @@ do-while, function hoisting, labeled flow, braceless bodies; (c) THROW behavior 
 member access; (d) a long tail of partial builtins. Two stack-overflow crashes (`+"str"`,
 `exec`-with-groups) are the only hard-fail P0s. This backlog (task #32) + the parser (task #29) are
 the concrete route from 93.94% toward ≥99%.
+
+---
+
+**BUG-HUNT BATCH 5 — numeric-edge + property-descriptor CRASHES (2026-07-23).** Hunting genuinely
+un-touched areas (arithmetic edge cases, `Object.*` descriptor ops) surfaced FOUR more process
+crashes — new areas, new crash clusters (so the hunt was not yet exhausted). Verified clean vs Node.
+
+**P0 — CRASHES (process panic / stack overflow).**
+- `10 % 0` (integer modulo by zero) → **panic** (Node `NaN`). Also `7%0`. Rust `%` on 0 divisor.
+- `2 ** -1` / `4 ** -2` (integer base, NEGATIVE integer exponent) → **panic** (Node `0.5` / `0.0625`).
+  `2**0.5` (fractional exp) and `Math.pow(2,-1)` both WORK — the `**` operator takes an integer-pow
+  path that overflows/panics on a negative exponent. Fix: fall to float pow when exp<0 or non-integer.
+- `Object.defineProperty(o,"x",{value:5})` → **stack overflow** (Node `5`).
+- `Object.getOwnPropertyDescriptor({a:1},"a")` → **stack overflow** (Node `{value:1,…}`).
+
+These four join the earlier two (`+"str"`, `/re/.exec()` with groups) → **6 hard crashes total**, the
+highest-priority robustness fixes (a JS engine must never abort on `10%0` or `2**-1`).
+
+**P1/P2 — Object descriptor gaps.**
+- `Object.freeze(o)` / `Object.isFrozen(o)` → `NaN` (missing; isFrozen should be true after freeze).
+- `Object.getPrototypeOf({})===Object.prototype` → `false` (getPrototypeOf doesn't return the real
+  prototype object).
+- Getter with side effects re-read: `let o={get x(){c++;return c}}; o.x;o.x;o.x` → `NaN` (Node `3`);
+  a side-effecting getter accessed repeatedly misbehaves (simple no-side-effect getters work).
+
+(Correct in this sweep: `1/0`→Infinity, `-1/0`→-Infinity, `0/0`/`Inf-Inf`/`sqrt(-1)`→NaN,
+`2**0.5`, `Math.pow`, `MAX_SAFE_INTEGER+1`; Map/Set dup-key/size/keys/has; `Object.keys().length`;
+`delete o.a` then `"a" in o`→false; regex `/g` replace; split-on-empty; indexOf/lastIndexOf.)
+
+**Updated crash tally for task #32: 6 P0 crashes** — `+"str"`, `exec`-with-groups, `%0`, `**`-neg-exp,
+`defineProperty`, `getOwnPropertyDescriptor`. Fix these first (each is a one-spot guard: NaN/float-
+path/implement-the-method). Read-only find; main.lg under concurrent edit.
