@@ -5618,16 +5618,36 @@
         Return braceBody(s, i + 1, depth - 1, concat(acc, c)).
     Return braceBody(s, i + 1, depth, concat(acc, c)).
 
+# A class desugars (desugarClass) to `__static_<C>_m = function…` / `__super_<C> = …` bindings
+# followed by a plain `function <C>(…){…}` constructor. Unlike a real function declaration, a class
+# is NOT hoisted (its statics reference `new <C>` and rely on <C> being undefined until the ctor line
+# runs — hoisting <C> makes the static's function-literal RHS substitute-capture the ctor value and
+# break `new <C>`). So a `function <C>` whose block also carries a `__static_<C>_`/`__super_<C>`
+# marker is a class constructor and must NOT be hoisted.
+## To hasClassMarker (stmts: Seq of Text, j: Int, name: Text) -> Bool:
+    If j is greater than length of stmts:
+        Return false.
+    Let sj be trim(item j of stmts).
+    If startsWith(sj, concat(concat("__static_", name), "_")):
+        Return true.
+    If startsWith(sj, concat(concat("__super_", name), " ")):
+        Return true.
+    Return hasClassMarker(stmts, j + 1, name).
+
 # Function DECLARATIONS hoist to the top of their block: a `function NAME(…){…}` statement is
 # usable before its textual position (and mutually-recursive declarations see each other). Before
 # running a block we bind every top-level function declaration into the env, then execute the
 # statements in order. `defineFn` does NOT substitute the body, so free names (incl. sibling
-# hoisted functions) resolve via the inherited env at call time.
+# hoisted functions) resolve via the inherited env at call time. Class constructors are skipped
+# (classes are not hoisted — see hasClassMarker).
 ## To hoistFns (stmts: Seq of Text, i: Int, env: Text) -> Text:
     If i is greater than length of stmts:
         Return env.
     Let st be trim(item i of stmts).
     If startsWith(st, "function "):
+        Let fname be trim(substringBefore(substringAfter(st, "function "), "(")).
+        If hasClassMarker(stmts, 1, concat(fname, "")):
+            Return hoistFns(stmts, i + 1, env).
         Return hoistFns(stmts, i + 1, defineFn(st, env)).
     Return hoistFns(stmts, i + 1, env).
 
@@ -6226,14 +6246,72 @@
     Let init be trim(item 1 of split(hdr, ";")).
     Return forStmt(stmt, execStmt(init, env)).
 
+# A program's LAST statement is evaluated as an expression so the __js REPL can surface its value
+# (`5+3`→8, `foo()`→its return). But a *statement-form* (a declaration, control-flow, console.*, or
+# assignment) is not an expression — running it through jsEvalIn mangles it (and `console.log(…)`
+# recurses to a stack overflow). Such a trailing statement runs via execStmt for its side effect and
+# yields `undefined`, exactly like every earlier statement in the program.
+## To isStmtForm (s: Text) -> Bool:
+    If startsWith(s, "console . "):
+        Return true.
+    If startsWith(s, "process . exit"):
+        Return true.
+    If startsWith(s, "function "):
+        Return true.
+    If startsWith(s, "return"):
+        Return true.
+    If startsWith(s, "throw "):
+        Return true.
+    If startsWith(s, "try "):
+        Return true.
+    If startsWith(s, "if "):
+        Return true.
+    If startsWith(s, "for "):
+        Return true.
+    If startsWith(s, "while "):
+        Return true.
+    If startsWith(s, "do "):
+        Return true.
+    If startsWith(s, concat("do", chr(123))):
+        Return true.
+    If startsWith(s, "switch "):
+        Return true.
+    If startsWith(s, "let "):
+        Return true.
+    If startsWith(s, "const "):
+        Return true.
+    If startsWith(s, "var "):
+        Return true.
+    If startsWith(s, "delete "):
+        Return true.
+    If startsWith(s, "break"):
+        Return true.
+    If startsWith(s, "continue"):
+        Return true.
+    If needsIncDec(concat(s, "")):
+        Return true.
+    If hasTopSep(s, " = "):
+        Return true.
+    If hasTopSep(s, " += "):
+        Return true.
+    If hasTopSep(s, " -= "):
+        Return true.
+    If hasTopSep(s, " *= "):
+        Return true.
+    Return false.
+
 ## To runProgram (stmts: Seq of Text, i: Int, env: Text) -> Text:
     Let stmt be trim(item i of stmts).
     If i is equal to length of stmts:
+        If isStmtForm(concat(stmt, "")):
+            Let done be execStmt(stmt, env).
+            Return "undefined".
         Return jsEvalIn(stmt, env).
     Return runProgram(stmts, i + 1, execStmt(stmt, env)).
 
 ## To jsRun (program: Text) -> Text:
-    Let v be runProgram(split(splitTop(program, 1, 0, ""), chr(10)), 1, "").
+    Let flat be splitTop(program, 1, 0, "").
+    Let v be runProgram(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, "")).
     Let drained be drainMicrotasks("", "").
     Return v.
 

@@ -2359,3 +2359,32 @@ evaluates the trailing statement with `jsEvalIn` (expression semantics) and `con
 expression recurses in `resolveCalls`. The real `bun run file.js` path (`runModuleBody`→`runBlock`)
 is unaffected — `console.log("plain")` in a file prints correctly. Deferred: `runProgram` should run a
 trailing statement-form via `execStmt` (side effect, value `undefined`) rather than `jsEvalIn`.
+
+**`__js` REPL trailing statement-form + top-level hoisting (2026-07-23, 45th engine fix).** Closes the
+gap flagged in #44. `runProgram` evaluated a program's LAST statement with `jsEvalIn` so the REPL can
+surface an expression's value (`5+3`→8), but a *statement-form* is not an expression: `console.log(…)`
+recursed to a stack overflow, and `let`/`if`/`for`/`function`/assignment all returned `NaN` (a trailing
+`function f(){…}` even mis-executed its body). New `isStmtForm` predicate (console.\*/`process.exit`/
+declarations/control-flow/`delete`/`break`/`continue`/inc-dec/top-level assignment) routes a trailing
+statement-form through `execStmt` (side effect, value `undefined`), keeping `jsEvalIn` for genuine
+expressions. With the trailing statement now handled correctly, top-level hoisting was re-enabled in
+`jsRun` (safe only once the trailing declaration stopped mis-executing). `console.log("x")`→prints x
+(no crash), `if`/`for` bodies run, a trailing `function f(){…}` defines without running its body, and
+top-level `greet(); function greet(){…}`→"hoisted", `let x=dbl(5); function dbl(){…}; x`→10,
+`console.log(fact(5)); function fact(){…}`→120 all match Node via `__js`; every expression last-line
+(`5+3`, IIFE, `.map().join()`, default-params) still returns its value unchanged. Full sweep green —
+the fuzzers observe expression values, so none is affected by the trailing-statement-form change.
+
+Also fixed a **class ↔ hoisting** interaction the hoisting pre-pass introduced (a latent break in the
+#44 hoisting that the fuzzers hadn't exercised — `classstatic-diff` runs only top-level `__js`, which
+was un-hoisted until this fix, so it stayed green). A class desugars to `__static_C_m = function… ;
+function C(…){…}` with the statics BEFORE the constructor: they rely on `C` being undefined until the
+ctor line runs, so `new C` in a static resolves at call time. Hoisting `function C` bound `C` early,
+so the static's function-literal RHS substitute-captured the constructor value and `new C` broke
+(`class A{…static of(v){return new A(v)}}; A.of(8).x`→NaN — in every hoisting path: function body,
+`bun run` file, and `__js`). JS classes are NOT hoisted (TDZ), so `hoistFns` now skips a `function C`
+whose block also carries a `__static_C_`/`__super_C` marker (`hasClassMarker`) — a class constructor,
+not a real function declaration. Class statics, static-calling-static, `extends`+`super`, and instance
+methods all work again alongside genuine forward-referenced function declarations. New
+`classhoisting-diff` fuzzer (1800 checks/6 seeds) locks the interaction; `classstatic-diff` also guards
+it. Final full sweep green.
