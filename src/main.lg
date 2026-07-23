@@ -2348,8 +2348,35 @@
         Return arrSetLoop(els, i + 1, idx, newval, el).
     Return arrSetLoop(els, i + 1, idx, newval, concat(concat(acc, tagArrSep ()), el)).
 
+## To joinArrEls (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    If acc is equal to "":
+        Return joinArrEls(els, i + 1, concat(el, "")).
+    Return joinArrEls(els, i + 1, concat(concat(acc, tagArrSep ()), el)).
+
+## To arrAppendN (acc: Text, n: Int, val: Text) -> Text:
+    If n is less than 1:
+        Return acc.
+    If acc is equal to "":
+        Return arrAppendN(concat(val, ""), n - 1, val).
+    Return arrAppendN(concat(concat(acc, tagArrSep ()), val), n - 1, val).
+
+# Assigning past the end of an array grows it, filling the gap with `undefined` holes (JS sparse
+# array): `[5]` then `a[2]=9` → `[5, undefined, 9]` (length 3). Existing elements are re-joined,
+# `idx - curLen` undefined slots are appended, then the new value lands at `idx`.
+## To arrGrowSet (arrval: Text, curLen: Int, idx: Int, newval: Text) -> Text:
+    Let withHoles be arrAppendN(joinArrEls(arrElements(concat(arrval, "")), 1, ""), idx - curLen, "undefined").
+    If withHoles is equal to "":
+        Return concat(newval, "").
+    Return concat(concat(withHoles, tagArrSep ()), newval).
+
 ## To arrSetIdx (arrval: Text, idx: Int, newval: Text) -> Text:
-    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrSetLoop(arrElements(arrval), 1, idx, newval, "")), tagArrEnd ())).
+    Let curLen be length of arrElements(concat(arrval, "")).
+    If idx is greater than (curLen - 1):
+        Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrGrowSet(concat(arrval, ""), curLen, idx, newval)), tagArrEnd ())).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrSetLoop(arrElements(concat(arrval, "")), 1, idx, newval, "")), tagArrEnd ())).
 
 ## To objKeyOf (keyPart: Text) -> Text:
     If startsWith(keyPart, chr(91)):

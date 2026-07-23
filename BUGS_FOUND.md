@@ -2302,3 +2302,20 @@ guard fires on the `.` *inside* the bracket key (fix staged: `hasSep`→`hasTopS
    unchanged. Bracket *reads* already balanced correctly. New `bracketkey-diff` fuzzer (2400 checks/6
    seeds). Full sweep green. (Still open in the same area: mixed access `a[i].b=v` / `a.b[i]=v`, and
    the identical first-`]` truncation in the `delete a[…]` path — both pre-existing, out of scope.)
+
+**Sparse-array grow on out-of-bounds assignment (2026-07-23, 42nd engine fix).** `let a=[5]; a[2]=9`
+left `a` unchanged (`.length`→1, `a[2]`→undefined) — `arrSetLoop` walks only the *existing* elements,
+so an index past the end never inserted. JS grows the array and fills the gap with `undefined` holes:
+`[5]`+`a[2]=9`→`[5,,9]` (length 3, `a[1]`→undefined, `join(",")`→`"5,,9"`). `arrSetIdx` now measures
+`curLen` and, when `idx > curLen-1`, routes to a new `arrGrowSet` (re-join existing els via
+`joinArrEls`, append `idx-curLen` `undefined` slots via `arrAppendN`, then the value at `idx`);
+in-bounds writes keep the fast `arrSetLoop` path. Our engine already renders an explicit `undefined`
+element exactly like a hole (`join` emits empty, `length` counts it), so growth is byte-identical to
+Node. This also completes the closure case `[…].forEach((x,i)=>{a[i]=…})` building an array from `[]`
+(needs the grow *and* the 40th-fix free-var mutation together). `a[2]=9` on `[5]`, `a[3]=1` on `[]`,
+`a[5]=6` on `[1]`→`"1,,,,,6"`, out-of-order writes, grow-then-overwrite all match Node; in-bounds
+`a[i]=v`/`push`/`a.length` unchanged. Codegen note: reusing a `Seq of Text` local across two calls
+made LOGOS pass it as a borrowed slice (type mismatch) and tripped E0382 — fixed by binding
+`item i of els` to a `Let` first and passing fresh `arrElements(…)` calls (owned Seq), with the
+reusable value being the `Int` `curLen`. New `sparsegrow-diff` fuzzer (2400 checks/6 seeds). Full
+sweep green.
