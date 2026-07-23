@@ -2494,3 +2494,20 @@ Fix: `stripTrailSemi` drops a trailing `;` from the braceless consequent and the
 braceless `for` (`for (…) if (c) s+=i; else s-=1;`) all match Node; braced `if/else`, `else if`
 chains, and a braceless then with no else are unchanged. New `bracelessif-diff` fuzzer (2400 checks/6
 seeds). Full sweep green.
+
+**Labeled loops + `break LABEL` / `continue LABEL` (2026-07-23, 53rd engine fix).** A labeled loop
+`LABEL: for (…) …` returned `0` (the label prefix meant the statement didn't start with a loop
+keyword, so it fell through to expression eval and never ran), and even once dispatched, a nested
+`break LABEL`/`continue LABEL` could only ever target the innermost loop. Implemented properly: a new
+`isLabeledLoop`/`execLabeledLoop` recognizes `IDENT : (for|while|do) …`, strips the label, and runs
+the loop carrying it; the break/continue flag now holds the label (not just `"1"`); each loop threads
+its own label and, via `flagMatchesHere`, HANDLES the signal when the flag is `"1"` or its own label,
+otherwise still stops iterating but leaves the flag set so an OUTER labeled loop receives it —
+crossing loop levels. Threaded through `execWhile`/`execDoWhile`/`forStmt`/`forOfLoop` (+`execForOf`/
+`execForIn`/`execFor`). Root-cause of a self-inflicted hang along the way: the labeled-loop dispatch
+had to move to the TOP of `execStmt`, ahead of `needsIncDec` — which skips a statement starting with
+`for `/`while ` but not one starting with a *label*, so it was rewriting the header's `i++` to `NaN`
+and spinning forever. `break L`, `continue outer`, `break outer`, labeled `while`/`for-of`, and a
+plain labeled loop all match Node; unlabeled `break`/`continue`, nested plain loops, `for-of`,
+`do-while` unchanged. New `labeledloop-diff` fuzzer (1800 checks/6 seeds, 4s timeout catches hangs).
+Full sweep green.

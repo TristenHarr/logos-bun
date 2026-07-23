@@ -1068,6 +1068,17 @@
 ## To clearContinue (env: Text) -> Text:
     Return envSet(env, "__continue", "").
 
+# A break/continue flag holds "1" (plain, targets the innermost loop) or a LABEL name (targets the
+# loop carrying that label). A loop whose own label is `lbl` handles the signal when the flag is "1"
+# or equals `lbl`; otherwise it still stops iterating but leaves the flag set so an outer labeled loop
+# receives it. This is what lets `break outer` / `continue outer` cross loop levels.
+## To flagMatchesHere (val: Text, lbl: Text) -> Bool:
+    If val is equal to "1":
+        Return true.
+    If val is equal to concat(lbl, ""):
+        Return true.
+    Return false.
+
 # An empty positional arg slot means NO argument was passed (a call like `f()` tokenizes to a single
 # empty field, and elisions leave empty fields), so it reads as `undefined` — this is what lets a
 # default parameter fire when its slot is omitted. A real empty-string literal is a non-empty token
@@ -6118,6 +6129,8 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If isLabeledLoop(concat(s, "")):
+        Return execLabeledLoop(concat(s, ""), env).
     If needsIncDec(s):
         Let nStmt be incDecRewrite(split(concat(s, ""), " "), 1, 0, concat(env, ""), "").
         Let nEnv be incDecEnv(split(concat(s, ""), " "), 1, 0, concat(env, "")).
@@ -6125,11 +6138,11 @@
     If s is equal to "break":
         Return envSet(env, "__break", "1").
     If startsWith(s, "break "):
-        Return envSet(env, "__break", "1").
+        Return envSet(env, "__break", trim(substringAfter(s, "break "))).
     If s is equal to "continue":
         Return envSet(env, "__continue", "1").
     If startsWith(s, "continue "):
-        Return envSet(env, "__continue", "1").
+        Return envSet(env, "__continue", trim(substringAfter(s, "continue "))).
     If startsWith(s, "delete "):
         Return deleteTarget(trim(substringAfter(s, "delete ")), env).
     If s is equal to "__GENRESET":
@@ -6173,13 +6186,13 @@
     If startsWith(s, "try "):
         Return execTry(s, env).
     If startsWith(s, "do "):
-        Return execDoWhile(s, env).
+        Return execDoWhile(s, "", env).
     If startsWith(s, concat("do", chr(123))):
-        Return execDoWhile(s, env).
+        Return execDoWhile(s, "", env).
     If startsWith(s, "while "):
-        Return execWhile(s, env).
+        Return execWhile(s, "", env).
     If startsWith(s, "for "):
-        Return execFor(s, env).
+        Return execFor(s, "", env).
     If startsWith(s, "if "):
         Return execIf(s, env).
     If startsWith(s, "switch "):
@@ -6292,7 +6305,7 @@
         Return braceBody(substringAfter(afterClose, chr(123)), 1, 0, "").
     Return trim(afterClose).
 
-## To execWhile (stmt: Text, env: Text) -> Text:
+## To execWhile (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
@@ -6302,10 +6315,14 @@
         If hasHalt(afterBody):
             Return afterBody.
         If hasBreak(afterBody):
-            Return clearBreak(afterBody).
+            If flagMatchesHere(envGet(afterBody, "__break"), lbl):
+                Return clearBreak(afterBody).
+            Return afterBody.
         If hasContinue(afterBody):
-            Return execWhile(stmt, clearContinue(afterBody)).
-        Return execWhile(stmt, afterBody).
+            If flagMatchesHere(envGet(afterBody, "__continue"), lbl):
+                Return execWhile(stmt, lbl, clearContinue(afterBody)).
+            Return afterBody.
+        Return execWhile(stmt, lbl, afterBody).
     Return env.
 
 ## To clearContIf (env: Text) -> Text:
@@ -6316,7 +6333,7 @@
 # do-while runs the body ONCE before testing the guard (unlike while). The body is the first brace
 # group; the condition is the while-paren that follows it. break exits, continue jumps to the guard
 # test (both handled like execWhile). Loops by re-running the whole statement while the guard holds.
-## To execDoWhile (stmt: Text, env: Text) -> Text:
+## To execDoWhile (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
@@ -6325,13 +6342,18 @@
     If hasHalt(afterBody):
         Return afterBody.
     If hasBreak(afterBody):
-        Return clearBreak(afterBody).
+        If flagMatchesHere(envGet(afterBody, "__break"), lbl):
+            Return clearBreak(afterBody).
+        Return afterBody.
+    If hasContinue(afterBody):
+        If flagMatchesHere(envGet(afterBody, "__continue"), lbl) is equal to false:
+            Return afterBody.
     Let e2 be clearContIf(afterBody).
     If boolOf(jsEvalIn(cond, e2)):
-        Return execDoWhile(stmt, e2).
+        Return execDoWhile(stmt, lbl, e2).
     Return e2.
 
-## To forStmt (stmt: Text, env: Text) -> Text:
+## To forStmt (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
@@ -6343,10 +6365,14 @@
         If hasHalt(afterBody):
             Return afterBody.
         If hasBreak(afterBody):
-            Return clearBreak(afterBody).
+            If flagMatchesHere(envGet(afterBody, "__break"), lbl):
+                Return clearBreak(afterBody).
+            Return afterBody.
         If hasContinue(afterBody):
-            Return forStmt(stmt, execStmt(update, clearContinue(afterBody))).
-        Return forStmt(stmt, execStmt(update, afterBody)).
+            If flagMatchesHere(envGet(afterBody, "__continue"), lbl):
+                Return forStmt(stmt, lbl, execStmt(update, clearContinue(afterBody))).
+            Return afterBody.
+        Return forStmt(stmt, lbl, execStmt(update, afterBody)).
     Return env.
 
 # The for-of / for-in loop variable may be a destructuring pattern (`for (const [k,v] of …)`), so
@@ -6358,7 +6384,7 @@
         Return destructureObj(varName, el, env).
     Return envSet(env, varName, el).
 
-## To forOfLoop (els: Seq of Text, i: Int, varName: Text, body: Text, env: Text) -> Text:
+## To forOfLoop (els: Seq of Text, i: Int, varName: Text, body: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     If i is greater than length of els:
@@ -6369,18 +6395,22 @@
     If hasHalt(afterBody):
         Return afterBody.
     If hasBreak(afterBody):
-        Return clearBreak(afterBody).
+        If flagMatchesHere(envGet(afterBody, "__break"), lbl):
+            Return clearBreak(afterBody).
+        Return afterBody.
     If hasContinue(afterBody):
-        Return forOfLoop(els, i + 1, varName, body, clearContinue(afterBody)).
-    Return forOfLoop(els, i + 1, varName, body, afterBody).
+        If flagMatchesHere(envGet(afterBody, "__continue"), lbl):
+            Return forOfLoop(els, i + 1, varName, body, lbl, clearContinue(afterBody)).
+        Return afterBody.
+    Return forOfLoop(els, i + 1, varName, body, lbl, afterBody).
 
-## To execForOf (stmt: Text, env: Text) -> Text:
+## To execForOf (stmt: Text, lbl: Text, env: Text) -> Text:
     Let hdr be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let afterKw be trim(substringAfter(hdr, " ")).
     Let varName be trim(substringBefore(afterKw, " of ")).
     Let arrExpr be trim(substringAfter(afterKw, " of ")).
     Let body be loopBody(concat(stmt, "")).
-    Return forOfLoop(iterElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
+    Return forOfLoop(iterElements(jsEvalIn(arrExpr, env)), 1, varName, body, lbl, env).
 
 ## To arrIndexKeys (n: Int, i: Int, acc: Text) -> Text:
     If i is greater than n:
@@ -6397,22 +6427,55 @@
         Return newArr(concat(concat(tagArr (), arrIndexKeys(length of arrElements(v), 1, "")), tagArrEnd ())).
     Return newArr(concat(tagArr (), tagArrEnd ())).
 
-## To execForIn (stmt: Text, env: Text) -> Text:
+## To execForIn (stmt: Text, lbl: Text, env: Text) -> Text:
     Let hdr be trim(substringBefore(substringAfter(stmt, "("), ")")).
     Let afterKw be trim(substringAfter(hdr, " ")).
     Let varName be trim(substringBefore(afterKw, " in ")).
     Let objExpr be trim(substringAfter(afterKw, " in ")).
     Let body be loopBody(concat(stmt, "")).
-    Return forOfLoop(arrElements(forInKeys(jsEvalIn(objExpr, env))), 1, varName, body, env).
+    Return forOfLoop(arrElements(forInKeys(jsEvalIn(objExpr, env))), 1, varName, body, lbl, env).
 
-## To execFor (stmt: Text, env: Text) -> Text:
+# A labeled loop statement `LABEL : (for|while|do) …` — the label lets a nested `break LABEL` /
+# `continue LABEL` target THIS loop. Detected as an identifier + `:` + a loop keyword (a ternary's
+# `:` is at token 2 as `?`, an object literal starts with `{`, so neither is mistaken for a label).
+## To isLabeledLoop (s: Text) -> Bool:
+    Let toks be split(concat(s, ""), " ").
+    If length of toks is less than 3:
+        Return false.
+    If item 2 of toks is not equal to ":":
+        Return false.
+    If isSimpleName(concat(item 1 of toks, "")) is equal to false:
+        Return false.
+    Let kw be item 3 of toks.
+    If kw is equal to "for":
+        Return true.
+    If kw is equal to "while":
+        Return true.
+    If startsWith(concat(kw, ""), "do"):
+        Return true.
+    Return false.
+
+## To execLabeledLoop (s: Text, env: Text) -> Text:
+    Let lbl be trim(item 1 of split(concat(s, ""), " ")).
+    Let rest be trim(substringAfter(concat(s, ""), ":")).
+    If startsWith(rest, "for "):
+        Return execFor(rest, lbl, env).
+    If startsWith(rest, "while "):
+        Return execWhile(rest, lbl, env).
+    If startsWith(rest, "do "):
+        Return execDoWhile(rest, lbl, env).
+    If startsWith(rest, concat("do", chr(123))):
+        Return execDoWhile(rest, lbl, env).
+    Return env.
+
+## To execFor (stmt: Text, lbl: Text, env: Text) -> Text:
     Let hdr be substringBefore(substringAfter(stmt, "("), ")").
     If hasSep(hdr, " of "):
-        Return execForOf(stmt, env).
+        Return execForOf(stmt, lbl, env).
     If hasSep(hdr, " in "):
-        Return execForIn(stmt, env).
+        Return execForIn(stmt, lbl, env).
     Let init be trim(item 1 of split(hdr, ";")).
-    Return forStmt(stmt, execStmt(init, env)).
+    Return forStmt(stmt, lbl, execStmt(init, env)).
 
 # A program's LAST statement is evaluated as an expression so the __js REPL can surface its value
 # (`5+3`→8, `foo()`→its return). But a *statement-form* (a declaration, control-flow, console.*, or
