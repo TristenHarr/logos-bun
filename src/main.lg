@@ -7341,9 +7341,11 @@
     Return setForEachLoop(arrElements(objGet(concat(s, ""), "__set_vals")), 1, fnval, env).
 
 # A Set: __set_vals holds its distinct values.
+# `new Set(iterable)` accepts a string too (iterating its characters), not only an array — route the
+# argument through arrFromBase so `new Set("aabbc")` dedups to {a,b,c}.
 ## To newSetFrom (arrval: Text) -> Text:
     Let s be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__set_vals", newArr(concat(tagArr (), tagArrEnd ()))).
-    Return setAddAll(concat(s, ""), arrElements(concat(arrval, "")), 1).
+    Return setAddAll(concat(s, ""), arrElements(arrFromBase(concat(arrval, ""))), 1).
 
 ## To setAddAll (s: Text, vals: Seq of Text, i: Int) -> Text:
     If i is greater than length of vals:

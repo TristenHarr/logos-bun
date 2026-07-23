@@ -2183,3 +2183,10 @@ negative to 0**, but **`Array.indexOf` counts it from the end** (`len+fromIndex`
 `normStart` for arrays). Also fixed a pre-existing edge: `s.indexOf("")`→0 (was -1). `indexOf(c,3)`,
 `indexOf(c,-2)`, array `indexOf(x,-1)` all correct; no-fromIndex form unchanged. New `indexoffrom-diff`
 fuzzer (2400 checks/6 seeds). Full sweep green.
+
+**`new Set(string)` (2026-07-23, 34th engine fix).** `new Set("aabbc").size`→0 — `newSetFrom` used
+`arrElements`, which is empty for a string, so only arrays worked. A Set accepts any iterable, and a
+string iterates its characters. Routed the argument through `arrFromBase` (which already turns a string
+into a char array for `Array.from`), so `new Set("aabbc")`→{a,b,c} (size 3), `[...new
+Set("mississippi")]`→"misp". Array construction unchanged. New `setfromstr-diff` fuzzer (1200 checks).
+Full sweep green.
