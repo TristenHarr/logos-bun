@@ -1824,3 +1824,36 @@ highest-priority robustness fixes (a JS engine must never abort on `10%0` or `2*
 **Updated crash tally for task #32: 6 P0 crashes** — `+"str"`, `exec`-with-groups, `%0`, `**`-neg-exp,
 `defineProperty`, `getOwnPropertyDescriptor`. Fix these first (each is a one-spot guard: NaN/float-
 path/implement-the-method). Read-only find; main.lg under concurrent edit.
+
+---
+
+**BUG-HUNT BATCH 6 — bitwise/hex/Error/JSON-parse (2026-07-23).** Verified clean (binary stable
+between the concurrent session's builds — NB: the shared debug binary is periodically wiped mid-
+rebuild, so probes must sanity-check `1+1` first; several apparent failures were exec-of-missing-
+binary, not engine bugs, and were discarded).
+
+**P0 — 3 more CRASHES (→ 9 total).**
+- `~3.7` (bitwise NOT of a NON-INTEGER) → **panic** (Node `-4`). `~3` (integer) works. `~`/`~~` need
+  ToInt32 (truncate) before the bitwise op; a fractional operand panics. `~~x` (common float-trunc
+  idiom) hits this.
+- `0xFF | 0x100` → **panic** (Node `511`). Two root causes: (1) the hex literal `0x100` (256) parses
+  to **NaN** — `0xFF` works but `0x100`+ fail (hex-literal parse breaks at ≥ 3 hex digits / ≥ 256);
+  (2) a bitwise op with a NaN operand then panics (should ToInt32(NaN)=0). `255|256` (decimal) → 511
+  correct.
+- `new Error("x").toString()` and `String(new Error("x"))` → **stack overflow** (Node `"Error: x"`).
+  `err.message` works; `Error.prototype.toString` (`name: message`) recurses/overflows.
+
+**P1 — correctness.**
+- `0x100` hex literal → `NaN` (want 256) — hex literals beyond `0xFF` don't parse (also feeds the
+  bitwise crash above).
+- `JSON.parse("{bad")` → no throw (Node throws `SyntaxError`, so a `try/catch` guard catches). Invalid
+  JSON is not validated — parse silently returns nothing instead of throwing.
+- `[3,2,1].reduceRight(fn)` → unimplemented (returns raw text).
+- `new Array(3)` → `NaN` (want an array of length 3) — the `Array(len)` constructor form.
+
+(Correct in this sweep: `1<<31`, `-1>>>0`, `256<<24`, `255|256`, `255|0`, string/`null>=0`/`undefined<1`
+comparisons, `[…].sort()`, `concat`, `Date.now`, `new RangeError().message`.)
+
+**Running crash tally (task #32): 9 P0 crashes** — `+"str"`, `exec`-groups, `%0`, `**`-neg-exp,
+`defineProperty`, `getOwnPropertyDescriptor`, `~`-float, bitwise-with-NaN (`0x100`), `Error.toString`.
+All are one-spot guards (ToInt32/ToNumber/NaN-clamp/implement-method). Read-only, main.lg concurrent.
