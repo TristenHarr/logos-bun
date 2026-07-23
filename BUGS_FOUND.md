@@ -2052,3 +2052,16 @@ all correct; arithmetic without refs unaffected (`1+2`→3, `"5"-2`→3). `topri
 checks/6 seeds, arrays+numbers+strings). **Object-specific follow-ups (separate, NOT this fix):** a
 leading `{}` parses as a BLOCK not an object literal (`{} + 1`→1 in Node) and `("r=" + ({} + []))`
 still crashes (ERR:101) — object-literal parsing, distinct from array ToPrimitive.
+
+**Relational coercion + `isNaN`/`isFinite`/`Number` decimals (2026-07-23, 21st engine fix).** Three
+numeric-coercion gaps found by a broad probe: (1) **`isNaN("x")` stack-overflowed** — `isNaN` wasn't a
+recognized global so the call recursed. (2) `10 > "5"`→false — relational `<`/`>`/`<=`/`>=` did a plain
+textual/int `cmpVals`, no ToNumber. (3) `Number("3.14")`→NaN — `Number()` used `jsNumberText` (ints/hex
+only). **Fix:** `isNaN`/`isFinite` added to `isGlobalFn`+`globalCall` (`isNaN(x)`=ToNumber(x) is NaN;
+`isFinite` via `isFiniteNum`); `Number()` now routes non-radix input through `jsToNumberOf`→`jsStrToNum`
+(decimals, whitespace, `""`→0) while keeping hex. Relational operators use the Abstract Relational
+Comparison (`relCmp`): both-strings→lexicographic, else ToNumber both and compare numerically
+(`numCmpVal` = int-exact or the sign of the native f64 difference, so `10.5 > 9.5` isn't decided by
+text); `relIsNaN` returns the false-on-NaN result. `10 > "5"`→true, `"5" > "10"`→true (lexicographic),
+`10 > "abc"`→false, `Number("3.14")`→3.14, `isNaN("x")`→true. New `relcoerce-diff` fuzzer (2400
+checks/6 seeds). Full sweep green.

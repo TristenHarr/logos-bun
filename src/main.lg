@@ -787,14 +787,14 @@
         Return toText(jsBnot(safeInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
             Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
+        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
     If hasSep(expr, " >= "):
         Let parts be split(expr, " >= ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
             Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
+        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
         Let sa be evalValue(item 1 of parts).
@@ -821,14 +821,14 @@
         Return notOf(looseEqVal(evalValue(item 1 of parts), evalValue(item 2 of parts))).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
             Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than 0).
+        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than 0).
     If hasSep(expr, " > "):
         Let parts be split(expr, " > ").
-        If eitherNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
+        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
             Return "false".
-        Return cmpResult(cmpVals(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
+        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
     If hasSep(expr, " in "):
         Let iparts be split(expr, " in ").
         Let iobj be evalValue(trim(item 2 of iparts)).
@@ -1570,7 +1570,7 @@
     Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite"].
     Return names contains name.
 
 ## To globalCall (name: Text, inner: Text, env: Text) -> Text:
@@ -1582,7 +1582,13 @@
     If name is equal to "parseFloat":
         Return jsParseFloat(decodeStr(materialize(av))).
     If name is equal to "Number":
-        Return jsNumberText(decodeStr(materialize(av))).
+        If radixLit(decodeStr(materialize(av))):
+            Return jsNumberText(decodeStr(materialize(av))).
+        Return jsToNumberOf(av).
+    If name is equal to "isNaN":
+        Return cmpResult(jsToNumberOf(av) is equal to "NaN").
+    If name is equal to "isFinite":
+        Return cmpResult(isFiniteNum(jsToNumberOf(av))).
     If name is equal to "String":
         Return concat(tagStr (), materialize(av)).
     If name is equal to "Boolean":
@@ -2879,6 +2885,49 @@
     If v is equal to "":
         Return "0".
     Return v.
+
+# isFinite: a finite number is neither NaN nor ±Infinity.
+## To isFiniteNum (n: Text) -> Bool:
+    If n is equal to "NaN":
+        Return false.
+    If n is equal to "Infinity":
+        Return false.
+    If n is equal to "-Infinity":
+        Return false.
+    Return true.
+
+# Numeric magnitude compare of two number-typed values (-1/0/1): int-exact, else the sign of the
+# native f64 difference (so `10.5 > 9.5` is not decided by lexicographic text).
+## To numCmpVal (a: Text, b: Text) -> Int:
+    If isIntStr(concat(a, "")):
+        If isIntStr(concat(b, "")):
+            Return orderingToInt(cmpInt(parseInt(a), parseInt(b))).
+    Let d be jsArithF64(concat(concat(a, " - "), b)).
+    If startsWith(d, "-"):
+        Return 0 - 1.
+    If d is equal to "0":
+        Return 0.
+    Return 1.
+
+# The Abstract Relational Comparison (`<` `>` `<=` `>=`): if BOTH operands are strings the compare is
+# lexicographic; otherwise both go through ToNumber and compare as numbers.
+## To relCmp (a: Text, b: Text) -> Int:
+    If startsWith(a, tagStr ()):
+        If startsWith(b, tagStr ()):
+            Return compareText(materialize(a), materialize(b)).
+    Return numCmpVal(jsToNumberOf(concat(a, "")), jsToNumberOf(concat(b, ""))).
+
+# A relational comparison is `false` (its operator's NaN result) when either ToNumber'd operand is NaN
+# — but NOT when both are strings (that path is lexicographic and never NaN).
+## To relIsNaN (a: Text, b: Text) -> Bool:
+    If startsWith(a, tagStr ()):
+        If startsWith(b, tagStr ()):
+            Return false.
+    If jsToNumberOf(concat(a, "")) is equal to "NaN":
+        Return true.
+    If jsToNumberOf(concat(b, "")) is equal to "NaN":
+        Return true.
+    Return false.
 
 # Numeric equality of two number-typed values: NaN is equal to nothing, identical text is equal, else
 # a numeric magnitude compare (int-exact; identical float text already caught by the text shortcut).
