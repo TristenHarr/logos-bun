@@ -5384,10 +5384,23 @@
         Return true.
     Return false.
 
+# Inside a string literal (opened at a chr(34) that splitTop saw), every character is copied verbatim
+# — a `;`/`{`/`(` there is DATA, not a statement/scope boundary. Escaped quotes are already encoded
+# (encQuote), so a raw chr(34) here is the real closing delimiter, handing control back to splitTop.
+## To splitTopStr (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        Return splitTop(s, i + 1, depth, concat(acc, c)).
+    Return splitTopStr(s, i + 1, depth, concat(acc, c)).
+
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
     Let c be item i of s.
+    If c is equal to chr(34):
+        Return splitTopStr(s, i + 1, depth, concat(acc, c)).
     If c is equal to chr(123):
         Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
     If c is equal to "(":

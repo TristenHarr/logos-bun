@@ -2200,6 +2200,20 @@ element only while depth>0, its contents flattened at depth-1; a depth-0 array e
 `flatMap`/`arrFlat` (always one level) unchanged. New `flatdepth-diff` fuzzer (2400 checks/6 seeds). Full
 sweep green.
 
+**Semicolon inside a string literal (2026-07-23, 36th engine fix; crash).** `";".length`→0 (want 1),
+`"a;b".length`→2 (want 3), `"a;b"` **crashed**, and `"a=1;b=2".split(";").map(s=>s.split("=")[1])` (the
+ubiquitous key-value parse) **stack-overflowed** — the statement splitter `splitTop` tracked `{`/`(`/`}`/`)`
+depth but NOT string literals, so a `;` inside a string at depth 0 was turned into a statement boundary
+(the arg `";"` survived only by being inside `(...)`). Made `splitTop` string-aware via a
+mutually-recursive `splitTopStr` walker that copies string contents verbatim (a raw `chr(34)` hands
+control back; escaped quotes are already `encQuote`-encoded). `";".length`→1, `"a=1;b=2".split(";")`,
+`"CSS: a{color:red;}"` all correct. New `semiinstr-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+**Deeper root still open (documented):** a `;`-containing value carried through a `let` variable or a
+function RETURN is corrupted by the env representation itself — the env is stored as
+`name=value;name=value`, so a value with `;` (or `=`) breaks `envScan(split(env,";"))`. That is a
+fundamental env-encoding fix (escape the separators in stored values), out of scope for this splitter
+fix. `encFn` also maps `;`→`chr(2)` which collides with the ref tag — noted for the same future work.
+
 **`({}).toString()` — RE-INVESTIGATED, still deferred (2026-07-23).** Attacked again per the completion
 directive. Root now understood: `.toString(` when it's the LEFTMOST (only) method marker and sits inside
 a function body (`(function(){let o={};return o.toString()})()`) is picked by `leftmostMethod` at the
