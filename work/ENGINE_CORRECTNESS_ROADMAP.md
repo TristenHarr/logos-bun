@@ -91,8 +91,27 @@ labeled `continue`/`break`; `void`; `map(String)` builtin-as-callback; `Object.i
 
 ---
 
+## Priority 0 — the 9 CRASHES (fix first; each is a one-spot guard)
+
+A JS engine must never abort the process on ordinary input. All 9 are small, local fixes:
+
+| Crash | Input | Want | Fix |
+|-------|-------|------|-----|
+| unary `+` on string | `+"7"` | `7` | ToNumber, no recursion |
+| `exec` w/ groups | `/(\d+)-(\d+)/.exec("12-34")` | match | terminate group walk |
+| modulo by zero | `10%0` | `NaN` | guard `%` 0-divisor |
+| neg int exponent | `2**-1` | `0.5` | float pow when exp<0/non-int |
+| `Object.defineProperty` | `defineProperty(o,"x",{value:5})` | `5` | implement (no overflow) |
+| `Object.getOwnPropertyDescriptor` | `…("a")` | desc | implement |
+| `~` on non-integer | `~3.7` | `-4` | ToInt32 before bitwise |
+| bitwise w/ NaN + hex≥0x100 | `0xFF\|0x100` | `511` | fix hex parse + ToInt32(NaN)=0 |
+| `Error.prototype.toString` | `String(new Error("x"))` | `"Error: x"` | `name+": "+message`, no recurse |
+
+These are the highest value/effort ratio in the whole backlog.
+
 ## Recommended fix order (impact × shared-fix leverage)
 
+0. **The 9 crashes above** — robustness floor; trivial each.
 1. **A** (ToNumber) + the `+"str"` crash guard — ~7 bugs, one subsystem.
 2. **E** (null/undefined throw) — big test262 class, small fix.
 3. **C** (strict-eq type) — small, high value.
