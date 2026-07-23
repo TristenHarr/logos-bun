@@ -1059,19 +1059,25 @@
         Return bindParams(params, args, i + 1, callerEnv, envSet(acc, dpn, defaultOr(aval, ddf, concat(acc, "")))).
     Return bindParams(params, args, i + 1, callerEnv, envSet(acc, pname, aval)).
 
+# A function value is `chr1 params chr1 body`; fnParams/fnBody split it (fnBody keeps everything after
+# the second marker), so a call site never has to re-derive the segments inline.
+## To fnParams (fnVal: Text) -> Text:
+    Return decFn(substringBefore(substringAfter(fnVal, chr(1)), chr(1))).
+
+## To fnBody (fnVal: Text) -> Text:
+    Return decFn(substringAfter(substringAfter(fnVal, chr(1)), chr(1))).
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
     Let doneEnv be runBlockStr(body, localEnv).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return envGet(doneEnv, "__ret").
 
 ## To callFn2 (fnVal: Text, v1: Text, v2: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
     Let e1 be envSet(env, trim(item 1 of params), v1).
     Let e2 be envSet(e1, trim(item 2 of params), v2).
@@ -1082,9 +1088,8 @@
 # bound to the receiver (the heap ref), so `this.x` reads/writes the receiver's own slots. this
 # is bound at CALL time (dynamic), never captured at method-definition time.
 ## To callMethod (fnVal: Text, argsText: Text, thisVal: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
     Let doneEnv be runBlockStr(body, localEnv).
@@ -1110,9 +1115,8 @@
     Return direct.
 
 ## To callSetter (fnVal: Text, thisVal: Text, value: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
     Let localEnv be envSet(baseEnv, trim(paramStr), concat(value, "")).
     Return envGet(runBlockStr(body, localEnv), "__ret").
@@ -1169,9 +1173,8 @@
     Return concat(pref, "").
 
 ## To callWith1 (fnVal: Text, value: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let localEnv be envSet(env, trim(paramStr), concat(value, "")).
     Return envGet(runBlockStr(body, localEnv), "__ret").
 
@@ -1190,9 +1193,8 @@
     Return e1.
 
 ## To runExecutor (fnVal: Text, pres: Text, prej: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let params be patFields(decFn(substringBefore(afterMark, chr(1)))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let params be patFields(fnParams(concat(fnVal, ""))).
+    Let body be fnBody(concat(fnVal, "")).
     Let e1 be envSet(env, trim(item 1 of params), pres).
     Return envGet(runBlockStr(body, bindReject(e1, params, prej)), "__ret").
 
@@ -2844,9 +2846,8 @@
     Return newArr(concat(tagArr (), tagArrEnd ())).
 
 ## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
-    Let afterMark be substringAfter(fnVal, chr(1)).
-    Let paramStr be decFn(substringBefore(afterMark, chr(1))).
-    Let body be decFn(substringAfter(afterMark, chr(1))).
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
     Let e1 be envSet(env, trim(item 1 of params), el).
     If length of params is greater than 1:
@@ -4805,79 +4806,131 @@
         Return item (i - 1) of toks is equal to ".".
     Return false.
 
-## To incDecEnv (toks: Seq of Text, i: Int, env: Text) -> Text:
+# A postfix `x++` target must be a real identifier, not a keyword: in `return ++c` the `++` is a PREFIX
+# of `c`, so `return` must not be read as `return++`. Excludes the word-like keywords that can precede a
+# unary `++`/`--`.
+## To isIncTarget (t: Text) -> Bool:
+    If isWordChar1(t) is equal to false:
+        Return false.
+    If t is equal to "return":
+        Return false.
+    If t is equal to "typeof":
+        Return false.
+    If t is equal to "delete":
+        Return false.
+    If t is equal to "void":
+        Return false.
+    If t is equal to "yield":
+        Return false.
+    If t is equal to "throw":
+        Return false.
+    If t is equal to "await":
+        Return false.
+    If t is equal to "new":
+        Return false.
+    If t is equal to "in":
+        Return false.
+    If t is equal to "of":
+        Return false.
+    If t is equal to "case":
+        Return false.
+    If t is equal to "do":
+        Return false.
+    If t is equal to "else":
+        Return false.
+    Return true.
+
+## To incDecEnv (toks: Seq of Text, i: Int, depth: Int, env: Text) -> Text:
     If i is greater than length of toks:
         Return env.
     Let t be item i of toks.
+    If t is equal to chr(123):
+        Return incDecEnv(toks, i + 1, depth + 1, env).
+    If t is equal to chr(125):
+        Return incDecEnv(toks, i + 1, depth - 1, env).
+    If depth is greater than 0:
+        Return incDecEnv(toks, i + 1, depth, env).
     If t is equal to "++":
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
             If isWordChar1(x):
                 Let nv be jsEvalIn(concat(x, " + 1"), concat(env, "")).
-                Return incDecEnv(toks, i + 2, envSet(env, x, nv)).
+                Return incDecEnv(toks, i + 2, depth, envSet(env, x, nv)).
     If t is equal to "--":
         If i is less than length of toks:
             Let xd be item (i + 1) of toks.
             If isWordChar1(xd):
                 Let nvd be jsEvalIn(concat(xd, " - 1"), concat(env, "")).
-                Return incDecEnv(toks, i + 2, envSet(env, xd, nvd)).
+                Return incDecEnv(toks, i + 2, depth, envSet(env, xd, nvd)).
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Let pv be jsEvalIn(concat(t, " + 1"), concat(env, "")).
-                    Return incDecEnv(toks, i + 2, envSet(env, t, pv)).
+                    Return incDecEnv(toks, i + 2, depth, envSet(env, t, pv)).
         If nx is equal to "--":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Let pvd be jsEvalIn(concat(t, " - 1"), concat(env, "")).
-                    Return incDecEnv(toks, i + 2, envSet(env, t, pvd)).
-    Return incDecEnv(toks, i + 1, env).
+                    Return incDecEnv(toks, i + 2, depth, envSet(env, t, pvd)).
+    Return incDecEnv(toks, i + 1, depth, env).
 
-## To incDecRewrite (toks: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+## To incDecRewrite (toks: Seq of Text, i: Int, depth: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of toks:
         Return trim(acc).
     Let t be item i of toks.
+    If t is equal to chr(123):
+        Return incDecRewrite(toks, i + 1, depth + 1, env, concat(concat(acc, " "), t)).
+    If t is equal to chr(125):
+        Return incDecRewrite(toks, i + 1, depth - 1, env, concat(concat(acc, " "), t)).
+    If depth is greater than 0:
+        Return incDecRewrite(toks, i + 1, depth, env, concat(concat(acc, " "), t)).
     If t is equal to "++":
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
             If isWordChar1(x):
                 Let nv be materialize(jsEvalIn(concat(x, " + 1"), concat(env, ""))).
                 Let e2 be envSet(env, x, nv).
-                Return incDecRewrite(toks, i + 2, e2, concat(concat(acc, " "), nv)).
+                Return incDecRewrite(toks, i + 2, depth, e2, concat(concat(acc, " "), nv)).
     If t is equal to "--":
         If i is less than length of toks:
             Let xd be item (i + 1) of toks.
             If isWordChar1(xd):
                 Let nvd be materialize(jsEvalIn(concat(xd, " - 1"), concat(env, ""))).
                 Let e3 be envSet(env, xd, nvd).
-                Return incDecRewrite(toks, i + 2, e3, concat(concat(acc, " "), nvd)).
+                Return incDecRewrite(toks, i + 2, depth, e3, concat(concat(acc, " "), nvd)).
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Let ov be materialize(jsEvalIn(concat(t, ""), concat(env, ""))).
                     Let inc be materialize(jsEvalIn(concat(t, " + 1"), concat(env, ""))).
                     Let e4 be envSet(env, t, inc).
-                    Return incDecRewrite(toks, i + 2, e4, concat(concat(acc, " "), ov)).
+                    Return incDecRewrite(toks, i + 2, depth, e4, concat(concat(acc, " "), ov)).
         If nx is equal to "--":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Let ovd be materialize(jsEvalIn(concat(t, ""), concat(env, ""))).
                     Let dec be materialize(jsEvalIn(concat(t, " - 1"), concat(env, ""))).
                     Let e5 be envSet(env, t, dec).
-                    Return incDecRewrite(toks, i + 2, e5, concat(concat(acc, " "), ovd)).
-    Return incDecRewrite(toks, i + 1, env, concat(concat(acc, " "), t)).
+                    Return incDecRewrite(toks, i + 2, depth, e5, concat(concat(acc, " "), ovd)).
+    Return incDecRewrite(toks, i + 1, depth, env, concat(concat(acc, " "), t)).
 
 # True only for a SIMPLE-identifier `++`/`--` (`x++`, `++x`, `a[i++]`) that incDecRewrite will actually
 # rewrite — NOT a member target like `a[i]++`/`o.c++` (handled by memberCompoundRewrite) nor a `++` living
 # inside a string token. This gates the top-of-execStmt routing so it always makes progress (no re-loop).
-## To hasSimpleIncDec (toks: Seq of Text, i: Int) -> Bool:
+## To hasSimpleIncDec (toks: Seq of Text, i: Int, depth: Int) -> Bool:
     If i is greater than length of toks:
         Return false.
     Let t be item i of toks.
+    If t is equal to chr(123):
+        Return hasSimpleIncDec(toks, i + 1, depth + 1).
+    If t is equal to chr(125):
+        Return hasSimpleIncDec(toks, i + 1, depth - 1).
+    If depth is greater than 0:
+        Return hasSimpleIncDec(toks, i + 1, depth).
     If t is equal to "++":
         If i is less than length of toks:
             If isWordChar1(item (i + 1) of toks):
@@ -4889,14 +4942,14 @@
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Return true.
         If nx is equal to "--":
-            If isWordChar1(t):
+            If isIncTarget(t):
                 If prevIsDot(toks, i) is equal to false:
                     Return true.
-    Return hasSimpleIncDec(toks, i + 1).
+    Return hasSimpleIncDec(toks, i + 1, depth).
 
 ## To needsIncDec (s: Text) -> Bool:
     If startsWith(s, "for "):
@@ -4907,7 +4960,7 @@
         Return false.
     If startsWith(s, "switch "):
         Return false.
-    Return hasSimpleIncDec(split(concat(s, ""), " "), 1).
+    Return hasSimpleIncDec(split(concat(s, ""), " "), 1, 0).
 
 ## To memberCompoundRewrite (s: Text) -> Text:
     If hasSep(s, "++"):
@@ -4962,8 +5015,8 @@
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If needsIncDec(s):
-        Let nStmt be incDecRewrite(split(concat(s, ""), " "), 1, concat(env, ""), "").
-        Let nEnv be incDecEnv(split(concat(s, ""), " "), 1, concat(env, "")).
+        Let nStmt be incDecRewrite(split(concat(s, ""), " "), 1, 0, concat(env, ""), "").
+        Let nEnv be incDecEnv(split(concat(s, ""), " "), 1, 0, concat(env, "")).
         Return execStmt(nStmt, nEnv).
     If s is equal to "break":
         Return envSet(env, "__break", "1").

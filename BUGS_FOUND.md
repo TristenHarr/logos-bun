@@ -1956,3 +1956,22 @@ first-literal, `at(-1)`, `repeat(0)`, `padStart` default, `Promise.resolve().the
 
 **Running tally (task #32): ~66 verified defects, 11 P0 crashes.** Generator-advanced + async-fn-
 return + Object.freeze-noop are the notable new items. Read-only; main.lg concurrent.
+
+---
+
+**`++`/`--` inside a function body (2026-07-23).** A follow-on to E-INC: `function g(){let x=5;x++;return
+x}` returned 5 (and `return ++x` → NaN), because the statement-level increment rewrite fired on the WHOLE
+function-DECLARATION statement and rewrote the `x++` sitting INSIDE the function body — at definition
+time, in the outer scope where `x` doesn't exist, so `x++` became `NaN` right there in the stored body.
+(Top-level `x++` and loop-update `i++` dodged it; this is the same class as the markerInBody method-
+dispatch bug.) Fixed by threading a brace-depth through hasSimpleIncDec / incDecEnv / incDecRewrite: a
+`++`/`--` is only recognized and rewritten at brace-depth 0, so anything inside a `{ … }` function/block
+body is left untouched (emitted verbatim) to be handled when that body actually runs. Increments in parens
+/ brackets (`a[i++]`, `f(i++)`) stay at depth 0 and still rewrite. Now `x++`/`++x` work inside function
+and method bodies, `for(…;i++){ r*=i }` factorials work, and a function expression `let f=function(){let
+c=0;return ++c}` returns fresh values per call. New function-body cases added to `incexpr-diff`; full
+131-fuzzer sweep GREEN. (Also refactored the six function-call sites to shared fnParams/fnBody value
+parsers. A persistent-mutable-CLOSURE capture attempt — heap-boxed captured env — was prototyped and got
+the accumulator `acc(); a(5); a(3)` → 8 working, but it turned the counter `()=>++c` from NaN into a
+stack-overflow (a regression) and touches the core call path, so it was reverted to the known-good baking
+model; it is scoped as a dedicated increment now that this in-function-`++` prerequisite is fixed.)

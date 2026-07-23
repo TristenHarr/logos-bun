@@ -25,7 +25,7 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
     const a = 1 + ri(9), b = 1 + ri(9);
-    const k = ri(9);
+    const k = ri(11);
     if (k === 0) return `let x=${a};let y=++x;console.log(y+","+x);`;
     if (k === 1) return `let x=${a};let y=x++;console.log(y+","+x);`;
     if (k === 2) return `let x=${a};console.log(--x);`;
@@ -34,6 +34,9 @@ if (OURS) {
     if (k === 5) return `let arr=[${a},${b},${a + b}];let i=0;console.log(arr[++i]);`;
     if (k === 6) return `let i=0;let r=[];while(i<3){r.push(i++);}console.log(r.join("-"));`;
     if (k === 7) return `let o={c:${a}};o.c++;console.log(o.c);`;                 // member regression
+    if (k === 8) return `function g(){let x=${a};x++;return x;}console.log(g());`; // ++ INSIDE a function body
+    if (k === 9) return `function fac(n){let r=1;for(let i=2;i<=n;i++){r*=i;}return r;}console.log(fac(${1 + ri(6)}));`;
+    if (k === 10) return `let f=function(){let c=${a};return ++c;};console.log(f()+","+f());`;  // ++ in fn-expr body
     return `let z=[${a},${b},${a + b}];z[0]++;console.log(z[0]+"/"+z[1]);`;       // member-index regression
   };
   let checked = 0;
