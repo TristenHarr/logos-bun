@@ -1857,3 +1857,37 @@ comparisons, `[…].sort()`, `concat`, `Date.now`, `new RangeError().message`.)
 **Running crash tally (task #32): 9 P0 crashes** — `+"str"`, `exec`-groups, `%0`, `**`-neg-exp,
 `defineProperty`, `getOwnPropertyDescriptor`, `~`-float, bitwise-with-NaN (`0x100`), `Error.toString`.
 All are one-spot guards (ToInt32/ToNumber/NaN-clamp/implement-method). Read-only, main.lg concurrent.
+
+---
+
+**BUG-HUNT BATCH 7 — regex features / array iterators / tagged templates (2026-07-23).** Verified
+clean (binary sanity-checked). Un-hunted areas again yielded clusters + a 10th crash.
+
+**P0 — CRASH (→ 10 total).**
+- Tagged template literals: `` f`hello` `` and `` f`n${9}` `` → **stack overflow** (Node `"hello"`,
+  `"n9"`). The tagged-template call form isn't handled and recurses. (Plain template literals
+  `` `n${9}` `` work — it's the TAG-function application that crashes.)
+
+**P1 — regex engine missing core features (cluster).**
+- Alternation `|`: `/cat|dog/.test("dog")` → `false` (want `true`). **Common; high impact.**
+- Non-capturing group `(?:…)`: `/(?:ab)+/.test("abab")` → `false` (want `true`).
+- Lookahead `(?=…)`: `/a(?=b)/.test("ab")` → `false` (want `true`).
+- (Char classes `[0-9]+`, anchors `^…$`, `split(/re/)` all work.) The backtracking engine handles
+  literals/classes/quantifiers/anchors but not alternation / groups(non-capturing) / lookahead.
+
+**P1 — array index iterators.**
+- `[1,2,3].keys()` → empty (want `0,1,2`); `[1,2,3].entries()` → empty (want `[[0,1],[1,2],[2,3]]`);
+  `for(const [i,x] of arr.entries())` yields nothing. `Array.prototype.keys/entries/values` (the
+  index-iterator protocol) unimplemented. (`Object.entries` works.)
+
+**P1 — replace with multiple capture refs.**
+- `"a1b2".replace(/([a-z])(\d)/g,"$2$1")` → unchanged (want `"1a2b"`). Confirms + extends the batch-2
+  `$1` finding: multi-group `$2$1` templates unsupported (replace no-ops).
+
+**P2 — missing string statics/methods.**
+- `String.fromCodePoint(97)` → `NaN` (want `"a"`); `"a".localeCompare("b")` → doesn't return negative
+  (want `<0`). (`codePointAt` works.)
+
+**Running tally (task #32): ~53 verified defects, 10 P0 crashes** (added: tagged-template). Regex
+alternation and array iterators are the highest-impact new items (both common). Read-only find;
+main.lg under concurrent edit.
