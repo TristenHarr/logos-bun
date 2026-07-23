@@ -1586,3 +1586,25 @@ store (reuse the existing heapAlloc/heapGet/heapSet native seam that already bac
 flowing out naturally. Then wire the four increment surfaces (prefix/postfix x, member `o.p++`, index
 `a[i]++`) to read-modify-write the cell. Also closes the `a[++i]` panic. HIGH VALUE — extremely common
 JS. Discovered when a stale 6-hour `while(++x)` probe was found pinning a CPU core.
+
+---
+
+**`++`/`--` in expression position (2026-07-23).** `let y=++x`, `console.log(++x)`, and `a[i++]` returned
+NaN or PANICKED (`parseInt('NaN')`) — prefix/postfix increment worked only as a bare `x++;` statement, not
+as a value-producing expression, because the value evaluator is value-returning and can't mutate the outer
+env. Resolved at the STATEMENT level, ahead of every other execStmt handler: `incDecEnv` threads the env
+forward applying each `++`/`--` left-to-right, and `incDecRewrite` (threading the same env) substitutes
+each increment's value in place — prefix yields the NEW value, postfix the OLD — producing a
+`++`/`--`-free statement that the ordinary handlers then run against the already-incremented env; a bare
+`x++` falls out as a value-only no-op plus the env bump, subsuming the old whole-statement handler. Routing
+is gated by `needsIncDec`→`hasSimpleIncDec`, which matches ONLY a simple-scalar increment and (via
+`prevIsDot`) excludes member targets `o.c++`/`a[i]++` so they stay on the memberCompoundRewrite path;
+control-flow headers (`for`/`while`/`if`/`switch`) are excluded so their own increment handling is
+untouched. The old whole-statement `++`/`--` handlers were removed. Implementation note: the first cut had
+execStmt tail-call a separate `execIncDec` which tail-called back into execStmt — the TCE codegen merged
+the two functions and collided their differently-named params (`stmt` vs `s`); inlining the rewrite as
+execStmt self-recursion fixed it. Now `++x`/`x++`/`--x`/`x--` work in assignment RHS, call args, indices
+(`a[i++]`, `a[++i]`), and loop bodies (`r.push(i++)`, `f=f*n--`); bare and member increments, `+=`, and
+for-loops unchanged. New `incexpr-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 131-fuzzer sweep
+GREEN. (This is campaign task E-INC. Persistent mutable CLOSURE capture — `()=>++c` surviving across calls
+— remains separate: it needs shared cells, not just expression-position increment.)

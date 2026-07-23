@@ -4791,6 +4791,124 @@
         Return false.
     Return true.
 
+# `++`/`--` as an EXPRESSION (prefix `++x`, postfix `x++`) — not just a bare `x++` statement. Both a
+# statement's env effect and its in-place value matter, but the expression evaluator is value-returning,
+# so we resolve the increments at the STATEMENT level: incDecEnv threads the env forward applying every
+# increment left-to-right, and incDecRewrite (threading the same env) substitutes each increment's value
+# in place — prefix yields the NEW value, postfix the OLD — leaving a statement with no `++`/`--` that the
+# ordinary handlers run against the already-incremented env. A bare `x++` falls out as a value-only no-op
+# statement plus the env bump, so this subsumes the old whole-statement handler too.
+# A postfix `x++` whose `x` is preceded by `.` is a MEMBER increment (`o.c++`) — left to
+# memberCompoundRewrite, not the simple-scalar path.
+## To prevIsDot (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than 1:
+        Return item (i - 1) of toks is equal to ".".
+    Return false.
+
+## To incDecEnv (toks: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of toks:
+        Return env.
+    Let t be item i of toks.
+    If t is equal to "++":
+        If i is less than length of toks:
+            Let x be item (i + 1) of toks.
+            If isWordChar1(x):
+                Let nv be jsEvalIn(concat(x, " + 1"), concat(env, "")).
+                Return incDecEnv(toks, i + 2, envSet(env, x, nv)).
+    If t is equal to "--":
+        If i is less than length of toks:
+            Let xd be item (i + 1) of toks.
+            If isWordChar1(xd):
+                Let nvd be jsEvalIn(concat(xd, " - 1"), concat(env, "")).
+                Return incDecEnv(toks, i + 2, envSet(env, xd, nvd)).
+    If i is less than length of toks:
+        Let nx be item (i + 1) of toks.
+        If nx is equal to "++":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Let pv be jsEvalIn(concat(t, " + 1"), concat(env, "")).
+                    Return incDecEnv(toks, i + 2, envSet(env, t, pv)).
+        If nx is equal to "--":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Let pvd be jsEvalIn(concat(t, " - 1"), concat(env, "")).
+                    Return incDecEnv(toks, i + 2, envSet(env, t, pvd)).
+    Return incDecEnv(toks, i + 1, env).
+
+## To incDecRewrite (toks: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return trim(acc).
+    Let t be item i of toks.
+    If t is equal to "++":
+        If i is less than length of toks:
+            Let x be item (i + 1) of toks.
+            If isWordChar1(x):
+                Let nv be materialize(jsEvalIn(concat(x, " + 1"), concat(env, ""))).
+                Let e2 be envSet(env, x, nv).
+                Return incDecRewrite(toks, i + 2, e2, concat(concat(acc, " "), nv)).
+    If t is equal to "--":
+        If i is less than length of toks:
+            Let xd be item (i + 1) of toks.
+            If isWordChar1(xd):
+                Let nvd be materialize(jsEvalIn(concat(xd, " - 1"), concat(env, ""))).
+                Let e3 be envSet(env, xd, nvd).
+                Return incDecRewrite(toks, i + 2, e3, concat(concat(acc, " "), nvd)).
+    If i is less than length of toks:
+        Let nx be item (i + 1) of toks.
+        If nx is equal to "++":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Let ov be materialize(jsEvalIn(concat(t, ""), concat(env, ""))).
+                    Let inc be materialize(jsEvalIn(concat(t, " + 1"), concat(env, ""))).
+                    Let e4 be envSet(env, t, inc).
+                    Return incDecRewrite(toks, i + 2, e4, concat(concat(acc, " "), ov)).
+        If nx is equal to "--":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Let ovd be materialize(jsEvalIn(concat(t, ""), concat(env, ""))).
+                    Let dec be materialize(jsEvalIn(concat(t, " - 1"), concat(env, ""))).
+                    Let e5 be envSet(env, t, dec).
+                    Return incDecRewrite(toks, i + 2, e5, concat(concat(acc, " "), ovd)).
+    Return incDecRewrite(toks, i + 1, env, concat(concat(acc, " "), t)).
+
+# True only for a SIMPLE-identifier `++`/`--` (`x++`, `++x`, `a[i++]`) that incDecRewrite will actually
+# rewrite — NOT a member target like `a[i]++`/`o.c++` (handled by memberCompoundRewrite) nor a `++` living
+# inside a string token. This gates the top-of-execStmt routing so it always makes progress (no re-loop).
+## To hasSimpleIncDec (toks: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    Let t be item i of toks.
+    If t is equal to "++":
+        If i is less than length of toks:
+            If isWordChar1(item (i + 1) of toks):
+                Return true.
+    If t is equal to "--":
+        If i is less than length of toks:
+            If isWordChar1(item (i + 1) of toks):
+                Return true.
+    If i is less than length of toks:
+        Let nx be item (i + 1) of toks.
+        If nx is equal to "++":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Return true.
+        If nx is equal to "--":
+            If isWordChar1(t):
+                If prevIsDot(toks, i) is equal to false:
+                    Return true.
+    Return hasSimpleIncDec(toks, i + 1).
+
+## To needsIncDec (s: Text) -> Bool:
+    If startsWith(s, "for "):
+        Return false.
+    If startsWith(s, "while "):
+        Return false.
+    If startsWith(s, "if "):
+        Return false.
+    If startsWith(s, "switch "):
+        Return false.
+    Return hasSimpleIncDec(split(concat(s, ""), " "), 1).
+
 ## To memberCompoundRewrite (s: Text) -> Text:
     If hasSep(s, "++"):
         If isMemberTarget(trim(concat(substringBefore(s, "++"), substringAfter(s, "++")))):
@@ -4843,6 +4961,10 @@
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
+    If needsIncDec(s):
+        Let nStmt be incDecRewrite(split(concat(s, ""), " "), 1, concat(env, ""), "").
+        Let nEnv be incDecEnv(split(concat(s, ""), " "), 1, concat(env, "")).
+        Return execStmt(nStmt, nEnv).
     If s is equal to "break":
         Return envSet(env, "__break", "1").
     If startsWith(s, "break "):
@@ -4958,10 +5080,6 @@
     Let mcr be memberCompoundRewrite(concat(s, "")).
     If hasSep(mcr, " = "):
         Return execStmt(mcr, env).
-    If hasSep(s, "++"):
-        Return envSet(env, trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), jsEvalIn(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1"), env)).
-    If hasSep(s, "--"):
-        Return envSet(env, trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), jsEvalIn(concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " - 1"), env)).
     If hasSep(s, " += "):
         Return envSet(env, trim(substringBefore(s, " += ")), jsEvalIn(concat(concat(trim(substringBefore(s, " += ")), " + "), substringAfter(s, " += ")), env)).
     If hasSep(s, " -= "):
