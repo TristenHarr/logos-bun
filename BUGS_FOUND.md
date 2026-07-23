@@ -2190,3 +2190,22 @@ string iterates its characters. Routed the argument through `arrFromBase` (which
 into a char array for `Array.from`), so `new Set("aabbc")`→{a,b,c} (size 3), `[...new
 Set("mississippi")]`→"misp". Array construction unchanged. New `setfromstr-diff` fuzzer (1200 checks).
 Full sweep green.
+
+**`Array.flat(depth)` (2026-07-23, 35th engine fix).** `flat` ignored its depth argument entirely —
+`arrFlatLoop` flattened exactly ONE level, so `flat(2)`/`flat(Infinity)` under-flattened (and
+`flat(Infinity).length`→3 vs `.join`→"1,2,3,4" was the tell: depth-1 left a nested array that `join`
+stringified but `length` counted as one). Added `arrFlatDepth`/`arrFlatDepthLoop` (splice an array
+element only while depth>0, its contents flattened at depth-1; a depth-0 array element stays nested) and
+`flatDepthArg` (default 1, `Infinity`→1e6). `flat(Infinity)` fully flattens, `flat(2)`/`flat(0)` exact.
+`flatMap`/`arrFlat` (always one level) unchanged. New `flatdepth-diff` fuzzer (2400 checks/6 seeds). Full
+sweep green.
+
+**`({}).toString()` — RE-INVESTIGATED, still deferred (2026-07-23).** Attacked again per the completion
+directive. Root now understood: `.toString(` when it's the LEFTMOST (only) method marker and sits inside
+a function body (`(function(){let o={};return o.toString()})()`) is picked by `leftmostMethod` at the
+OUTER level with a broken receiver (`(function(){…return o`) → the `urecv` eval panics. A `markerInBody`
+guard on the top-guard block did NOT fix it — `fnBraceStack` mis-tracks the function body when nested
+OBJECT braces (`let o={}`) are present, so the marker isn't recognized as in-body. Plus `({}).toString()`
+adds the separate object-in-parens receiver crash. Both need deeper work (fix `fnBraceStack` for nested
+`{}`, and the `({expr})` receiver path); reverted clean rather than ship a partial fix. The common form
+`[…].map(x=>x.toString())` and user-class `toString` both work.

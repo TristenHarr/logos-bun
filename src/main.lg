@@ -3515,6 +3515,35 @@
 ## To arrFlat (arrval: Text) -> Text:
     Return newArr(concat(concat(tagArr (), arrFlatLoop(arrElements(arrval), 1, "")), tagArrEnd ())).
 
+# Depth-aware flatten for `.flat(depth)`: an array element is spliced in only while depth > 0 (its own
+# contents flattened at depth-1); a depth-0 array element stays nested. `flat(Infinity)` passes a huge
+# depth. Distinct from arrFlat/flatMap which is always one level.
+## To arrFlatDepthLoop (els: Seq of Text, i: Int, depth: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    If isArrRef(concat(el, "")):
+        If depth is greater than 0:
+            Let subFlat be arrFlatDepthLoop(arrElements(el), 1, depth - 1, "").
+            If subFlat is equal to "":
+                Return arrFlatDepthLoop(els, i + 1, depth, acc).
+            If acc is equal to "":
+                Return arrFlatDepthLoop(els, i + 1, depth, subFlat).
+            Return arrFlatDepthLoop(els, i + 1, depth, concat(concat(acc, tagArrSep ()), subFlat)).
+    If acc is equal to "":
+        Return arrFlatDepthLoop(els, i + 1, depth, el).
+    Return arrFlatDepthLoop(els, i + 1, depth, concat(concat(acc, tagArrSep ()), el)).
+
+## To arrFlatDepth (arrval: Text, depth: Int) -> Text:
+    Return newArr(concat(concat(tagArr (), arrFlatDepthLoop(arrElements(arrval), 1, depth, "")), tagArrEnd ())).
+
+## To flatDepthArg (argText: Text, env: Text) -> Int:
+    If trim(argText) is equal to "":
+        Return 1.
+    If trim(materialize(jsEvalIn(trim(argText), concat(env, "")))) is equal to "Infinity":
+        Return 1000000.
+    Return safeInt(materialize(jsEvalIn(trim(argText), concat(env, "")))).
+
 ## To arrFlatMap (arrval: Text, fnval: Text, env: Text) -> Text:
     Return arrFlat(arrMap(arrval, fnval, env)).
 
@@ -4634,7 +4663,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlat(raw)), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFlatDepth(raw, flatDepthArg(methodArg(aft), env))), rst)), env).
     If lm is equal to " . sort (":
         Let bef be substringBefore(expr, " . sort (").
         Let aft be substringAfter(expr, " . sort (").
