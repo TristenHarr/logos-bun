@@ -2162,3 +2162,15 @@ each match via `reSearchStart`/`reMatchEnd`, the same iteration `reReplaceLoop` 
 guard) and a global branch that checks `reHasG(__regex_flags)`. `match(/\d/g)`→all digits,
 `match(/\w+/g)`→all words, no-match→null; non-global `match` (first-only) unchanged. New
 `matchglobal-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+
+**Object computed/string-key assignment `o[key]=v` (2026-07-23, 32nd engine fix; crash).** `let o={};
+o["k"]=9; o["k"]` **panicked** and `o[1]=5; o[1]`→undefined — the assign path always treated a bracket
+target as an ARRAY index: it `safeInt`'d the key (panic on a non-numeric key) and called `arrSetIdx` on
+the object. Dot assignment (`o.k=v`) and array-index assignment (`a[0]=v`) already worked. Fixed
+`assignTarget`'s bracket branch to evaluate the key and branch on the receiver: an object ref →
+`objSet(materialize(key), v)` (string/computed key), else the array path (`arrSetIdx(safeInt(key))`).
+This unblocks the ubiquitous **reduce group/count accumulator** — `reduce((o,w)=>{o[w]=(o[w]||0)+1;return
+o},{})` and `reduce((o,x)=>{o[x]=x*x;return o},{})` now work — plus dynamic-key writes `o[k]=v`. New
+`objbracket-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Known separate limitation: assigning
+`o[k]=v` to an object held by a *free* variable inside a `forEach` callback — `["x"].forEach(k=>g[k]=1)`
+— doesn't persist to the outer `g`; a deeper closure-mutation issue, distinct from this assign-path fix.)

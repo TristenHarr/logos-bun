@@ -5693,8 +5693,11 @@
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
-        Let iidx be safeInt(materialize(jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, "")))).
-        Let newarr be arrSetIdx(envGet(concat(env, ""), concat(ivar, "")), iidx, value).
+        Let keyVal be jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, "")).
+        Let recvV be envGet(concat(env, ""), concat(ivar, "")).
+        If isObjRef(recvV):
+            Return envSet(env, ivar, objSet(recvV, materialize(keyVal), value)).
+        Let newarr be arrSetIdx(concat(recvV, ""), safeInt(materialize(keyVal)), value).
         Return envSet(env, ivar, newarr).
     Return envSet(env, target, value).
 
