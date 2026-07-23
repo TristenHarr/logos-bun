@@ -1718,3 +1718,40 @@ in case byte-exact stdout parity is wanted later.
 
 ~13 defects here + the 11 in the prior batch = a prioritized correctness backlog for the engine
 owner. Found via bug-hunt track (task #1); read-only, main.lg under concurrent edit so not fixed.
+
+---
+
+**BUG-HUNT BATCH 3 — control-flow / operators / hoisting (2026-07-23).** Verified clean vs Node.
+
+**P0 — `do…while` body never executes.**
+- `let k=0; do{k=k+1}while(false); console.log(k)` → `0` (Node `1`); `do{n=n+1}while(n<3)` → `0`
+  (Node `3`). The do-while body runs ZERO times (even WITH braces) — the statement handler evaluates
+  the `while` guard first / never enters the body. Common loop form; distinct from the braceless-loop
+  bug (this one is braced).
+
+**P0 — function declarations are not hoisted.**
+- `f(); function f(){return 7}` → `NaN` (Node `7`). Calling a `function` decl BEFORE its textual
+  position fails; `function f(){…}; f()` works. Function hoisting is pervasive in real code (mutual
+  recursion, helpers-below-usage).
+
+**P1 — `instanceof` fails for BUILT-IN constructors.**
+- `[1] instanceof Array` → `false`; `new Date() instanceof Date` → `false` (Node `true`). A USER class
+  `new A() instanceof A` → `true`. Built-in prototype chains (Array/Date/…) aren't recognized by
+  `instanceof`.
+
+**P1 — labeled continue/break.**
+- `outer: for(…){ for(…){ if(j===1) continue outer; s+=i } }` → `""` (Node `"012"`). Labeled
+  `continue`/`break` to an outer loop label isn't handled (produces empty / wrong control flow).
+
+**P1 — `void` operator.**
+- `typeof void 0` → `"number 0"` (Node `"undefined"`). `void expr` doesn't evaluate-and-discard to
+  `undefined`; it leaks a garbage token.
+
+(Correct in this sweep: `switch` fallthrough, ternary + nested ternary, `in`, `%`, `~`, `&&`/`||`,
+bitwise `&`, `??`, `??=`, duplicate object literal key = last-wins, user-class `instanceof`.)
+
+Batch totals across the 2026-07-23 hunt: ~30 verified correctness defects (2 stack-overflow crashes,
+null/undefined no-throw, do-while/hoisting/instanceof/labeled-flow, === type-blindness, arithmetic
+& ToPrimitive coercion, /g match + replace-$1, UTF-8 length, let-scoping, + ~10 missing/partial
+builtins). All read-only finds (bug-hunt track #1); main.lg under concurrent edit → documented, not
+fixed. Each is a ready-made RED differential-fuzzer target once the engine owner lands fixes.
