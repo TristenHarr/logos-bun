@@ -1608,3 +1608,19 @@ execStmt self-recursion fixed it. Now `++x`/`x++`/`--x`/`x--` work in assignment
 for-loops unchanged. New `incexpr-diff` fuzzer (1000 programs/5 seeds, 0 diffs); full 131-fuzzer sweep
 GREEN. (This is campaign task E-INC. Persistent mutable CLOSURE capture — `()=>++c` surviving across calls
 — remains separate: it needs shared cells, not just expression-position increment.)
+
+---
+
+**KNOWN-OPEN — braceless loop bodies never execute (2026-07-23).** A `for`/`while` whose body is a
+SINGLE statement WITHOUT braces runs the body ZERO times:
+`for(let i=0;i<3;i++)s.push(i)` -> s stays `[]` (Node: `[0,1,2]`); `let t=0;for(let i=0;i<3;i++)t=t+i`
+-> t stays `0` (Node 3); `let n=0;while(n<3)n=n+1` -> INFINITE LOOP (body never runs so n never
+changes; Node terminates at 3). ISOLATION (6 differential probes): the BRACED forms
+(`for(...){s.push(i)}`) work; a braceless `if(true)console.log("x")` works; the braceless-loop failure
+reproduces WITH `i=i+1` in place of `i++`, so it is NOT the increment operator (E-INC / b949d82) — it
+is the loop-body extraction not handling the no-brace single-statement body for `for`/`while`
+specifically (the `if` path already handles it). VALUE: braceless loop bodies are extremely common;
+this silently drops work and can hang. LIKELY FIX SITE: wherever the for/while executor slices its
+body — mirror whatever the braceless-`if` handler does (take the next single statement when the char
+after the header's `)` is not `{`). Found by a differential sweep while validating E-INC; NOT fixed
+here because src/main.lg was under active concurrent edit at the time (engine owner: please pick up).
