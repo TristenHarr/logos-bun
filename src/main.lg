@@ -3014,6 +3014,8 @@
     Return concat(tagStr (), item (i + 1) of s).
 
 ## To strIndexOf (s: Text, sub: Text) -> Int:
+    If sub is equal to "":
+        Return 0.
     Let bef be substringBefore(s, sub).
     If bef is equal to s:
         Return -1.
@@ -3056,6 +3058,38 @@
     If isArrRef(raw):
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
+
+# indexOf's optional fromIndex (2nd arg). String.indexOf CLAMPS a negative fromIndex to 0; Array.indexOf
+# counts it from the END (`len + fromIndex`, floored at 0). Search starts at that 0-based position; a
+# string result is offset back by the start, an array scan begins at start+1.
+## To clampStart (start: Int) -> Int:
+    If start is less than 0:
+        Return 0.
+    Return start.
+
+## To normStart (start: Int, len: Int) -> Int:
+    If start is greater than or equal to 0:
+        Return start.
+    If (len + start) is less than 0:
+        Return 0.
+    Return len + start.
+
+## To strIndexOfFrom (s: Text, sub: Text, start: Int) -> Int:
+    Let st be clampStart(start).
+    If st is greater than length of s:
+        Return -1.
+    Let found be strIndexOf(strSliceLoop(s, st + 1, length of s, ""), sub).
+    If found is equal to -1:
+        Return -1.
+    Return found + st.
+
+## To arrIndexOfFrom (arrval: Text, target: Text, start: Int) -> Int:
+    Return arrIndexOfLoop(arrElements(arrval), normStart(start, length of arrElements(arrval)) + 1, target).
+
+## To idxOfFrom (raw: Text, subEval: Text, start: Int) -> Int:
+    If isArrRef(raw):
+        Return arrIndexOfFrom(raw, subEval, start).
+    Return strIndexOfFrom(materialize(raw), materialize(subEval), start).
 
 ## To arrSliceLoop (els: Seq of Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
@@ -4742,7 +4776,10 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let subEval be jsEvalIn(trim(methodArg(aft)), env).
+        Let iargs be splitArgsN(methodArg(aft)).
+        Let subEval be jsEvalIn(trim(item 1 of iargs), env).
+        If length of iargs is greater than 1:
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOfFrom(raw, subEval, safeInt(materialize(jsEvalIn(trim(item 2 of iargs), env)))))), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(idxOf(raw, subEval))), rst)), env).
     If lm is equal to " . slice (":
         Let bef be substringBefore(expr, " . slice (").

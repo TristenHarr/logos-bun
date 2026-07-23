@@ -2174,3 +2174,12 @@ o},{})` and `reduce((o,x)=>{o[x]=x*x;return o},{})` now work — plus dynamic-ke
 `objbracket-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Known separate limitation: assigning
 `o[k]=v` to an object held by a *free* variable inside a `forEach` callback — `["x"].forEach(k=>g[k]=1)`
 — doesn't persist to the outer `g`; a deeper closure-mutation issue, distinct from this assign-path fix.)
+
+**`indexOf(sub, fromIndex)` (2026-07-23, 33rd engine fix).** The optional 2nd argument (start position)
+was ignored — `"abcabc".indexOf("c",3)`→-1 (want 5). Split the args and route to `idxOfFrom`. The
+fuzzer then caught the string-vs-array asymmetry for a NEGATIVE fromIndex: **`String.indexOf` clamps a
+negative to 0**, but **`Array.indexOf` counts it from the end** (`len+fromIndex`, floored at 0) —
+`"ab".indexOf("b",-1)`→1 but `[1,2].indexOf(2,-1)`→-1. Implemented both (`clampStart` for strings,
+`normStart` for arrays). Also fixed a pre-existing edge: `s.indexOf("")`→0 (was -1). `indexOf(c,3)`,
+`indexOf(c,-2)`, array `indexOf(x,-1)` all correct; no-fromIndex form unchanged. New `indexoffrom-diff`
+fuzzer (2400 checks/6 seeds). Full sweep green.
