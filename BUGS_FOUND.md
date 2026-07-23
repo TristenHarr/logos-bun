@@ -1567,3 +1567,22 @@ index's variables are already substituted to their values by that point, so eval
 it resolves `.length`/nested indices/arithmetic uniformly before the parse. Plain, arithmetic, temp-var,
 nested (`a[1][0]`), and string-key indices are unchanged. New `indexexpr-diff` fuzzer (1000 programs/5
 seeds, 0 diffs); full 127-fuzzer sweep GREEN.
+
+---
+
+**KNOWN-OPEN — increment/decrement in EXPRESSION position (2026-07-23).** `++x`/`x++`/`--x`/`x--`
+work only as standalone STATEMENTS (`for(;;i++)`, `x++;` — both green). As value-producing
+EXPRESSIONS they are broken: `console.log(x++)` -> NaN (and x never changes), `let y=++x` -> y=NaN
+x unchanged, `while(x<3){console.log(++x)}` -> INFINITE LOOP printing NaN (x stays 0), and `a[++i]`
+-> runtime PANIC. ROOT CAUSE: env is FUNCTIONAL — `envSet(env,n,v)` returns a NEW env string
+(`n=v;`+env), while the substitution-based expression evaluator (jsEvalIn/evalValue) returns only a
+Text VALUE, so any mutation performed while evaluating an expression is discarded. Statement-form
+increment works precisely because it runs through execStmt which threads the new env forward.
+Statement-level HOISTING is NOT a sound fix — JS's evaluation order is observable (`f(x++) + x` uses
+old-x then new-x; a hoist can't reproduce that), so a partial hoist would silently miscompile the
+interleaved cases. PROPER FIX (E0-scale, deserves its own focused session): a MUTABLE scalar binding
+store (reuse the existing heapAlloc/heapGet/heapSet native seam that already backs objects/arrays) so
+`let`/`var` scalars live in mutable cells and `++`/`--` mutate at the point of evaluation, the value
+flowing out naturally. Then wire the four increment surfaces (prefix/postfix x, member `o.p++`, index
+`a[i]++`) to read-modify-write the cell. Also closes the `a[++i]` panic. HIGH VALUE — extremely common
+JS. Discovered when a stale 6-hour `while(++x)` probe was found pinning a CPU core.
