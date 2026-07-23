@@ -3592,6 +3592,11 @@
         Let aft be substringAfter(expr, "Object . keys (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Object . getOwnPropertyNames (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . getOwnPropertyNames (").
+        Let aft be substringAfter(expr, "Object . getOwnPropertyNames (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . values (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . values (").
         Let aft be substringAfter(expr, "Object . values (").
