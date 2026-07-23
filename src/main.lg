@@ -3492,7 +3492,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -4255,6 +4255,15 @@
         Let sval be materialize(jsEvalIn(recv, env)).
         Let subv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(startsWith(sval, subv))), rst)), env).
+    If lm is equal to " . localeCompare (":
+        Let bef be substringBefore(expr, " . localeCompare (").
+        Let aft be substringAfter(expr, " . localeCompare (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let sa be jsEvalIn(recv, env).
+        Let sb be jsEvalIn(trim(methodArg(aft)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(signInt(cmpVals(sa, sb)))), rst)), env).
     If lm is equal to " . endsWith (":
         Let bef be substringBefore(expr, " . endsWith (").
         Let aft be substringAfter(expr, " . endsWith (").
