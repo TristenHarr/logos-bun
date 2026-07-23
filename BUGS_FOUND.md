@@ -2065,3 +2065,14 @@ Comparison (`relCmp`): both-strings→lexicographic, else ToNumber both and comp
 text); `relIsNaN` returns the false-on-NaN result. `10 > "5"`→true, `"5" > "10"`→true (lexicographic),
 `10 > "abc"`→false, `Number("3.14")`→3.14, `isNaN("x")`→true. New `relcoerce-diff` fuzzer (2400
 checks/6 seeds). Full sweep green.
+
+**`Array(...)` constructor (2026-07-23, 22nd engine fix).** `Array(3)`→NaN, `new Array(3)`
+**stack-overflowed** — the constructor was unimplemented (only `Array.of`/`from`/`isArray` existed). Its
+notorious overload: a single numeric arg is the LENGTH (n empty slots, rendered undefined), any other
+arg list is the elements (like `Array.of`). `arrCtor` implements it; wired boundary-safely — `Array`
+goes through the token-based `globalCall`/`isGlobalFn` (so `getArray()` is NOT mis-matched as a suffix)
+and `new Array (` gets its own `resolveMethods` branch beside `new Set (`. `Array(3).length`→3,
+`Array(3).fill(0)`→"0,0,0", `new Array(3).fill(7)`→"7-7-7", `Array(1,2,3)`→"1,2,3", `Array("x")`→1
+element, `Array.isArray(Array(3))`→true. New `arrayctor-diff` fuzzer (2400 checks/6 seeds). Full sweep
+green. (Separate gaps noted for later: `.map(Number)`/`.map(String)` — a bare global-fn as an array
+callback — and `"café".length` returning byte-count not code-units.)

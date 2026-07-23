@@ -1570,12 +1570,14 @@
     Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array"].
     Return names contains name.
 
 ## To globalCall (name: Text, inner: Text, env: Text) -> Text:
     If name is equal to "parseInt":
         Return jsParseIntArgs(inner, env).
+    If name is equal to "Array":
+        Return arrCtor(inner, env).
     Let av be jsEvalIn(inner, env).
     If name is equal to "BigInt":
         Return concat(tagBig (), jsParseIntText(decodeStr(materialize(av)))).
@@ -3219,6 +3221,25 @@
         Return newArr(concat(tagArr (), tagArrEnd ())).
     Return newArr(concat(concat(tagArr (), arrOfLoop(patFields(argStr), 1, env, "")), tagArrEnd ())).
 
+## To arrUndefLoop (n: Int, i: Int, acc: Text) -> Text:
+    If i is greater than n:
+        Return acc.
+    If i is equal to 1:
+        Return arrUndefLoop(n, 2, "undefined").
+    Return arrUndefLoop(n, i + 1, concat(concat(acc, tagArrSep ()), "undefined")).
+
+# The `Array(...)` constructor's notorious overload: a single numeric argument is the LENGTH (n empty
+# slots, rendered undefined), any other argument list is the elements (like `Array.of`).
+## To arrCtor (argStr: Text, env: Text) -> Text:
+    Let args be patFields(argStr).
+    If trim(concat(argStr, "")) is equal to "":
+        Return newArr(concat(tagArr (), tagArrEnd ())).
+    If length of args is equal to 1:
+        Let a0 be materialize(jsEvalIn(trim(item 1 of args), concat(env, ""))).
+        If isIntStr(concat(a0, "")):
+            Return newArr(concat(concat(tagArr (), arrUndefLoop(parseInt(a0), 1, "")), tagArrEnd ())).
+    Return arrOf(argStr, env).
+
 ## To fromCharsLoop (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -3950,6 +3971,11 @@
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, "new Array (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new Array (") is equal to false:
+        Let bef be substringBefore(expr, "new Array (").
+        Let aft be substringAfter(expr, "new Array (").
+        Return resolveMethods(trim(concat(concat(bef, arrCtor(methodArg(aft), env)), methodRest(aft))), env).
     If substringBefore(expr, "new Error (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Error (") is equal to false:
         Let bef be substringBefore(expr, "new Error (").
