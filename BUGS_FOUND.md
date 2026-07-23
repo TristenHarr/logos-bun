@@ -2554,3 +2554,13 @@ array, a called generator's buffered values, or a string's chars. `yield* [1,2];
 `yield 0; yield* [1,2,3]`→0,1,2,3, `yield* inner()` (generator→generator), `yield* [1,2]; yield* [3,4]`,
 and `yield* "ab"`→a,b all match Node; plain `yield` and generator loops unchanged. New `yieldstar-diff`
 fuzzer (2400 checks/6 seeds). Full sweep green.
+
+**`Object.prototype.hasOwnProperty` (2026-07-23, 57th engine fix).** `o.hasOwnProperty(key)` — one of
+the most common object methods — was unimplemented, so its method dispatch recursed to a stack
+overflow (`o.hasOwnProperty("a")` crashed). Added a `.hasOwnProperty(` handler (registered in
+`leftmostMethod` and dispatched in `resolveMethods`) that returns whether the key resolves to a defined
+own value — the same membership test the `in` operator uses (`objGet(o,key) !== "undefined"`).
+Present/absent keys, a variable key, a ternary on the result, `hasOwnProperty && hasOwnProperty`, and
+the ubiquitous `for (k in o) if (o.hasOwnProperty(k)) …` guard all match Node; `in`, `Object.keys`,
+`toString`, nested access, JSON unchanged. New `hasownprop-diff` fuzzer (2400 checks/6 seeds). Full
+sweep green.
