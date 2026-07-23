@@ -7471,6 +7471,18 @@
         Return popLast(stack).
     Return stack.
 
+# A property-shorthand key `{ n }` / `{ a, b }` is a bare identifier at a key position followed by `,`
+# or `}` (end) — not `:` (a normal key) or `(` (a method). It expands to `n : n` so the KEY stays a
+# name (key position, protected from substitution) while the VALUE `n` resolves to the variable.
+## To isShorthandEnd (t: Text) -> Bool:
+    If t is equal to ",":
+        Return true.
+    If t is equal to chr(125):
+        Return true.
+    If t is equal to "":
+        Return true.
+    Return false.
+
 ## To atKeyPos (stack: Text, prev: Text) -> Bool:
     If topChar(stack) is not equal to "o":
         Return false.
@@ -7512,6 +7524,10 @@
                 Let m1 be domAppend(acc, t).
                 Let m3 be domAppend(domAppend(m1, ":"), "function").
                 Return domWalk(toks, i + 1, stack, "function", m3).
+            If isShorthandEnd(domNext(toks, i + 1)):
+                Let p1 be domAppend(acc, t).
+                Let p3 be domAppend(domAppend(p1, ":"), t).
+                Return domWalk(toks, i + 1, stack, t, p3).
     Let newStack be domStack(stack, t, prev).
     Let newAcc be domAppend(acc, t).
     Return domWalk(toks, i + 1, newStack, t, newAcc).

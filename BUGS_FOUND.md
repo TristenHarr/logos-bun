@@ -2588,3 +2588,18 @@ consuming call twice, so `dpNum`/`nthArg` take the arg TEXT and re-`splitArgsN` 
 aligns with our UTC epoch). Full sweep green. (`getTime` of a component date is UTC here; a non-UTC
 `new Date(y,m,d).getTime()` would differ from Node's local-time value — the timezone-independent
 getUTC\* fields are exact regardless.)
+
+**Object property shorthand `{n}` ≡ `{n:n}` (2026-07-23, 60th engine fix).** ES2015 property shorthand
+was entirely broken: `{n}` (n=5) produced `{"5":NaN}`, `{a,b}` → `{"1":NaN,"2":NaN}`, `({name}).name`
+→ undefined. Root cause: the engine substitutes free variables into the token stream BEFORE building
+the object, and `substTokens`' key-position guard only protects a name FOLLOWED by `:` — a bare
+shorthand `n` is followed by `,`/`}`, so it was substituted to its value (`{n}`→`{5}`) and `buildObj`
+then read `5` as the KEY with a NaN value. Fixed by desugaring shorthand in `domWalk` (the object-key
+pre-pass, which runs before substitution): at an object key position (`atKeyPos` — an `o` frame, not
+the `b`/block frame a destructuring `let {a}=o` pattern lives in), a bare identifier whose next token is
+`,`/`}`/end (new `isShorthandEnd`, distinct from `:` = normal key and `(` = method shorthand) expands to
+`t : t`, so the KEY stays a name (protected) while the VALUE resolves to the variable. `{n}`→`{"n":5}`,
+`{a,b,c}`, mixed `{a,b:2,c}`, nested `{x:{y}}`, `[{x},{x}]`, arg `f({x})`, and shorthand + method
+`{a,b,sum(){…}}` all match Node; normal `{a:1,b:2}`, method shorthand, getters/setters, and — critically
+— destructuring `let {a}=o` (a pattern, left untouched) unchanged. New `objshorthand-diff` fuzzer (2400
+checks/6 seeds). Full sweep green (378/378).
