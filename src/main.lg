@@ -2096,6 +2096,24 @@
         Return concat(objval, "").
     Return newBlob.
 
+## To objDeleteLoop (entries: Seq of Text, i: Int, key: Text, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    If substringBefore(entry, tagObjKV ()) is equal to key:
+        Return objDeleteLoop(entries, i + 1, key, acc).
+    If acc is equal to "":
+        Return objDeleteLoop(entries, i + 1, key, entry).
+    Return objDeleteLoop(entries, i + 1, key, concat(concat(acc, tagObjSep ()), entry)).
+
+## To objDelete (objval: Text, key: Text) -> Text:
+    Let content be objDeleteLoop(objEntrySeq(concat(objval, "")), 1, concat(key, ""), "").
+    Let newBlob be concat(concat(tagObj (), content), tagObjEnd ()).
+    If isRef(concat(objval, "")):
+        heapSet(refId(concat(objval, "")), concat(newBlob, "")).
+        Return concat(objval, "").
+    Return newBlob.
+
 ## To arrSetLoop (els: Seq of Text, i: Int, idx: Int, newval: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -3111,11 +3129,26 @@
 ## To arrJoinLoop (els: Seq of Text, i: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
-    Let m be materialize(item i of els).
+    Let m be joinCell(item i of els).
     If i is equal to 1:
         Return arrJoinLoop(els, i + 1, sep, m).
     Let nextAcc be concat(concat(acc, sep), m).
     Return arrJoinLoop(els, i + 1, sep, nextAcc).
+
+## To joinCell (raw: Text) -> Text:
+    If concat(raw, "") is equal to "undefined":
+        Return "".
+    If concat(raw, "") is equal to "null":
+        Return "".
+    Return materialize(concat(raw, "")).
+
+## To joinSep (sepArg: Text, env: Text) -> Text:
+    If concat(sepArg, "") is equal to "":
+        Return ",".
+    Let ev be jsEvalIn(concat(sepArg, ""), env).
+    If concat(ev, "") is equal to "undefined":
+        Return ",".
+    Return materialize(concat(ev, "")).
 
 ## To arrJoin (arrval: Text, sep: Text) -> Text:
     Return concat(tagStr (), arrJoinLoop(arrElements(arrval), 1, sep, "")).
@@ -3624,6 +3657,23 @@
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, objGet(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
+    If substringBefore(expr, "Reflect . set (") is not equal to expr:
+        Let bef be substringBefore(expr, "Reflect . set (").
+        Let aft be substringAfter(expr, "Reflect . set (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Let rtgt be jsEvalIn(trim(item 1 of args), env).
+        Let rkey be materialize(jsEvalIn(trim(item 2 of args), env)).
+        Let rval be jsEvalIn(trim(item 3 of args), env).
+        Let rdone be objSet(concat(rtgt, ""), concat(rkey, ""), concat(rval, "")).
+        Return resolveMethods(trim(concat(concat(bef, "true"), rst)), env).
+    If substringBefore(expr, "Reflect . deleteProperty (") is not equal to expr:
+        Let bef be substringBefore(expr, "Reflect . deleteProperty (").
+        Let aft be substringAfter(expr, "Reflect . deleteProperty (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Let ddone be objDelete(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))).
+        Return resolveMethods(trim(concat(concat(bef, "true"), rst)), env).
     If substringBefore(expr, "Object . fromEntries (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . fromEntries (").
         Let aft be substringAfter(expr, "Object . fromEntries (").
@@ -3995,7 +4045,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let aval be jsEvalIn(recv, env).
-        Let sepv be materialize(jsEvalIn(trim(methodArg(aft)), env)).
+        Let sepv be joinSep(trim(methodArg(aft)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrJoin(aval, sepv)), rst)), env).
     If lm is equal to " . replace (":
         Let bef be substringBefore(expr, " . replace (").
@@ -4609,6 +4659,23 @@
         Return envSet(env, "__continue", "1").
     If startsWith(s, "continue "):
         Return envSet(env, "__continue", "1").
+    If startsWith(s, "delete "):
+        Let dtgt be trim(substringAfter(s, "delete ")).
+        If hasSep(dtgt, chr(91)):
+            Let dbase be trim(substringBefore(dtgt, chr(91))).
+            Let drecv be envGet(concat(env, ""), concat(dbase, "")).
+            Let dkey be materialize(jsEvalIn(trim(substringBefore(substringAfter(dtgt, chr(91)), chr(93))), concat(env, ""))).
+            If isArrRef(concat(drecv, "")):
+                Let da be arrSetIdx(concat(drecv, ""), safeInt(concat(dkey, "")), "undefined").
+                Return env.
+            Let dob be objDelete(concat(drecv, ""), concat(dkey, "")).
+            Return env.
+        If hasSep(dtgt, " . "):
+            Let mbase be trim(substringBefore(dtgt, " . ")).
+            Let mrecv be envGet(concat(env, ""), concat(mbase, "")).
+            Let md be objDelete(concat(mrecv, ""), trim(substringAfter(dtgt, " . "))).
+            Return env.
+        Return env.
     If s is equal to "__GENRESET":
         genReset().
         Return env.
