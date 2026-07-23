@@ -4167,12 +4167,16 @@
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
         Let rst be methodRest(aft).
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, "-Infinity"), rst)), env).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("max", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
         Let bef be substringBefore(expr, "Math . min (").
         Let aft be substringAfter(expr, "Math . min (").
         Let rst be methodRest(aft).
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, "Infinity"), rst)), env).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("min", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
