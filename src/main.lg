@@ -3989,6 +3989,10 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let fnval be fnArgValRaw(trim(argStr), env).
+        If isMap(raw):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), mapForEach(raw, fnval, env)), rst)), env).
+        If isSet(raw):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), setForEach(raw, fnval, env)), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrForEach(raw, fnval, env)), rst)), env).
     If lm is equal to " . concat (":
         Let bef be substringBefore(expr, " . concat (").
@@ -6641,6 +6645,30 @@
         Return "false".
     Let dv be arrRemoveAt(objGet(concat(s, ""), "__set_vals"), idx).
     Return "true".
+
+# Map/Set forEach: invoke the callback per entry — cb(value, key) for a Map, cb(value, value) for a
+# Set (mirrors arrForEach; heap-mutating callbacks persist, scalar accumulation does not — same as
+# arrays). Returns undefined. `Let vv`/`kk` first to dodge the arg-order E0382 borrow.
+## To mapForEachLoop (keys: Seq of Text, vals: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+    If i is greater than length of keys:
+        Return "undefined".
+    Let vv be item i of vals.
+    Let kk be item i of keys.
+    Let r be callFnIdx(concat(fnval, ""), vv, kk, concat(env, "")).
+    Return mapForEachLoop(keys, vals, i + 1, fnval, env).
+
+## To mapForEach (m: Text, fnval: Text, env: Text) -> Text:
+    Return mapForEachLoop(arrElements(objGet(concat(m, ""), "__map_keys")), arrElements(objGet(concat(m, ""), "__map_vals")), 1, fnval, env).
+
+## To setForEachLoop (vals: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+    If i is greater than length of vals:
+        Return "undefined".
+    Let vv be item i of vals.
+    Let r be callFnIdx(concat(fnval, ""), vv, vv, concat(env, "")).
+    Return setForEachLoop(vals, i + 1, fnval, env).
+
+## To setForEach (s: Text, fnval: Text, env: Text) -> Text:
+    Return setForEachLoop(arrElements(objGet(concat(s, ""), "__set_vals")), 1, fnval, env).
 
 # A Set: __set_vals holds its distinct values.
 ## To newSetFrom (arrval: Text) -> Text:
