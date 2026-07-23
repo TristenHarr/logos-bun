@@ -2483,3 +2483,14 @@ Braceless for/for-of/for-in/while, a braceless `if` inside a braceless `for`, an
 balanced-header extraction) `for (const {a} of arr) s+=a` and nested braceless inner loops all match
 Node; every braced loop and do-while unchanged. New `bracelessloop-diff` fuzzer (2400 checks/6 seeds,
 4s per-run timeout so a regressed hang surfaces). Full sweep green.
+
+**Braceless `if`/`else` — trailing `;` corruption (2026-07-23, 52nd engine fix).** A braceless
+`if (c) stmt; else stmt2` (and `else if` chains) returned `NaN`. `splitTop` correctly keeps `; else`
+together (so the whole if/else is one statement), but `execIf` extracted the braceless consequent as
+`substringBefore(afterCond, " else ")` — which includes the statement terminator `;` sitting just
+before `else` (`return "a" ;`), and that trailing `;` corrupted the subsequent `execStmt`/`jsEvalIn`.
+Fix: `stripTrailSemi` drops a trailing `;` from the braceless consequent and the else part. Braceless
+`if/else` assignment, `else if` chains, deep chains, and a braceless `if/else` nested inside a
+braceless `for` (`for (…) if (c) s+=i; else s-=1;`) all match Node; braced `if/else`, `else if`
+chains, and a braceless then with no else are unchanged. New `bracelessif-diff` fuzzer (2400 checks/6
+seeds). Full sweep green.

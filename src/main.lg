@@ -5632,6 +5632,15 @@
 # (`if (f(x))`) survive; what follows is a `{ … }` block or, for a braceless if, a single statement
 # (`if (c) break;` / `if (c) return x;`) that runs via execStmt. An inline `else` (no `;` before it)
 # is honored in both forms.
+# A braceless branch is `if (c) stmt; else …` — the statement terminator `;` sits just before `else`
+# (splitTop keeps `; else` together), so the extracted consequent carries a trailing `;` that would
+# corrupt execStmt/jsEvalIn (`return "a" ;` → NaN). Drop it.
+## To stripTrailSemi (s: Text) -> Text:
+    Let t be trim(s).
+    If strEndsWith(concat(t, ""), ";"):
+        Return trim(strSliceLoop(concat(t, ""), 1, (length of t) - 1, "")).
+    Return t.
+
 ## To execIf (stmt: Text, env: Text) -> Text:
     Let inner be substringAfter(stmt, "(").
     Let condRaw be balancedArg(concat(inner, ""), 1, 0, "").
@@ -5649,11 +5658,11 @@
             Let elseBlock be braceBody(substringAfter(afterElse, chr(123)), 1, 0, "").
             Return runBlockStr(elseBlock, env).
         Return env.
-    Let consequent be trim(substringBefore(afterCond, " else ")).
+    Let consequent be stripTrailSemi(trim(substringBefore(afterCond, " else "))).
     If boolOf(jsEvalIn(cond, env)):
         Return execStmt(consequent, env).
     If substringBefore(afterCond, " else ") is not equal to afterCond:
-        Let elsePart be trim(substringAfter(afterCond, " else ")).
+        Let elsePart be stripTrailSemi(trim(substringAfter(afterCond, " else "))).
         If startsWith(elsePart, "if "):
             Return execIf(elsePart, env).
         Return execStmt(elsePart, env).
