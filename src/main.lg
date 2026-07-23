@@ -5127,6 +5127,10 @@
         Return envSet(env, "__throw", jsEvalIn(substringAfter(s, "throw "), env)).
     If startsWith(s, "try "):
         Return execTry(s, env).
+    If startsWith(s, "do "):
+        Return execDoWhile(s, env).
+    If startsWith(s, concat("do", chr(123))):
+        Return execDoWhile(s, env).
     If startsWith(s, "while "):
         Return execWhile(s, env).
     If startsWith(s, "for "):
@@ -5243,6 +5247,29 @@
             Return execWhile(stmt, clearContinue(afterBody)).
         Return execWhile(stmt, afterBody).
     Return env.
+
+## To clearContIf (env: Text) -> Text:
+    If hasContinue(env):
+        Return clearContinue(env).
+    Return env.
+
+# do-while runs the body ONCE before testing the guard (unlike while). The body is the first brace
+# group; the condition is the while-paren that follows it. break exits, continue jumps to the guard
+# test (both handled like execWhile). Loops by re-running the whole statement while the guard holds.
+## To execDoWhile (stmt: Text, env: Text) -> Text:
+    If hasHalt(env):
+        Return env.
+    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Let cond be trim(substringBefore(substringAfter(substringAfter(stmt, "while"), "("), ")")).
+    Let afterBody be runBlockStr(body, env).
+    If hasHalt(afterBody):
+        Return afterBody.
+    If hasBreak(afterBody):
+        Return clearBreak(afterBody).
+    Let e2 be clearContIf(afterBody).
+    If boolOf(jsEvalIn(cond, e2)):
+        Return execDoWhile(stmt, e2).
+    Return e2.
 
 ## To forStmt (stmt: Text, env: Text) -> Text:
     If hasHalt(env):
