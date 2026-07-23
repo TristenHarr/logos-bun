@@ -3624,6 +3624,15 @@
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isSet(recv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), setAdd(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, " . delete (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . delete (") is equal to false:
+        Let bef be substringBefore(expr, " . delete (").
+        Let aft be substringAfter(expr, " . delete (").
+        Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If isMap(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapDelete(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), setDelete(recv, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, "new RegExp (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new RegExp (") is equal to false:
         Let bef be substringBefore(expr, "new RegExp (").
@@ -6601,6 +6610,37 @@
     If idx is equal to 0:
         Return "undefined".
     Return item idx of arrElements(objGet(concat(m, ""), "__map_vals")).
+
+# Remove the element at 1-based idx from an array (in place via mutArr — the heap ref is preserved,
+# so a Map/Set's parallel key/val arrays stay wired). mapDelete/setDelete return "true"/"false" per JS.
+## To arrRemoveAtLoop (els: Seq of Text, i: Int, skip: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    If i is equal to skip:
+        Return arrRemoveAtLoop(els, i + 1, skip, acc).
+    Let el be item i of els.
+    If acc is equal to "":
+        Return arrRemoveAtLoop(els, i + 1, skip, el).
+    Return arrRemoveAtLoop(els, i + 1, skip, concat(concat(acc, tagArrSep ()), el)).
+
+## To arrRemoveAt (arrval: Text, idx: Int) -> Text:
+    Let els be arrElements(arrval).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrRemoveAtLoop(els, 1, idx, "")), tagArrEnd ())).
+
+## To mapDelete (m: Text, k: Text) -> Text:
+    Let idx be mapKeyIdx(arrElements(objGet(concat(m, ""), "__map_keys")), 1, concat(k, "")).
+    If idx is equal to 0:
+        Return "false".
+    Let dk be arrRemoveAt(objGet(concat(m, ""), "__map_keys"), idx).
+    Let dv be arrRemoveAt(objGet(concat(m, ""), "__map_vals"), idx).
+    Return "true".
+
+## To setDelete (s: Text, v: Text) -> Text:
+    Let idx be mapKeyIdx(arrElements(objGet(concat(s, ""), "__set_vals")), 1, concat(v, "")).
+    If idx is equal to 0:
+        Return "false".
+    Let dv be arrRemoveAt(objGet(concat(s, ""), "__set_vals"), idx).
+    Return "true".
 
 # A Set: __set_vals holds its distinct values.
 ## To newSetFrom (arrval: Text) -> Text:
