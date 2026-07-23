@@ -6422,12 +6422,19 @@
         Return execDoWhile(stmt, lbl, e2).
     Return e2.
 
+# An empty for-condition (`for (init;;update)`) is always true — the loop runs until an inner
+# `break`/`return` halts it.
+## To forCondHolds (cond: Text, env: Text) -> Bool:
+    If trim(cond) is equal to "":
+        Return true.
+    Return boolOf(jsEvalIn(concat(cond, ""), env)).
+
 ## To forStmt (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
     Let cond be trim(item 2 of parts).
-    If boolOf(jsEvalIn(cond, env)):
+    If forCondHolds(concat(cond, ""), env):
         Let body be loopBody(concat(stmt, "")).
         Let update be trim(item 3 of parts).
         Let afterBody be runBlockStr(body, env).

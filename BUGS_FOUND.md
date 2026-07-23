@@ -2564,3 +2564,11 @@ Present/absent keys, a variable key, a ternary on the result, `hasOwnProperty &&
 the ubiquitous `for (k in o) if (o.hasOwnProperty(k)) …` guard all match Node; `in`, `Object.keys`,
 `toString`, nested access, JSON unchanged. New `hasownprop-diff` fuzzer (2400 checks/6 seeds). Full
 sweep green.
+
+**Empty for-loop condition (2026-07-23, 58th engine fix).** `for (init;;update) { … }` / `for (;;)`
+never ran its body (→ NaN): the empty middle clause evaluated to false. Per JS an omitted condition is
+always true (the loop runs until an inner `break`/`return`). `forStmt` now uses `forCondHolds` — an
+empty condition ⇒ true. `for(let i=0;;i++){ if(i>3) return i }`→4, `for(;;){ n++; if(n>=3) break }`→3,
+and empty init+update `for(;i<4;){ i++ }`→4 all match Node; every conditioned for-loop (braced,
+braceless, multi-declarator, for-of) unchanged. New `emptyfor-diff` fuzzer (2400 checks/6 seeds, 4s
+timeout catches a regressed infinite loop). Full sweep green.
