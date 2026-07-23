@@ -2834,6 +2834,29 @@
 ## To arrFill (arrval: Text, v: Text) -> Text:
     Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrFillLoop(length of arrElements(arrval), 1, v, "")), tagArrEnd ())).
 
+# fill(value, start, end): only positions in [start, end) take the value; the rest keep their
+# element. els is 1-based, so position i covers 0-based index (i - 1).
+## To fillCell (cur: Text, idx0: Int, s: Int, e: Int, v: Text) -> Text:
+    If idx0 is greater than or equal to s:
+        If idx0 is less than e:
+            Return concat(v, "").
+    Return cur.
+
+## To arrFillRangeLoop (els: Seq of Text, i: Int, n: Int, s: Int, e: Int, v: Text, acc: Text) -> Text:
+    If i is greater than n:
+        Return acc.
+    Let out be fillCell(item i of els, i - 1, s, e, concat(v, "")).
+    If acc is equal to "":
+        Return arrFillRangeLoop(els, i + 1, n, s, e, v, out).
+    Return arrFillRangeLoop(els, i + 1, n, s, e, v, concat(concat(acc, tagArrSep ()), out)).
+
+## To arrFillRange (arrval: Text, v: Text, start: Int, end: Int) -> Text:
+    Let els be arrElements(arrval).
+    Let n be length of els.
+    Let s be clampIdxN(start, n).
+    Let e be clampIdxN(end, n).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrFillRangeLoop(els, 1, n, s, e, v, "")), tagArrEnd ())).
+
 ## To arrMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -4283,7 +4306,11 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFill(raw, jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+        Let fargs be splitArgsN(methodArg(aft)).
+        Let fv be jsEvalIn(trim(item 1 of fargs), env).
+        Let fs be copyWithinArg(fargs, 2, env, 0).
+        Let fe be copyWithinArg(fargs, 3, env, length of arrElements(raw)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFillRange(raw, fv, fs, fe)), rst)), env).
     If lm is equal to " . copyWithin (":
         Let bef be substringBefore(expr, " . copyWithin (").
         Let aft be substringAfter(expr, " . copyWithin (").
