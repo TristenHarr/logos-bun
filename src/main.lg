@@ -2001,6 +2001,21 @@
 ## To objKeys (objVal: Text) -> Text:
     Return newArr(concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
+# Object.defineProperty(o,k,desc): a data descriptor's `value` is written onto o (our objects don't
+# track writable/enumerable/configurable, so only `value` is honoured — the common case). Object.
+# getOwnPropertyDescriptor(o,k) returns a fresh {value, writable:true, enumerable:true, configurable:true}.
+## To objDefineProp (o: Text, key: Text, desc: Text) -> Text:
+    Let v be objGet(concat(desc, ""), "value").
+    Let d be objSet(concat(o, ""), concat(key, ""), concat(v, "")).
+    Return concat(o, "").
+
+## To ownPropDesc (o: Text, key: Text) -> Text:
+    Let v be objGet(concat(o, ""), concat(key, "")).
+    Let d0 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "value", concat(v, "")).
+    Let d1 be objSet(concat(d0, ""), "writable", "true").
+    Let d2 be objSet(concat(d1, ""), "enumerable", "true").
+    Return objSet(concat(d2, ""), "configurable", "true").
+
 ## To objValues (objVal: Text) -> Text:
     Return newArr(concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
@@ -3857,6 +3872,19 @@
         Let aft be substringAfter(expr, "Object . entries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Object . getOwnPropertyDescriptor (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . getOwnPropertyDescriptor (").
+        Let aft be substringAfter(expr, "Object . getOwnPropertyDescriptor (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, ownPropDesc(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
+    If substringBefore(expr, "Object . defineProperty (") is not equal to expr:
+        Let bef be substringBefore(expr, "Object . defineProperty (").
+        Let aft be substringAfter(expr, "Object . defineProperty (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Let dp be objDefineProp(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)), jsEvalIn(trim(item 3 of args), env)).
+        Return resolveMethods(trim(concat(concat(bef, concat(dp, "")), rst)), env).
     If substringBefore(expr, "Reflect . ownKeys (") is not equal to expr:
         Let bef be substringBefore(expr, "Reflect . ownKeys (").
         Let aft be substringAfter(expr, "Reflect . ownKeys (").
