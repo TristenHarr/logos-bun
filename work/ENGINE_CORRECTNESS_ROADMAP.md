@@ -68,10 +68,18 @@ channel). Unblocks a large class of test262 + real defensive code.
 **Fix:** hoist `function` decls to the top of their scope during the statement pre-pass; give `let`
 loop headers a fresh per-iteration binding scoped to the loop.
 
-## Cluster G — regex `match`/`replace` (2 bugs)
+## Cluster G — regex: `/g` iteration, `$N` templates, AND missing engine features (~6 bugs)
 
 - `"a1b2c3".match(/\d/g)` → only first match (want all — `/g` iteration in `String.match`)
-- `replace(/(b)/,"[$1]")` → no substitution (want `"a[b]c"` — `$1`/`$&` capture templates)
+- `replace(/([a-z])(\d)/g,"$2$1")` → no substitution (want capture-ref templates `$1`/`$2`/`$&`)
+- **Engine gaps (bigger):** alternation `|` (`/cat|dog/`), non-capturing `(?:…)`, lookahead `(?=…)`
+  are all unsupported (literals/classes/quantifiers/anchors work). Alternation is common → high value.
+
+## Cluster K — array index-iterators & tagged templates (~3 bugs)
+
+- `Array.prototype.keys()/entries()/values()` unimplemented (`[1,2].entries()` → empty). Feeds
+  `for (const [i,x] of arr.entries())`.
+- Tagged template application crashes (see Priority-0). `String.fromCodePoint`/`localeCompare` missing.
 
 ## Cluster H — recursion into nested structures (2 bugs)
 
@@ -106,8 +114,9 @@ A JS engine must never abort the process on ordinary input. All 9 are small, loc
 | `~` on non-integer | `~3.7` | `-4` | ToInt32 before bitwise |
 | bitwise w/ NaN + hex≥0x100 | `0xFF\|0x100` | `511` | fix hex parse + ToInt32(NaN)=0 |
 | `Error.prototype.toString` | `String(new Error("x"))` | `"Error: x"` | `name+": "+message`, no recurse |
+| tagged template call | `` f`hi` `` | `"hi"` | handle tag-fn application (plain `` `${}` `` works) |
 
-These are the highest value/effort ratio in the whole backlog.
+These 10 are the highest value/effort ratio in the whole backlog.
 
 ## Recommended fix order (impact × shared-fix leverage)
 
