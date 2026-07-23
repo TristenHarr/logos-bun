@@ -25,6 +25,13 @@ applied at the numeric-operator boundary.
 route `-` `*` `/` `%` unary-`+` `<` `>` through it; add the null≈undefined rule + ToNumber path to
 `==`. One change, ~7 bugs. Guard the unary-plus recursion (the crash) first.
 
+> **PROBE (2026-07-23):** `coerceNumTok` (arithValue's per-token coercion) is NOT the site — adding a
+> tagStr→ToNumber branch there was INERT for `"5"-2` (still returns the left operand `5`), and `10-"4"`
+> even stack-overflows. So `-`/`*`/`/` with a string operand is handled in a SEPARATE, asymmetric path
+> (string-on-left returns the string; string-on-right crashes) — NOT arithValue. Reverted clean. NEXT:
+> find where binary `-`/`*`/`/`/`%` evaluate their operands (likely a jsEvalCmp/jsEvalShift-sibling or a
+> plusStep-analogue) and run ToNumber on each side there; the `+` concat path must stay untouched.
+
 ## Cluster B — ToPrimitive for `+` and string output (one root, ~3 bugs)
 
 `+` with an array/object operand, and stringification of arrays, don't run **ToPrimitive**
