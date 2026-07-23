@@ -3525,9 +3525,23 @@
 ## To splitArgsN (argStr: Text) -> Seq of Text:
     Return split(commaDepthSplit(argStr, 1, 0, 0, ""), chr(10)).
 
+# A bare unary global function used as a callback (`.map(Number)`, `.filter(Boolean)`). parseInt is
+# EXCLUDED — as a callback it receives the index as its 2nd arg (radix), the famous `map(parseInt)`
+# gotcha, so it must not be treated as a plain unary.
+## To isUnaryGlobalFn (name: Text) -> Bool:
+    Let names be ["Number", "String", "Boolean", "isNaN", "isFinite", "parseFloat"].
+    Return names contains name.
+
+# Synthesize the closure `(__cbx) => <name>(__cbx)` so a bare global-fn callback rides the ordinary
+# closure-application path (callFnIdx/callFn) like any user arrow.
+## To synthGlobalCb (name: Text) -> Text:
+    Return concat(concat(concat(chr(1), encFn("__cbx")), chr(1)), encFn(concat(concat("return ", name), " ( __cbx )"))).
+
 ## To fnArgVal (s: Text, env: Text) -> Text:
     If isFnLiteral(s):
         Return funcValueOf(substitute(s, env)).
+    If isUnaryGlobalFn(trim(concat(s, ""))):
+        Return synthGlobalCb(trim(concat(s, ""))).
     Return jsEvalIn(s, env).
 
 # Synchronous higher-order callbacks (map/filter/some/every/find/reduce/sort/…) run immediately, and
@@ -3540,6 +3554,8 @@
 ## To fnArgValRaw (s: Text, env: Text) -> Text:
     If isFnLiteral(s):
         Return funcValueOf(s).
+    If isUnaryGlobalFn(trim(concat(s, ""))):
+        Return synthGlobalCb(trim(concat(s, ""))).
     Return jsEvalIn(s, env).
 
 ## To arrFilterLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:

@@ -2074,5 +2074,15 @@ goes through the token-based `globalCall`/`isGlobalFn` (so `getArray()` is NOT m
 and `new Array (` gets its own `resolveMethods` branch beside `new Set (`. `Array(3).length`→3,
 `Array(3).fill(0)`→"0,0,0", `new Array(3).fill(7)`→"7-7-7", `Array(1,2,3)`→"1,2,3", `Array("x")`→1
 element, `Array.isArray(Array(3))`→true. New `arrayctor-diff` fuzzer (2400 checks/6 seeds). Full sweep
-green. (Separate gaps noted for later: `.map(Number)`/`.map(String)` — a bare global-fn as an array
-callback — and `"café".length` returning byte-count not code-units.)
+green. (Separate gaps noted for later: `"café".length` returning byte-count not code-units.)
+
+**Bare global-fn as an array callback (2026-07-23, 23rd engine fix).** `["1","2"].map(Number)`→empty,
+`[0,1,2].filter(Boolean)`→empty, `.map(String)`→garbage — the callback machinery only understood
+arrow/function literals, so a bare global (`Number`/`String`/`Boolean`/`parseFloat`) had no params/body
+and each call returned "". Fixed at the shared resolvers `fnArgVal`/`fnArgValRaw` (which feed all ~20
+higher-order callback sites — map/filter/forEach/some/every/find/reduce/sort/Array.from): a bare unary
+global is `synthGlobalCb`'d into the closure `(__cbx) => <name>(__cbx)`, so it rides the ordinary
+closure-application path. `parseInt` is deliberately EXCLUDED (as a callback its 2nd arg is the index =
+radix — the famous `map(parseInt)` gotcha). `map(Number)`→numbers, `filter(Boolean)`→truthy,
+`map(parseFloat)`→floats; arrow callbacks unaffected. New `fncallback-diff` fuzzer (2400 checks/6
+seeds). Full sweep green.
