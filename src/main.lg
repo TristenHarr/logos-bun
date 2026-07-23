@@ -7729,10 +7729,12 @@
     Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed))))), " "), 1, "").
 
 # --- Regex engine (E4): a backtracking matcher in LOGOS ---
-# JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-
-# rolled here. matchHere recursively matches the pattern from a position against the text, with
-# greedy `* + ?` backtracking; atoms are a literal, `.`, an escape (\d \w \s and their negations),
-# or a `[...]` class (ranges + negation). `^` anchors at reTest; `$` is checked in matchHere.
+# JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-rolled
+# here. The atom helpers below (atomLen/atomMatches/countAtoms + the class matchers) are the primitives;
+# `mh` (further down, after the atom helpers) is the group/alternation-aware matcher that drives them —
+# it recursively matches the pattern from a position against the text with greedy `* + ?` backtracking.
+# Atoms are a literal, `.`, an escape (\d \w \s and their negations), or a `[...]` class (ranges +
+# negation). `^` anchors at reTest; `$` is checked in `mh`.
 ## To reNot (b: Bool) -> Bool:
     If b:
         Return false.
@@ -7825,14 +7827,6 @@
         Return reClassMatch(pat, pi + 1, ch).
     Return c is equal to ch.
 
-## To starBacktrack (pat: Text, npi: Int, text: Text, ti: Int, k: Int) -> Int:
-    Let r be matchHere(pat, npi, text, ti + k).
-    If r is greater than 0:
-        Return r.
-    If k is equal to 0:
-        Return 0.
-    Return starBacktrack(pat, npi, text, ti, k - 1).
-
 ## To countAtoms (pat: Text, api: Int, text: Text, ti: Int, k: Int) -> Int:
     If (ti + k) is greater than length of text:
         Return k.
@@ -7840,9 +7834,136 @@
         Return countAtoms(pat, api, text, ti, k + 1).
     Return k.
 
-## To matchHere (pat: Text, pi: Int, text: Text, ti: Int) -> Int:
+# --- Groups, alternation, and captures (Cluster G) ---
+# The original Kernighan-Pike matcher treated `(`/`)`/`|` as literal atoms, so ANY grouped or alternating
+# pattern silently failed to match. `mh` (below) is a group-aware backtracking matcher over the same atom
+# helpers, using the pattern-DERIVATIVE (substitution) method: a group `(B)C` is matched by trying, for
+# each top-level alternative Bi of the body, the CONCATENATED pattern `Bi C` — this makes the group body
+# and its continuation contiguous, so ordinary sequential matching backtracks across the boundary with no
+# explicit continuation stack. Quantified groups expand the same way: `(B)?C`→`BC` then `C`; `(B)+`/`(B)*`
+# match one body instance (via grpTryAlts) followed by the derivative `(B)*C` (grpStarPat), which re-enters
+# this handling for the remaining repetitions — greedy for any body that consumes ≥1 char (a body that can
+# match empty, `(a?)*`, is the one shape this can spin on; real patterns don't). `(?:…)` is stripped to a
+# plain group (reGroupBody). Returns the text end-index on success (>= ti, up to length+1), 0 on failure —
+# the same contract the atom-only matcher had, so reTest/reFind/reMatchEnd/replace/split all keep working.
+
+# The `)` matching the `(` whose body scan starts at `i` (depth 0 = that `)`); skips nested groups,
+# `[…]` classes, and `\`-escapes so a `)` inside any of them is not mistaken for the closer.
+## To reGroupEnd (pat: Text, i: Int, depth: Int, g: Text) -> Int:
+    If i is greater than length of pat:
+        Return i.
+    Let c be item i of pat.
+    If c is equal to chr(92):
+        Return reGroupEnd(pat, i + 2, depth, concat(g, c)).
+    If c is equal to chr(91):
+        Let ce be classEnd(pat, i + 1).
+        Return reGroupEnd(pat, ce + 1, depth, concat(g, c)).
+    If c is equal to "(":
+        Return reGroupEnd(pat, i + 1, depth + 1, concat(g, c)).
+    If c is equal to ")":
+        If depth is equal to 0:
+            Return i.
+        Return reGroupEnd(pat, i + 1, depth - 1, concat(g, c)).
+    Return reGroupEnd(pat, i + 1, depth, concat(g, c)).
+
+# The first TOP-LEVEL `|` in pat[i..pend] (depth 0 w.r.t. `(`), 0 if none; skips classes/escapes so a
+# `|` inside `[…]` or after `\` is literal.
+## To reAltBar (pat: Text, i: Int, pend: Int, depth: Int, g: Text) -> Int:
+    If i is greater than pend:
+        Return 0.
+    Let c be item i of pat.
+    If c is equal to chr(92):
+        Return reAltBar(pat, i + 2, pend, depth, concat(g, c)).
+    If c is equal to chr(91):
+        Let ce be classEnd(pat, i + 1).
+        Return reAltBar(pat, ce + 1, pend, depth, concat(g, c)).
+    If c is equal to "(":
+        Return reAltBar(pat, i + 1, pend, depth + 1, concat(g, c)).
+    If c is equal to ")":
+        If depth is equal to 0:
+            Return reAltBar(pat, i + 1, pend, depth, concat(g, c)).
+        Return reAltBar(pat, i + 1, pend, depth - 1, concat(g, c)).
+    If c is equal to "|":
+        If depth is equal to 0:
+            Return i.
+    Return reAltBar(pat, i + 1, pend, depth, concat(g, c)).
+
+## To reQuantAt (pat: Text, i: Int) -> Text:
+    If i is greater than length of pat:
+        Return "".
+    Let c be item i of pat.
+    If c is equal to "*":
+        Return "*".
+    If c is equal to "+":
+        Return "+".
+    If c is equal to "?":
+        Return "?".
+    Return "".
+
+# Backtracking tail for a quantified single atom (like the classic star-backtracker, continuing via `mh` so a
+# group can follow a `.*`).
+## To mhStar (pat: Text, npi: Int, text: Text, ti: Int, k: Int) -> Int:
+    Let r be mh(pat, npi, text, ti + k).
+    If r is greater than 0:
+        Return r.
+    If k is equal to 0:
+        Return 0.
+    Return mhStar(pat, npi, text, ti, k - 1).
+
+# The derivative pattern `(body)*rest` — expands a `(B)+`/`(B)*` group: one body instance matched by
+# grpTryAlts is followed by this, which re-enters mh's `*` handling for the remaining repetitions (so the
+# whole `(B)*` is greedy). A body that can match the empty string is the one shape this can spin on
+# (`(a?)*` etc.) — documented, not hit by real patterns.
+## To grpStarPat (body: Text, rest: Text) -> Text:
+    Return concat(concat(chr(40), body), concat(chr(41), concat("*", rest))).
+
+# A group body with the leading `?:` of a NON-CAPTURING group stripped (`(?:ab)` matches like `(ab)`).
+# Capturing vs non-capturing only differs for capture EXTRACTION, so for matching they are identical.
+## To reGroupBody (raw: Text) -> Text:
+    If startsWith(raw, concat("?", ":")):
+        Return strSliceLoop(raw, 3, length of raw, "").
+    Return raw.
+
+# Try each top-level alternative of a group body concatenated with the continuation `rest`; first whole
+# match wins (full backtracking across the group boundary since `alt + rest` is one contiguous pattern).
+## To grpTryAlts (body: Text, aStart: Int, rest: Text, text: Text, ti: Int) -> Int:
+    Let bar be reAltBar(body, aStart, length of body, 0, "").
+    If bar is greater than 0:
+        Let cand be concat(strSliceLoop(body, aStart, bar - 1, ""), rest).
+        Let r be mh(cand, 1, text, ti).
+        If r is greater than 0:
+            Return r.
+        Return grpTryAlts(body, bar + 1, rest, text, ti).
+    Return mh(concat(strSliceLoop(body, aStart, length of body, ""), rest), 1, text, ti).
+
+## To mh (pat: Text, pi: Int, text: Text, ti: Int) -> Int:
     If pi is greater than length of pat:
         Return ti.
+    Let bar be reAltBar(pat, pi, length of pat, 0, "").
+    If bar is greater than 0:
+        Let rl be mh(strSliceLoop(pat, pi, bar - 1, ""), 1, text, ti).
+        If rl is greater than 0:
+            Return rl.
+        Return mh(strSliceLoop(pat, bar + 1, length of pat, ""), 1, text, ti).
+    If item pi of pat is equal to "(":
+        Let gend be reGroupEnd(pat, pi + 1, 0, "").
+        Let body be reGroupBody(strSliceLoop(pat, pi + 1, gend - 1, "")).
+        Let aft be gend + 1.
+        Let q be reQuantAt(pat, aft).
+        If q is equal to "":
+            Return grpTryAlts(body, 1, strSliceLoop(pat, aft, length of pat, ""), text, ti).
+        If q is equal to "?":
+            Let rq be grpTryAlts(body, 1, strSliceLoop(pat, aft + 1, length of pat, ""), text, ti).
+            If rq is greater than 0:
+                Return rq.
+            Return mh(strSliceLoop(pat, aft + 1, length of pat, ""), 1, text, ti).
+        If q is equal to "+":
+            Return grpTryAlts(body, 1, grpStarPat(body, strSliceLoop(pat, aft + 1, length of pat, "")), text, ti).
+        Let starRest be strSliceLoop(pat, aft + 1, length of pat, "").
+        Let starTry be grpTryAlts(body, 1, grpStarPat(body, starRest), text, ti).
+        If starTry is greater than 0:
+            Return starTry.
+        Return mh(starRest, 1, text, ti).
     If item pi of pat is equal to "$":
         If pi is equal to length of pat:
             If ti is greater than length of text:
@@ -7852,28 +7973,28 @@
     Let aend be pi + alen.
     If aend is less than (length of pat + 1):
         If item aend of pat is equal to "*":
-            Return starBacktrack(pat, aend + 1, text, ti, countAtoms(pat, pi, text, ti, 0)).
+            Return mhStar(pat, aend + 1, text, ti, countAtoms(pat, pi, text, ti, 0)).
         If item aend of pat is equal to "+":
             If ti is greater than length of text:
                 Return 0.
             If atomMatches(pat, pi, item ti of text):
-                Return starBacktrack(pat, aend + 1, text, ti + 1, countAtoms(pat, pi, text, ti + 1, 0)).
+                Return mhStar(pat, aend + 1, text, ti + 1, countAtoms(pat, pi, text, ti + 1, 0)).
             Return 0.
         If item aend of pat is equal to "?":
             If ti is less than (length of text + 1):
                 If atomMatches(pat, pi, item ti of text):
-                    Let rq be matchHere(pat, aend + 1, text, ti + 1).
-                    If rq is greater than 0:
-                        Return rq.
-            Return matchHere(pat, aend + 1, text, ti).
+                    Let rq2 be mh(pat, aend + 1, text, ti + 1).
+                    If rq2 is greater than 0:
+                        Return rq2.
+            Return mh(pat, aend + 1, text, ti).
     If ti is greater than length of text:
         Return 0.
     If atomMatches(pat, pi, item ti of text):
-        Return matchHere(pat, aend, text, ti + 1).
+        Return mh(pat, aend, text, ti + 1).
     Return 0.
 
 ## To reSearchFrom (pat: Text, text: Text, ti: Int) -> Int:
-    If matchHere(pat, 1, text, ti) is greater than 0:
+    If mh(pat, 1, text, ti) is greater than 0:
         Return ti.
     If ti is greater than length of text:
         Return 0.
@@ -7881,12 +8002,12 @@
 
 ## To reTest (pat: Text, text: Text) -> Bool:
     If startsWith(pat, "^"):
-        Return matchHere(pat, 2, text, 1) is greater than 0.
+        Return mh(pat, 2, text, 1) is greater than 0.
     Return reSearchFrom(pat, text, 1) is greater than 0.
 
 # A RegExp value is a heap object carrying its source pattern and flags; isRegex classifies it.
 # reFind returns the first matched substring in text ("" for no match). reMatchEnd finds where the
-# match starting at `start` ends (matchHere from pattern start, honoring a leading ^).
+# match starting at `start` ends (`mh` from pattern start, honoring a leading ^).
 ## To newRegex (src: Text, flags: Text) -> Text:
     Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__regex_src", concat(tagStr (), src)), "__regex_flags", concat(tagStr (), flags)).
 
@@ -7897,15 +8018,15 @@
 
 ## To reSearchStart (pat: Text, text: Text) -> Int:
     If startsWith(pat, "^"):
-        If matchHere(pat, 2, text, 1) is greater than 0:
+        If mh(pat, 2, text, 1) is greater than 0:
             Return 1.
         Return 0.
     Return reSearchFrom(pat, text, 1).
 
 ## To reMatchEnd (pat: Text, text: Text, start: Int) -> Int:
     If startsWith(pat, "^"):
-        Return matchHere(pat, 2, text, start).
-    Return matchHere(pat, 1, text, start).
+        Return mh(pat, 2, text, start).
+    Return mh(pat, 1, text, start).
 
 ## To reFind (pat: Text, text: Text) -> Text:
     Let start be reSearchStart(pat, text).

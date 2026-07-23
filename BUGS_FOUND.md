@@ -2632,3 +2632,31 @@ STILL DEEP: an embedded assignment inside a comparison inside a `while` conditio
 undefined)`) still crashes (the `i++`/NaN-parse family); a scalar assignment in a non-return position
 (`f(x=5)` outer-scope read, a bare `cond ? x=5 : y=5` statement) returns the right value but does not
 propagate the binding.
+
+**Regex GROUPS and ALTERNATION (2026-07-23, 62nd engine fix).** A major correctness hole: the
+Kernighan-Pike backtracking matcher treated `(`, `)`, and `|` as LITERAL atoms, so ANY grouped or
+alternating pattern silently failed to match — `/(foo)/.test("foo")` → false, `/a(b|c)d/`, `/(\d+)-(\d+)/`,
+`/^(\w+)@(\w+)$/`, `/cat|dog/` all broken (a huge fraction of real-world regexes). Rebuilt the matcher as
+`mh`, group/alternation-aware, over the same atom helpers (atomLen/atomMatches/countAtoms/reClassMatch),
+using the pattern-DERIVATIVE (substitution) method: a group `(B)C` matches by trying, for each top-level
+alternative Bi of the body, the CONCATENATED pattern `Bi C` — making the body and its continuation
+contiguous so ordinary sequential matching backtracks across the boundary with no explicit continuation
+stack. `(B)?C`→`BC` then `C`; `(B)+`/`(B)*` match one instance (grpTryAlts) followed by the derivative
+`(B)*C` (grpStarPat) which re-enters `mh` for the rest — greedy for any body consuming ≥1 char. Top-level
+and in-group alternation (reAltBar splits at the first depth-0 `|`), nested groups, non-capturing `(?:…)`
+(reGroupBody strips the `?:`), and anchors all handled; reGroupEnd finds the matching `)` skipping nested
+groups/classes/escapes. Routed reTest/reSearchFrom/reMatchEnd/reSearchStart through `mh`; the retired
+atom-only matchHere/starBacktrack were deleted. `(foo)`, `(\d+)-(\d+)`, `a(b|c)d`, `(ab)+` (multi-rep),
+`(\d+,)*\d+`, `^(\w+)@(\w+)$`, `cat|dog|bird`, `(?:ab)+c`, `((a)(b))`, `https?://(\w+)` all match Node
+(.test + .replace); every no-group pattern (the 190-fuzzer suite) unchanged. New `regexgroups-diff` fuzzer
+(3600 checks/6 seeds). Full sweep green (382/382). Toolchain gotchas hit and recorded: (1) each recursive
+Text-scanner (reGroupEnd/reAltBar) needs a `g: Text` accumulator to halt the constant-arg monomorphizer
+(else it emits a `-1`-named / duplicate specialization and diverges the param type); (2) a `classEnd(pat,…)`
+sub-call and the recursion both consuming `pat` in ONE expression is a move error — split into a `Let`; (3)
+**a LOGOS parser quirk: a stand-alone recursive function of the shape `Let x. If cond: {… nested If: Return.
+Return call.} Return call.` fails to parse (ExpectedExpression) as a top-level function, though the identical
+shape parses when nested inside another `If` — so the greedy-star logic had to be INLINED into `mh`'s group
+branch rather than living in a separate grpStar function.** KNOWN LIMITATIONS (documented, deferred):
+capture-group EXTRACTION (`m[1]`/`m.index`) and `$N` replacement backreferences (next increment); `{n,m}`
+brace quantifiers; and catastrophic backtracking on adversarial nested-unbounded patterns (`(a+)+b`) can
+hang — inherent to backtracking engines (V8/bun included), not hit by real patterns or the fuzz corpus.
