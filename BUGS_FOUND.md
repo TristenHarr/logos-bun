@@ -2511,3 +2511,20 @@ and spinning forever. `break L`, `continue outer`, `break outer`, labeled `while
 plain labeled loop all match Node; unlabeled `break`/`continue`, nested plain loops, `for-of`,
 `do-while` unchanged. New `labeledloop-diff` fuzzer (1800 checks/6 seeds, 4s timeout catches hangs).
 Full sweep green.
+
+**Object → string coercion CRASH (2026-07-23, 54th engine fix).** `""+o`, `String(o)`, `o.toString()`,
+`` `${o}` `` on a plain object all PANICKED "Cannot parse 'NaN' as Int" (`RUST_BACKTRACE` pinned it:
+`resolveArrays`→native `parseInt`). Root: `materialize` returned the raw string `"[object Object]"`,
+whose literal `[` re-entered the resolve pipeline where `resolveArrays` mistook it for a bracket-index
+and `parseInt`'d the "index" `object Object` → NaN → panic. (Every individual stringify path —
+`materialize`/`plusStep`/`objToStringVal` — looked safe in isolation; the bug was the raw `[` in the
+*result* flowing back through array-index resolution, exactly like a string literal's brackets would
+if they weren't encoded.) Fix: `objectTagStr` emits `[object Object]` with ENCODED brackets
+(`encBrkL`/`encBrkR`, like every string literal), so `resolveArrays` skips it and it decodes to
+`[object Object]` at output; used in both `materialize` and `objToStringVal`. Also made `materialize`
+Error-aware (name+message → `errToString`) so `""+e` / `String(e)` / `` `${e}` `` give `Error: msg`
+(matching `e.toString()`), not `[object Object]`. `""+o`→`[object Object]`, `String(o)`, `o.toString()`,
+templates, `"pre:"+o+":post"`, and Error coercion all match Node; object member access, array/string/
+number concat, JSON, string-literal brackets unchanged. New `objstringify-diff` fuzzer (2400 checks/6
+seeds). Full sweep green. (Still open: the DIRECT `new Error("m").toString()` — no intermediate
+variable — is a separate stack-overflow in the method-on-a-`new`-expression receiver path.)

@@ -1814,6 +1814,13 @@
         Return matArr(els, i + 1, m).
     Return matArr(els, i + 1, concat(concat(acc, ","), m)).
 
+# The default object string form. Its `[`/`]` are ENCODED (encBrkL/encBrkR) exactly like any string
+# literal's brackets, so when this value flows back through the resolve pipeline `resolveArrays` does
+# NOT mistake the `[` for a bracket-index (which would `parseInt` "object Object" → panic). It decodes
+# back to `[object Object]` at output like any other string.
+## To objectTagStr () -> Text:
+    Return concat(encBrkL (), concat("object Object", encBrkR ())).
+
 ## To materialize (v: Text) -> Text:
     If startsWith(v, tagStr ()):
         Return substringAfter(v, tagStr ()).
@@ -1822,7 +1829,10 @@
     If isArrRef(v):
         Return matArr(arrElements(v), 1, "").
     If isObjRef(v):
-        Return "[object Object]".
+        If objGet(concat(v, ""), "name") is not equal to "undefined":
+            If objGet(concat(v, ""), "message") is not equal to "undefined":
+                Return substringAfter(errToString(v), tagStr ()).
+        Return objectTagStr ().
     Return v.
 
 ## To hasStr (expr: Text) -> Bool:
@@ -3360,7 +3370,7 @@
     If objGet(concat(raw, ""), "name") is not equal to "undefined":
         If objGet(concat(raw, ""), "message") is not equal to "undefined":
             Return errToString(raw).
-    Return concat(tagStr (), "[object Object]").
+    Return concat(tagStr (), objectTagStr ()).
 
 ## To numToStringVal (raw: Text, argText: Text, env: Text) -> Text:
     If isArrRef(concat(raw, "")):
