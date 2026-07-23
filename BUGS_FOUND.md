@@ -1670,3 +1670,51 @@ cluster of real, verified correctness bugs. Prioritized for the engine owner; ea
 Found via bug-hunt track (task #1) while the engine was under concurrent edit; NOT fixed here.
 Each would make a clean RED differential fuzzer (`coercion-diff`, `stricteq-diff`, `letscope-diff`)
 once the engine owner lands fixes.
+
+---
+
+**BUG-HUNT BATCH 2 — strings/regex/errors/methods (2026-07-23).** Continued differential sweep
+(read-only vs Node) of more under-fuzzed surfaces. All verified clean.
+
+**P0 — CRASH.**
+- `/(\d+)-(\d+)/.exec("12-34")` → **stack overflow / abort** (Node: match with `[1]="12" [2]="34"`).
+  regex `.exec` with capture groups recurses without termination.
+
+**P0 — property access on null/undefined does NOT throw.**
+- `let z=null; z.x` → no error (Node: `TypeError: Cannot read properties of null`); same for
+  `undefined.foo`. A `try{null.x}catch(e){…}` never enters the catch — the whole guard silently
+  no-ops. Big: this is the single most common runtime TypeError, and many test262/real programs
+  depend on it throwing.
+
+**P1 — control-flow / higher-order gaps.**
+- Optional catch binding: `try{throw 5}catch{…}` (no `(e)`) does not run the catch body (Node ES2019
+  allows the binding-less form). `catch(e){…}` works.
+- `[1,2,3].map(String)` → `["","",""]` (Node `["1","2","3"]`). Passing a BUILTIN function value
+  (`String`, `Number`, `Boolean`…) as a HOF callback fails; an arrow `map(x=>String(x))` works — the
+  builtin isn't callable through the callback dispatch.
+
+**P1 — regex.**
+- Global match returns only the FIRST hit: `"a1b2c3".match(/\d/g)` → `["1"]` (Node `["1","2","3"]`).
+  The `/g` flag isn't iterating all matches in `String.prototype.match`.
+- `String.prototype.replace(/(b)/,"[$1]")` → no substitution at all (Node `"a[b]c"`). `$1`/`$&`
+  capture-reference templates in `replace` are unsupported (and the replace silently no-ops).
+
+**P1 — string length is UTF-8 BYTES, not UTF-16 code units.**
+- `"café".length` → `5` (Node `4`). Non-ASCII characters count their byte length; affects `.length`,
+  indexing, slicing, iteration of any non-ASCII string. Architectural (string representation).
+
+**P2 — missing / broken builtins.**
+- `Object.is(a,b)` → `NaN` (missing; needs the SameValue algorithm incl. `-0`/`NaN`).
+- `String.prototype.split(sep, limit)` → the `limit` arg is ignored (`"a-b-c".split("-",2)` → 3 elems).
+- `Number.prototype.toPrecision(n)` → `NaN` (missing).
+- Integer-key ordering: `Object.keys({2:1,1:2,10:3})` → insertion order `["2","1","10"]`; JS sorts
+  integer keys ascending → `["1","2","10"]`. Affects keys/values/entries/JSON/for-in on numeric keys.
+- `(1e21).toString()` → `NaN` (Node `"1e+21"`); large-magnitude / exponential formatting.
+- `Number.prototype.toLocaleString` missing.
+
+**Note (not a bug):** `console.log([1,2,3])` renders `1,2,3` vs Node's `[ 1, 2, 3 ]` — a console
+array-inspect FORMATTING difference (util.inspect), distinct from value correctness. Flagged low-pri
+in case byte-exact stdout parity is wanted later.
+
+~13 defects here + the 11 in the prior batch = a prioritized correctness backlog for the engine
+owner. Found via bug-hunt track (task #1); read-only, main.lg under concurrent edit so not fixed.
