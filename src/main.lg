@@ -1570,7 +1570,7 @@
     Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array", "structuredClone"].
     Return names contains name.
 
 ## To globalCall (name: Text, inner: Text, env: Text) -> Text:
@@ -1578,6 +1578,8 @@
         Return jsParseIntArgs(inner, env).
     If name is equal to "Array":
         Return arrCtor(inner, env).
+    If name is equal to "structuredClone":
+        Return deepClone(jsEvalIn(inner, env)).
     Let av be jsEvalIn(inner, env).
     If name is equal to "BigInt":
         Return concat(tagBig (), jsParseIntText(decodeStr(materialize(av)))).
@@ -2078,6 +2080,30 @@
     Let args be patFields(argStr).
     Let target be jsEvalIn(trim(item 1 of args), concat(env, "")).
     Return assignLoop(args, 2, env, concat(target, "")).
+
+# structuredClone: a recursive deep copy over the heap-ref model — arrays/objects get fresh handles
+# with each element/value deep-cloned, so the clone shares no mutable state with the source; a
+# primitive (number/string/bool/null/undefined) is its own value and copies as-is.
+## To deepCloneArrLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let c be deepClone(item i of els).
+    If acc is equal to "":
+        Return deepCloneArrLoop(els, i + 1, c).
+    Return deepCloneArrLoop(els, i + 1, concat(concat(acc, tagArrSep ()), c)).
+
+## To deepCloneObjLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Return deepCloneObjLoop(entries, i + 1, objSet(acc, substringBefore(entry, tagObjKV ()), deepClone(substringAfter(entry, tagObjKV ())))).
+
+## To deepClone (v: Text) -> Text:
+    If isArrRef(concat(v, "")):
+        Return newArr(concat(concat(tagArr (), deepCloneArrLoop(arrElements(v), 1, "")), tagArrEnd ())).
+    If isObjRef(concat(v, "")):
+        Return deepCloneObjLoop(objEntrySeq(concat(v, "")), 1, newObjRef(concat(tagObj (), tagObjEnd ()))).
+    Return concat(v, "").
 
 ## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of s:

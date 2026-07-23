@@ -2232,3 +2232,11 @@ was never applied (string-pattern `replaceAll` and `replace(/…/g)` both alread
 unchanged. New `replaceallre-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Capture-group `$1`
 backrefs / matching a regex WITH `(…)` groups remain a separate bigger item — the regex engine doesn't
 track capture groups, Cluster G.)
+
+**`structuredClone` (2026-07-23, 38th engine fix).** Unimplemented → NaN (and crashed on a string).
+Added a recursive deep-copy over the heap-ref model (`deepClone`): an array/object gets a fresh handle
+with each element/value deep-cloned, a primitive copies as-is; wired via `globalCall`/`isGlobalFn`.
+Verified independence: `let c=structuredClone(o); c.a=9` leaves `o.a` untouched, and a nested
+`c[0][0]=9` leaves the source's nested array untouched. `structuredClone({a:{b:2}})`, `[{a:1},{b:2}]`,
+primitives all correct. New `structclone-diff` fuzzer (1800 checks/6 seeds, deep-shape equality). Full
+sweep green.
