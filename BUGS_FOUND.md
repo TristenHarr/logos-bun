@@ -2098,6 +2098,17 @@ number-method syntax.)
 **`Math.max()`/`Math.min()` with no arguments (2026-07-23, 25th engine fix).** Returned NaN; the correct
 identity elements are `-Infinity` (max) and `Infinity` (min) — so e.g. a running `Math.max(acc, x)` fold
 seeded from `Math.max()` works. Added an empty-args guard to both dispatch branches. Variadic/negative
-args unchanged. New `mathminmax-diff` fuzzer (0..3 args incl. empty). Full sweep green. (Separate
-pre-existing bug noted: `Math.max(a,b)` *inside* a reduce/arrow callback returns NaN — a callback-param
-+ Math-arg interaction, distinct from this empty-args fix.)
+args unchanged. New `mathminmax-diff` fuzzer (0..3 args incl. empty). Full sweep green.
+
+**`Math.*` inside a function/callback body (2026-07-23, 26th engine fix).** `[1,5].map(x=>Math.max(x,3))`
+→`[NaN,NaN]`, `reduce((a,b)=>Math.max(a,b))`→NaN, `(x=>Math.max(x,5))(2)`→NaN — **the same for an
+explicit `function(x){return Math.max(x,3)}`, so it was a function-*body* bug, not arrow-specific.** The
+Math dispatches in `resolveMethods` (max/min/abs/sqrt/trunc/hypot/atan2/pow/sign/floor/ceil/round + the
+`mathUnary1` transcendentals) run BEFORE the map/reduce dispatch that extracts the callback, and — unlike
+`new Map(`/`new Set(` — they lacked a `markerInBody` guard, so a `Math.*` sitting inside a closure body
+got resolved at closure-CREATION time with the callback param still unbound (→NaN baked in). Constant-arg
+Math (`x=>Math.max(4,1)`) survived by luck; param-referencing (`Math.floor(x+0.5)`) did not. Fixed by
+adding the `markerInBody` guard to every Math function branch (and to `mathUnaryTry`), so an in-body
+`Math.*` is skipped and resolves at call time with the param bound. `map(x=>Math.floor(x))`,
+`reduce((a,b)=>Math.max(a,b))`, `map(x=>Math.sin(x))` all correct; direct Math + non-Math callbacks
+unaffected. New `mathcallback-diff` fuzzer (2400 checks/6 seeds). Full sweep green.

@@ -1652,6 +1652,7 @@
     Let fn be item i of fns.
     Let marker be concat(concat("Math . ", fn), " (").
     If substringBefore(expr, marker) is not equal to expr:
+      If markerInBody(concat(expr, ""), marker) is equal to false:
         Let bef be substringBefore(expr, marker).
         Let aft be substringAfter(expr, marker).
         Return trim(concat(concat(bef, jsMath1(concat(fn, ""), materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))).
@@ -4164,6 +4165,7 @@
         Let finP be promiseFinally(pval, fnArgValRaw(trim(methodArg(aft)), env), env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), finP), methodRest(aft))), env).
     If substringBefore(expr, "Math . max (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . max (") is equal to false:
         Let bef be substringBefore(expr, "Math . max (").
         Let aft be substringAfter(expr, "Math . max (").
         Let rst be methodRest(aft).
@@ -4172,6 +4174,7 @@
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("max", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . min (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . min (") is equal to false:
         Let bef be substringBefore(expr, "Math . min (").
         Let aft be substringAfter(expr, "Math . min (").
         Let rst be methodRest(aft).
@@ -4180,16 +4183,19 @@
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("min", joinArgVals(args, 1, env, ""))), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . abs (") is equal to false:
         Let bef be substringBefore(expr, "Math . abs (").
         Let aft be substringAfter(expr, "Math . abs (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("abs", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . sqrt (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . sqrt (") is equal to false:
         Let bef be substringBefore(expr, "Math . sqrt (").
         Let aft be substringAfter(expr, "Math . sqrt (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("sqrt", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . trunc (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . trunc (") is equal to false:
         Let bef be substringBefore(expr, "Math . trunc (").
         Let aft be substringAfter(expr, "Math . trunc (").
         Let rst be methodRest(aft).
@@ -4197,12 +4203,14 @@
     If mathUnary1(expr, env) is not equal to expr:
         Return resolveMethods(mathUnary1(expr, env), env).
     If substringBefore(expr, "Math . hypot (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . hypot (") is equal to false:
         Let bef be substringBefore(expr, "Math . hypot (").
         Let aft be substringAfter(expr, "Math . hypot (").
         Let rst be methodRest(aft).
         Let args be splitArgs2(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, jsMath2("hypot", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Math . atan2 (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . atan2 (") is equal to false:
         Let bef be substringBefore(expr, "Math . atan2 (").
         Let aft be substringAfter(expr, "Math . atan2 (").
         Let rst be methodRest(aft).
@@ -4213,27 +4221,32 @@
         If mc is not equal to expr:
             Return resolveMethods(mc, env).
     If substringBefore(expr, "Math . pow (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . pow (") is equal to false:
         Let bef be substringBefore(expr, "Math . pow (").
         Let aft be substringAfter(expr, "Math . pow (").
         Let rst be methodRest(aft).
         Let args be splitArgs2(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, jsMath2("pow", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Math . sign (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . sign (") is equal to false:
         Let bef be substringBefore(expr, "Math . sign (").
         Let aft be substringAfter(expr, "Math . sign (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("sign", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . floor (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . floor (") is equal to false:
         Let bef be substringBefore(expr, "Math . floor (").
         Let aft be substringAfter(expr, "Math . floor (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("floor", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . ceil (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . ceil (") is equal to false:
         Let bef be substringBefore(expr, "Math . ceil (").
         Let aft be substringAfter(expr, "Math . ceil (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("ceil", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Math . round (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . round (") is equal to false:
         Let bef be substringBefore(expr, "Math . round (").
         Let aft be substringAfter(expr, "Math . round (").
         Let rst be methodRest(aft).
