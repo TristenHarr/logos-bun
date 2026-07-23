@@ -1443,6 +1443,12 @@
     Let t be trim(s).
     If t is equal to "":
         Return "0".
+    If hasHexPrefix(t):
+        Return parseIntResolved(dropPrefix2(t), 16).
+    If hasBinPrefix(t):
+        Return parseIntResolved(dropPrefix2(t), 2).
+    If hasOctPrefix(t):
+        Return parseIntResolved(dropPrefix2(t), 8).
     If startsWith(t, "+"):
         Let rest be substringAfter(t, "+").
         If isIntStr(concat(rest, "")):
@@ -1452,15 +1458,110 @@
         Return t.
     Return "NaN".
 
+# parseInt with an explicit radix (2..36) parses the leading run of digits valid in that base;
+# radix 0 = auto-detect (a 0x/0X prefix -> base 16, else base 10). digitVal maps 0-9/a-z/A-Z to
+# 0..35 (99 = not a digit). radixFold accumulates value*radix+digit over the valid prefix. A sign
+# is peeled first; an empty digit run is NaN. Number("0x1f")/("0b101")/("0o17") take the same route.
+## To digitVal (ch: Text) -> Int:
+    Let o be ord(ch).
+    If o is greater than or equal to 48:
+        If o is less than or equal to 57:
+            Return o - 48.
+    If o is greater than or equal to 97:
+        If o is less than or equal to 122:
+            Return (o - 97) + 10.
+    If o is greater than or equal to 65:
+        If o is less than or equal to 90:
+            Return (o - 65) + 10.
+    Return 99.
+
+## To radixFold (s: Text, i: Int, radix: Int, acc: Int) -> Int:
+    If i is greater than length of s:
+        Return acc.
+    Let d be digitVal(item i of s).
+    If d is greater than or equal to radix:
+        Return acc.
+    Return radixFold(s, i + 1, radix, (acc * radix) + d).
+
+## To hasRadixDigit (s: Text, radix: Int) -> Bool:
+    If s is equal to "":
+        Return false.
+    Return digitVal(item 1 of s) is less than radix.
+
+## To hasHexPrefix (s: Text) -> Bool:
+    If startsWith(s, "0x"):
+        Return true.
+    If startsWith(s, "0X"):
+        Return true.
+    Return false.
+
+## To hasBinPrefix (s: Text) -> Bool:
+    If startsWith(s, "0b"):
+        Return true.
+    If startsWith(s, "0B"):
+        Return true.
+    Return false.
+
+## To hasOctPrefix (s: Text) -> Bool:
+    If startsWith(s, "0o"):
+        Return true.
+    If startsWith(s, "0O"):
+        Return true.
+    Return false.
+
+## To dropPrefix2 (s: Text) -> Text:
+    Return strSliceLoop(concat(s, ""), 3, length of s, "").
+
+## To parseIntResolved (body: Text, radix: Int) -> Text:
+    If radix is less than 2:
+        Return "NaN".
+    If radix is greater than 36:
+        Return "NaN".
+    If hasRadixDigit(body, radix):
+        Return toText(radixFold(body, 1, radix, 0)).
+    Return "NaN".
+
+## To parseIntUnsigned (s: Text, radix0: Int) -> Text:
+    If radix0 is equal to 0:
+        If hasHexPrefix(s):
+            Return parseIntResolved(dropPrefix2(s), 16).
+        Return parseIntResolved(s, 10).
+    If radix0 is equal to 16:
+        If hasHexPrefix(s):
+            Return parseIntResolved(dropPrefix2(s), 16).
+        Return parseIntResolved(s, 16).
+    Return parseIntResolved(s, radix0).
+
+## To jsParseIntAuto (s0: Text, radix0: Int) -> Text:
+    Let s be trim(s0).
+    If startsWith(s, "-"):
+        Let r be parseIntUnsigned(substringAfter(s, "-"), radix0).
+        If r is equal to "NaN":
+            Return "NaN".
+        Return concat("-", r).
+    If startsWith(s, "+"):
+        Return parseIntUnsigned(substringAfter(s, "+"), radix0).
+    Return parseIntUnsigned(s, radix0).
+
+## To jsParseIntArgs (inner: Text, env: Text) -> Text:
+    Let args be splitArgs2(inner).
+    Let s be decodeStr(materialize(jsEvalIn(trim(item 1 of args), env))).
+    If length of args is less than 2:
+        Return jsParseIntAuto(s, 0).
+    If trim(item 2 of args) is equal to "":
+        Return jsParseIntAuto(s, 0).
+    Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
+
 ## To isGlobalFn (name: Text) -> Bool:
     Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt"].
     Return names contains name.
 
-## To globalCall (name: Text, av: Text) -> Text:
+## To globalCall (name: Text, inner: Text, env: Text) -> Text:
+    If name is equal to "parseInt":
+        Return jsParseIntArgs(inner, env).
+    Let av be jsEvalIn(inner, env).
     If name is equal to "BigInt":
         Return concat(tagBig (), jsParseIntText(decodeStr(materialize(av)))).
-    If name is equal to "parseInt":
-        Return jsParseIntText(decodeStr(materialize(av))).
     If name is equal to "parseFloat":
         Return jsParseFloat(decodeStr(materialize(av))).
     If name is equal to "Number":
@@ -1608,9 +1709,8 @@
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If isGlobalFn(lastTok):
-        Let av be jsEvalIn(inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
-        Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, av)), rest), env).
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, inner, env)), rest), env).
     If length of ptoks is greater than 2:
         If item ((length of ptoks) - 1) of ptoks is equal to chr(46):
             Let sfn be envGet(env, concat(concat(concat("__static_", item ((length of ptoks) - 2) of ptoks), "_"), lastTok)).
@@ -3619,7 +3719,7 @@
         Let bef be substringBefore(expr, "Number . parseInt (").
         Let aft be substringAfter(expr, "Number . parseInt (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, jsParseIntText(decodeStr(materialize(jsEvalIn(trim(methodArg(aft)), env))))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsParseIntArgs(methodArg(aft), env)), rst)), env).
     If substringBefore(expr, "Number . MAX_SAFE_INTEGER") is not equal to expr:
         Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . MAX_SAFE_INTEGER"), "9007199254740991"), substringAfter(expr, "Number . MAX_SAFE_INTEGER"))), env).
     If substringBefore(expr, "Number . MIN_SAFE_INTEGER") is not equal to expr:
