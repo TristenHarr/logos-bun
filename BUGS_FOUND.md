@@ -2408,3 +2408,21 @@ scanners use one recursive call per branch (via `isOpenDelim`/`brkRecord` record
 join helpers take the target Text + Int indices and re-`split` fresh per `joinRange`. New
 `mixedassign-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Still open: the identical first-`]`
 truncation in the `delete a[…]` path.)
+
+**`delete` through deep / nested / mixed access targets (2026-07-23, 47th engine fix).** Closes the
+`delete` gap noted in #46. The `delete` handler truncated a dot target at the FIRST `.` (`delete o.x.y`
+removed a literal `x . y` key → object unchanged) and a bracket target at the FIRST `]`
+(`delete a[0][1]` / `delete o.list[i]` removed the wrong slot). Rewired to reuse assignTarget's
+last-top-level-access split: `deleteTarget` cuts the target at its final `.`/`[` (via
+`lastTopDotIdx`/`lastTopBrkIdx`), evaluates the container to its heap ref (`assignContainer`), and
+removes the slot in place — `objDelete` for a property, an array index set to a hole. `delete o.x.y`
+→`{"x":{}}`, `delete a[0][1]`, `delete o.list[1]`, `delete o.a.b.c`→`{"a":{"b":{}}}`,
+`delete o.items[0].n`→`{"items":[{}]}` all match Node; simple `delete o.a` / `delete o[k]` /
+`delete a[i]` unchanged. New `deletepath-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+
+Surfaced while writing the fuzzer (pre-existing, orthogonal to `delete` — both use the engine's
+`undefined`-not-a-true-hole array model): a deleted/absent array slot is a real HOLE in JS but an
+`undefined` VALUE here, so `[1,,3].map(f)` (JS skips holes) and `JSON.stringify([1,undefined,3])`
+(→`[1,null,3]` in JS — an `undefined`/hole array element serializes as `null`) both diverge; ours keeps
+`undefined`. Direct index reads, `.length`, and `.join` (undefined→"") all match. The `JSON.stringify`
+`undefined`→`null` array-element case is the cleaner next fix.

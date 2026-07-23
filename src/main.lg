@@ -6023,6 +6023,37 @@
         Return assignDot(concat(target, ""), ntok, di, value, env).
     Return envSet(env, trim(concat(target, "")), value).
 
+# `delete` mirrors assignTarget's split: the target is cut at its LAST top-level access operator into a
+# container ref + final key, and the slot is removed in place (objDelete for a property; an array index
+# becomes a hole = `undefined`). Handles deep (`o.x.y`), nested-bracket (`a[0][1]`), and mixed
+# (`o.list[i]`) delete targets uniformly — the old code truncated at the first `]` / first `.`.
+## To deleteDot (target: Text, ntok: Int, di: Int, env: Text) -> Text:
+    Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, di - 1, "")).
+    Let name be trim(joinRange(split(concat(target, ""), " "), di + 1, ntok, "")).
+    Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    Let d be objDelete(concat(recv, ""), concat(name, "")).
+    Return env.
+
+## To deleteBrk (target: Text, ntok: Int, bi: Int, env: Text) -> Text:
+    Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, bi - 1, "")).
+    Let keyVal be jsEvalIn(trim(joinRange(split(concat(target, ""), " "), bi + 1, ntok - 1, "")), concat(env, "")).
+    Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    If isArrRef(concat(recv, "")):
+        Let da be arrSetIdx(concat(recv, ""), safeInt(materialize(keyVal)), "undefined").
+        Return env.
+    Let dob be objDelete(concat(recv, ""), materialize(keyVal)).
+    Return env.
+
+## To deleteTarget (target: Text, env: Text) -> Text:
+    Let toks be split(concat(target, ""), " ").
+    Let ntok be length of toks.
+    If item ntok of toks is equal to chr(93):
+        Return deleteBrk(concat(target, ""), ntok, lastTopBrkIdx(split(concat(target, ""), " "), 1, 0, 0), env).
+    Let di be lastTopDotIdx(split(concat(target, ""), " "), 1, 0, 0).
+    If di is greater than 0:
+        Return deleteDot(concat(target, ""), ntok, di, env).
+    Return env.
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If needsIncDec(s):
@@ -6038,22 +6069,7 @@
     If startsWith(s, "continue "):
         Return envSet(env, "__continue", "1").
     If startsWith(s, "delete "):
-        Let dtgt be trim(substringAfter(s, "delete ")).
-        If hasSep(dtgt, chr(91)):
-            Let dbase be trim(substringBefore(dtgt, chr(91))).
-            Let drecv be envGet(concat(env, ""), concat(dbase, "")).
-            Let dkey be materialize(jsEvalIn(trim(substringBefore(substringAfter(dtgt, chr(91)), chr(93))), concat(env, ""))).
-            If isArrRef(concat(drecv, "")):
-                Let da be arrSetIdx(concat(drecv, ""), safeInt(concat(dkey, "")), "undefined").
-                Return env.
-            Let dob be objDelete(concat(drecv, ""), concat(dkey, "")).
-            Return env.
-        If hasSep(dtgt, " . "):
-            Let mbase be trim(substringBefore(dtgt, " . ")).
-            Let mrecv be envGet(concat(env, ""), concat(mbase, "")).
-            Let md be objDelete(concat(mrecv, ""), trim(substringAfter(dtgt, " . "))).
-            Return env.
-        Return env.
+        Return deleteTarget(trim(substringAfter(s, "delete ")), env).
     If s is equal to "__GENRESET":
         genReset().
         Return env.
