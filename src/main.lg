@@ -749,6 +749,36 @@
 ## To hasSep (expr: Text, sep: Text) -> Bool:
     Return substringBefore(expr, sep) is not equal to expr.
 
+# Depth-aware separator test: is `sep` present at bracket/paren/brace depth 0? A plain `hasSep`
+# is blind to nesting, so a statement that is actually a call whose function body contains ` = `
+# (e.g. `(function(){g.x=5})()` or `[1].forEach(x=>{g.x=1})`) is misread as a top-level
+# assignment and the call never runs. Statement text is space-tokenized here (string-literal
+# brackets are already special-char-encoded, so only real structural brackets move the depth),
+# so we scan tokens and match the trimmed sep only while unnested.
+## To tokHasTopSep (toks: Seq of Text, i: Int, depth: Int, want: Text) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    Let t be item i of toks.
+    If t is equal to chr(40):
+        Return tokHasTopSep(toks, i + 1, depth + 1, want).
+    If t is equal to chr(123):
+        Return tokHasTopSep(toks, i + 1, depth + 1, want).
+    If t is equal to chr(91):
+        Return tokHasTopSep(toks, i + 1, depth + 1, want).
+    If t is equal to chr(41):
+        Return tokHasTopSep(toks, i + 1, depth - 1, want).
+    If t is equal to chr(125):
+        Return tokHasTopSep(toks, i + 1, depth - 1, want).
+    If t is equal to chr(93):
+        Return tokHasTopSep(toks, i + 1, depth - 1, want).
+    If depth is equal to 0:
+        If t is equal to want:
+            Return true.
+    Return tokHasTopSep(toks, i + 1, depth, want).
+
+## To hasTopSep (s: Text, sep: Text) -> Bool:
+    Return tokHasTopSep(split(concat(s, ""), " "), 1, 0, trim(sep)).
+
 ## To notOf (b: Text) -> Text:
     If b is equal to "false":
         Return "true".
@@ -5796,23 +5826,42 @@
     Let child be objGet(concat(objval, ""), trim(item i of segs)).
     Return objSet(objval, trim(item i of segs), objSetPath(child, segs, i + 1, v)).
 
+# The base of an assignment target is normally a variable NAME resolved via envGet. But a
+# free variable captured into a function-expression / arrow body is substituted to its VALUE
+# at definition time (funcValueOf(substitute(…))), so inside the body the base arrives already
+# as a heap ref token, not a name. envGet on a ref token misses, so we resolve it to itself and
+# mutate the shared heap object directly — this is what makes `o[k]=v` / `o.k=v` on a captured
+# free-var object or array persist out of a callback (heapSet is the persistence; the env
+# write-back is skipped for a ref base since the binding it would touch is not a live name).
+## To assignRecv (base: Text, env: Text) -> Text:
+    If isRef(concat(base, "")):
+        Return concat(base, "").
+    Return envGet(concat(env, ""), concat(base, "")).
+
 ## To assignTarget (target: Text, value: Text, env: Text) -> Text:
     If hasSep(target, " . "):
         Let base be trim(substringBefore(target, " . ")).
-        Let recvV be envGet(concat(env, ""), concat(base, "")).
+        Let recvV be assignRecv(concat(base, ""), concat(env, "")).
         Let setter be objGet(concat(recvV, ""), concat("__set_", trim(substringAfter(target, " . ")))).
         If startsWith(setter, chr(1)):
             Let ran be callSetter(setter, recvV, value, env).
             Return env.
         Let newobj be objSetPath(recvV, split(substringAfter(target, " . "), " . "), 1, value).
+        If isRef(concat(base, "")):
+            Return env.
         Return envSet(env, base, newobj).
     If hasSep(target, chr(91)):
         Let ivar be trim(substringBefore(target, chr(91))).
         Let keyVal be jsEvalIn(trim(substringBefore(substringAfter(target, chr(91)), chr(93))), concat(env, "")).
-        Let recvV be envGet(concat(env, ""), concat(ivar, "")).
+        Let recvV be assignRecv(concat(ivar, ""), concat(env, "")).
         If isObjRef(recvV):
-            Return envSet(env, ivar, objSet(recvV, materialize(keyVal), value)).
+            Let oset be objSet(recvV, materialize(keyVal), value).
+            If isRef(concat(ivar, "")):
+                Return env.
+            Return envSet(env, ivar, oset).
         Let newarr be arrSetIdx(concat(recvV, ""), safeInt(materialize(keyVal)), value).
+        If isRef(concat(ivar, "")):
+            Return env.
         Return envSet(env, ivar, newarr).
     Return envSet(env, target, value).
 
@@ -5939,21 +5988,21 @@
                 If isArrRef(jsEvalIn(concat(rv, ""), concat(env, ""))):
                     Return envSet(env, rv, jsEvalIn(concat(s, ""), env)).
     Let mcr be memberCompoundRewrite(concat(s, "")).
-    If hasSep(mcr, " = "):
+    If hasTopSep(mcr, " = "):
         Return execStmt(mcr, env).
-    If hasSep(s, " += "):
+    If hasTopSep(s, " += "):
         Return envSet(env, trim(substringBefore(s, " += ")), jsEvalIn(concat(concat(trim(substringBefore(s, " += ")), " + "), substringAfter(s, " += ")), env)).
-    If hasSep(s, " -= "):
+    If hasTopSep(s, " -= "):
         Return envSet(env, trim(substringBefore(s, " -= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " -= ")), " - "), substringAfter(s, " -= ")), env)).
-    If hasSep(s, " *= "):
+    If hasTopSep(s, " *= "):
         Return envSet(env, trim(substringBefore(s, " *= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " *= ")), " * "), substringAfter(s, " *= ")), env)).
-    If hasSep(s, " ||= "):
+    If hasTopSep(s, " ||= "):
         Return envSet(env, trim(substringBefore(s, " ||= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ||= ")), " || "), substringAfter(s, " ||= ")), env)).
-    If hasSep(s, " &&= "):
+    If hasTopSep(s, " &&= "):
         Return envSet(env, trim(substringBefore(s, " &&= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " &&= ")), " && "), substringAfter(s, " &&= ")), env)).
-    If hasSep(s, " ??= "):
+    If hasTopSep(s, " ??= "):
         Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
-    If hasSep(s, " = "):
+    If hasTopSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
         If hasSep(lhs, " . "):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).

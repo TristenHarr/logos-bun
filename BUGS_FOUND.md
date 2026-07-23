@@ -2250,3 +2250,37 @@ truncated a nested-FIRST pattern like `[[a,b],c]`→`[a,b`). `[x,[y,z]]`, `[[a,b
 `[a,{b}]`, nested in a callback, and rest all correct; flat destructuring unchanged. This also removes
 the "nested patterns unsupported" caveat from the callback-destructuring fixes. New `nestdestruct-diff`
 fuzzer (1800 checks/6 seeds, random nesting). Full sweep green.
+
+**Closure free-var OBJECT / ARRAY mutation (2026-07-23, 40th engine fix).** Mutating a captured
+free-var object or array from inside a callback / IIFE / named fn silently no-op'd:
+`(function(){let g={}; [1].forEach(x=>{g.a=1}); return g.a})()`→`undefined`,
+`(function(){let g={x:0}; (function(){g.x=5})(); return g.x})()`→`0`,
+`["x","y"].forEach(k=>{g[k]=1})`, `forEach(x=>{g.sum=g.sum+x})`, alias writes, `a[i]=…` in a
+callback — all lost. `a.push(…)` through a free var already worked (that gave the lead: heap
+mutation persists, only `=` assignment didn't). Two compounding causes, both fixed:
+1. **`assignRecv`** — a free var captured into a function-expression/arrow body is substituted to its
+   VALUE at definition time (`funcValueOf(substitute(rhs,env))`), so inside the body the assignment
+   *base* arrives already as a heap **ref token**, not a name. `assignTarget` resolved it with
+   `envGet(env, base)` (a NAME lookup) → miss → `objSet` built a fresh non-ref blob and never
+   `heapSet` the shared object → the write died with the discarded callback env. Now a ref-token base
+   is resolved to itself and mutates the shared heap object directly (heapSet is the persistence; the
+   env write-back is skipped for a ref base — the binding it would touch is not a live name). Named
+   function *declarations* already worked because `defineFn` does NOT substitute the body, so `g`
+   stayed a name and resolved via the inherited env at call time — that asymmetry was the tell.
+2. **`hasTopSep`** (depth-aware separator test) — a bare call-*statement* whose function body contains
+   ` = ` (e.g. `(function(){g.x=5})()`, `arr.forEach(x=>{g.x=1})`) was misread as a top-level
+   assignment by `execStmt`'s depth-**blind** ` = `/`+=`/… scans, so the whole statement was treated
+   as `LHS = RHS` and the call never ran. (The `.push(`/`.sort(`/… branches self-protect via an
+   `isArrRef` guard and fall through, which is why push worked but `=` didn't.) The 8 assignment-op
+   guards in `execStmt` now use `hasTopSep`, which tokenizes and matches the operator only at
+   bracket/paren/brace depth 0. New `closuremut-diff` fuzzer (3000 checks/6 seeds: bare IIFE, arrow /
+   named-fn / `function`-expr callbacks, bracket-build, running-sum, `+=`, pre-sized array-by-index,
+   alias, `.map` side-effect). Full sweep green (336/336, 2 seeds).
+
+Surfaced while probing (pre-existing, NOT regressions — each now RUNS and exposes a separate gap
+instead of silently doing nothing): **(a)** sparse-array grow — `a[2]=9` on `a=[5]`→`undefined`
+(`arrSetIdx`/`arrSetLoop` only overwrite existing indices, never extend); **(b)** function-declaration
+**hoisting** — a `function f(){…}` used before its textual declaration is not hoisted (→`NaN`);
+**(c)** arrow **default params** — `((a=1,b=2)=>a+b)()`→`NaN`; **(d)** bracket-key-with-dot dispatch —
+`a[a.length-1]=9` is misrouted to the dot-assign path because `assignTarget`'s `hasSep(target," . ")`
+guard fires on the `.` *inside* the bracket key (fix staged: `hasSep`→`hasTopSep` on that guard).
