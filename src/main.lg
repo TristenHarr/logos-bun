@@ -6231,6 +6231,8 @@
         Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
     If hasTopSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
+        If startsWith(lhs, chr(91)):
+            Return destructureArr(concat(lhs, ""), jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, " . "):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, chr(91)):

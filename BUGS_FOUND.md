@@ -2455,3 +2455,16 @@ the trailing `}` (balanced, like the earlier `destructureArr` fix) instead of cu
 `{}`, nested `{a:{b:{c}}}`→c, `{list:[x,y]}`, and the full combo `{p:{q},r,...s}`→`1|2|{"x":..,"y":..}`
 all match Node; flat/default/array-nested destructuring and function-param destructuring unchanged.
 New `objdestructure-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+
+**Array destructuring ASSIGNMENT — the swap idiom (2026-07-23, 50th engine fix).** `[a,b]=[b,a]`
+(swap), `[a,b,c]=[…]`, `[x,y,z]=[z,x,y]` (rotate), `[a,...rest]=arr` all silently no-op'd (`[a,b]=[b,a]`
+left `a,b` unchanged). The plain-assignment dispatch routed any LHS containing `[` to `assignTarget`
+(a member write), so an array-PATTERN LHS was mis-read as `container[key]` with an empty container.
+Fix: an LHS that STARTS with `[` is a destructuring target → `destructureArr` with the RHS evaluated
+first (so the swap reads the old values), binding each name via `envSet` (reassigning the existing
+variables). This is distinct from a member write, whose LHS starts with the container name
+(`arr[i]`, `o.list[i]`). Swap, multi-assign, rotate, chained double-swap, from-a-variable, and
+`[a,...rest]` all match Node; `a[i]=v` / `o.x=v` / `a[0][1]=v` member writes and `let [a,b]=…`
+declarations unchanged. New `destructassign-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+(Object destructuring assignment `({a,b}=o)` — the parenthesized form whose `=` sits at paren-depth 1
+— is a separate follow-up.)
