@@ -2112,3 +2112,16 @@ adding the `markerInBody` guard to every Math function branch (and to `mathUnary
 `Math.*` is skipped and resolves at call time with the param bound. `map(x=>Math.floor(x))`,
 `reduce((a,b)=>Math.max(a,b))`, `map(x=>Math.sin(x))` all correct; direct Math + non-Math callbacks
 unaffected. New `mathcallback-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
+
+**Every standalone static inside a callback body (2026-07-23, 27th engine fix).** The Math-in-callback
+fix predicted a whole class: ANY receiver-less static dispatched in `resolveMethods` (which runs before
+the callback is extracted) corrupts a closure body the same way. Confirmed broken:
+`map(o=>Object.keys(o))`/`Object.values`/`Object.entries`/`Object.assign`/`Object.fromEntries`,
+`map(o=>JSON.stringify(o))`, `map(a=>Array.isArray(a))`/`Array.of`/`Array.from`,
+`filter(x=>Number.isInteger(x))`/`isNaN`/`isFinite`/`isSafeInteger`/`parseInt`/`parseFloat`,
+`map(c=>String.fromCharCode(c))` — all NaN/false (`Number(x)`/`String(x)` were fine, they go through the
+token-based `globalCall`, not `resolveMethods`). Added the `markerInBody` guard to all ~25 receiver-less
+statics (Object/JSON/Array/Number/String/Promise/Reflect), matching Math. `map(o=>Object.keys(o).length)`,
+`map(o=>JSON.stringify(o))`, `filter(x=>Number.isInteger(x))` all correct now; direct static calls
+unaffected. New `staticcallback-diff` fuzzer (2400 checks/6 seeds). Full sweep green. **Doctrine: a
+receiver-less static marker in `resolveMethods` MUST carry a `markerInBody` guard.**

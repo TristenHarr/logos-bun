@@ -4135,14 +4135,17 @@
         If isGenerator(grecv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(gbef, "")), " "), genNext(grecv)), methodRest(substringAfter(expr, " . next (")))), env).
     If substringBefore(expr, "Promise . all (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . all (") is equal to false:
         Let bef be substringBefore(expr, "Promise . all (").
         Let aft be substringAfter(expr, "Promise . all (").
         Return resolveMethods(trim(concat(concat(bef, promiseAll(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . resolve (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . resolve (") is equal to false:
         Let bef be substringBefore(expr, "Promise . resolve (").
         Let aft be substringAfter(expr, "Promise . resolve (").
         Return resolveMethods(trim(concat(concat(bef, promiseResolveOf(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, "Promise . reject (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . reject (") is equal to false:
         Let bef be substringBefore(expr, "Promise . reject (").
         Let aft be substringAfter(expr, "Promise . reject (").
         Return resolveMethods(trim(concat(concat(bef, newPromise("rejected", jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
@@ -4252,36 +4255,43 @@
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsMath1("round", materialize(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Array . isArray (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Array . isArray (") is equal to false:
         Let bef be substringBefore(expr, "Array . isArray (").
         Let aft be substringAfter(expr, "Array . isArray (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(isArrRef(jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If substringBefore(expr, "Number . isNaN (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . isNaN (") is equal to false:
         Let bef be substringBefore(expr, "Number . isNaN (").
         Let aft be substringAfter(expr, "Number . isNaN (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(jsEvalIn(trim(methodArg(aft)), env) is equal to "NaN")), rst)), env).
     If substringBefore(expr, "Number . isInteger (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . isInteger (") is equal to false:
         Let bef be substringBefore(expr, "Number . isInteger (").
         Let aft be substringAfter(expr, "Number . isInteger (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Number . isFinite (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . isFinite (") is equal to false:
         Let bef be substringBefore(expr, "Number . isFinite (").
         Let aft be substringAfter(expr, "Number . isFinite (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Number . isSafeInteger (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . isSafeInteger (") is equal to false:
         Let bef be substringBefore(expr, "Number . isSafeInteger (").
         Let aft be substringAfter(expr, "Number . isSafeInteger (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Number . parseInt (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . parseInt (") is equal to false:
         Let bef be substringBefore(expr, "Number . parseInt (").
         Let aft be substringAfter(expr, "Number . parseInt (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, jsParseIntArgs(methodArg(aft), env)), rst)), env).
     If substringBefore(expr, "Number . parseFloat (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Number . parseFloat (") is equal to false:
         Let bef be substringBefore(expr, "Number . parseFloat (").
         Let aft be substringAfter(expr, "Number . parseFloat (").
         Let rst be methodRest(aft).
@@ -4297,6 +4307,7 @@
     If substringBefore(expr, "Number . EPSILON") is not equal to expr:
         Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . EPSILON"), "0.0000000000000002220446049250313"), substringAfter(expr, "Number . EPSILON"))), env).
     If substringBefore(expr, "Array . from (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Array . from (") is equal to false:
         Let bef be substringBefore(expr, "Array . from (").
         Let aft be substringAfter(expr, "Array . from (").
         Let rst be methodRest(aft).
@@ -4306,59 +4317,70 @@
             Return resolveMethods(trim(concat(concat(bef, arrFromMap(base, fnArgValRaw(trim(item 2 of args), env), env)), rst)), env).
         Return resolveMethods(trim(concat(concat(bef, base), rst)), env).
     If substringBefore(expr, "Array . of (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Array . of (") is equal to false:
         Let bef be substringBefore(expr, "Array . of (").
         Let aft be substringAfter(expr, "Array . of (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, arrOf(methodArg(aft), env)), rst)), env).
     If substringBefore(expr, "JSON . parse (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "JSON . parse (") is equal to false:
         Let bef be substringBefore(expr, "JSON . parse (").
         Let aft be substringAfter(expr, "JSON . parse (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
         Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(materialize(jsEvalIn(trim(argStr), env)), chr(34), encQuote ()))), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "JSON . stringify (") is equal to false:
         Let bef be substringBefore(expr, "JSON . stringify (").
         Let aft be substringAfter(expr, "JSON . stringify (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
         Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), jsonStringify(jsEvalIn(trim(argStr), env)))), rst)), env).
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "String . fromCharCode (") is equal to false:
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
     If substringBefore(expr, "String . fromCodePoint (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "String . fromCodePoint (") is equal to false:
         Let bef be substringBefore(expr, "String . fromCodePoint (").
         Let aft be substringAfter(expr, "String . fromCodePoint (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
     If substringBefore(expr, "Object . keys (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . keys (") is equal to false:
         Let bef be substringBefore(expr, "Object . keys (").
         Let aft be substringAfter(expr, "Object . keys (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . getOwnPropertyNames (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . getOwnPropertyNames (") is equal to false:
         Let bef be substringBefore(expr, "Object . getOwnPropertyNames (").
         Let aft be substringAfter(expr, "Object . getOwnPropertyNames (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . values (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . values (") is equal to false:
         Let bef be substringBefore(expr, "Object . values (").
         Let aft be substringAfter(expr, "Object . values (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objValues(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . entries (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . entries (") is equal to false:
         Let bef be substringBefore(expr, "Object . entries (").
         Let aft be substringAfter(expr, "Object . entries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . getOwnPropertyDescriptor (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . getOwnPropertyDescriptor (") is equal to false:
         Let bef be substringBefore(expr, "Object . getOwnPropertyDescriptor (").
         Let aft be substringAfter(expr, "Object . getOwnPropertyDescriptor (").
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, ownPropDesc(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Object . defineProperty (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . defineProperty (") is equal to false:
         Let bef be substringBefore(expr, "Object . defineProperty (").
         Let aft be substringAfter(expr, "Object . defineProperty (").
         Let rst be methodRest(aft).
@@ -4366,23 +4388,27 @@
         Let dp be objDefineProp(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)), jsEvalIn(trim(item 3 of args), env)).
         Return resolveMethods(trim(concat(concat(bef, concat(dp, "")), rst)), env).
     If substringBefore(expr, "Reflect . ownKeys (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Reflect . ownKeys (") is equal to false:
         Let bef be substringBefore(expr, "Reflect . ownKeys (").
         Let aft be substringAfter(expr, "Reflect . ownKeys (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Reflect . has (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Reflect . has (") is equal to false:
         Let bef be substringBefore(expr, "Reflect . has (").
         Let aft be substringAfter(expr, "Reflect . has (").
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(objGet(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))) is not equal to "undefined")), rst)), env).
     If substringBefore(expr, "Reflect . get (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Reflect . get (") is equal to false:
         Let bef be substringBefore(expr, "Reflect . get (").
         Let aft be substringAfter(expr, "Reflect . get (").
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, objGet(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Reflect . set (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Reflect . set (") is equal to false:
         Let bef be substringBefore(expr, "Reflect . set (").
         Let aft be substringAfter(expr, "Reflect . set (").
         Let rst be methodRest(aft).
@@ -4393,6 +4419,7 @@
         Let rdone be objSet(concat(rtgt, ""), concat(rkey, ""), concat(rval, "")).
         Return resolveMethods(trim(concat(concat(bef, "true"), rst)), env).
     If substringBefore(expr, "Reflect . deleteProperty (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Reflect . deleteProperty (") is equal to false:
         Let bef be substringBefore(expr, "Reflect . deleteProperty (").
         Let aft be substringAfter(expr, "Reflect . deleteProperty (").
         Let rst be methodRest(aft).
@@ -4400,11 +4427,13 @@
         Let ddone be objDelete(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))).
         Return resolveMethods(trim(concat(concat(bef, "true"), rst)), env).
     If substringBefore(expr, "Object . fromEntries (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . fromEntries (") is equal to false:
         Let bef be substringBefore(expr, "Object . fromEntries (").
         Let aft be substringAfter(expr, "Object . fromEntries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objFromEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . assign (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . assign (") is equal to false:
         Let bef be substringBefore(expr, "Object . assign (").
         Let aft be substringAfter(expr, "Object . assign (").
         Let rst be methodRest(aft).
