@@ -2388,3 +2388,23 @@ not a real function declaration. Class statics, static-calling-static, `extends`
 methods all work again alongside genuine forward-referenced function declarations. New
 `classhoisting-diff` fuzzer (1800 checks/6 seeds) locks the interaction; `classstatic-diff` also guards
 it. Final full sweep green.
+
+**Mixed member-access assignment targets (2026-07-23, 46th engine fix).** Assignments through a target
+that MIXES dot and bracket access silently no-op'd: `a[i].b=v`, `o.list[i]=v`, `o.a.b[i]=v`, `a[i][j]=v`,
+`o.items[i].n=v` (`a[0][1]=9`→NaN). `assignTarget` handled only a pure dot chain (`objSetPath`, which
+splits on ` . ` and can't cross a bracket) or a single leading bracket (`ivar` before the FIRST `[`,
+ignoring later segments). Rewritten around one idea: **split the target at its LAST top-level access
+operator into a container expression + final key, evaluate the container to its heap ref, and write
+the slot in place.** Because objects/arrays are always heap refs, the write heapSets and is visible
+through the original binding — no path-rebuild needed. `lastTopDotIdx`/`lastTopBrkIdx` find the final
+depth-0 `.`/`[` (a `.`/`[` inside a bracket key stays at depth>0), `assignContainer` resolves a bare
+name via envGet / a substituted free-var ref-token to itself / any compound path via jsEvalIn, and
+`assignWriteback` rebinds only a bare-identifier container. This subsumes and preserves every earlier
+assignment fix: pure dot chains, single/computed/nested-bracket keys (`a[a[0]+1]`), sparse grow, free-var
+callback mutation (ref-token container), `__set_` accessors, and class statics. `a[0].b`→9,
+`o.list[1]`→9, `o.a.b[0]`→9, `a[0][1]`→9, `o.items[0].n`→42 all match Node. Codegen: a `Seq of Text`
+value may be passed to a consuming call only once (else it degrades to a borrowed slice), so the
+scanners use one recursive call per branch (via `isOpenDelim`/`brkRecord` record helpers) and the
+join helpers take the target Text + Int indices and re-`split` fresh per `joinRange`. New
+`mixedassign-diff` fuzzer (2400 checks/6 seeds). Full sweep green. (Still open: the identical first-`]`
+truncation in the `delete a[…]` path.)

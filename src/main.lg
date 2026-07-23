@@ -5909,44 +5909,119 @@
     Let child be objGet(concat(objval, ""), trim(item i of segs)).
     Return objSet(objval, trim(item i of segs), objSetPath(child, segs, i + 1, v)).
 
-# The base of an assignment target is normally a variable NAME resolved via envGet. But a
-# free variable captured into a function-expression / arrow body is substituted to its VALUE
-# at definition time (funcValueOf(substitute(…))), so inside the body the base arrives already
-# as a heap ref token, not a name. envGet on a ref token misses, so we resolve it to itself and
-# mutate the shared heap object directly — this is what makes `o[k]=v` / `o.k=v` on a captured
-# free-var object or array persist out of a callback (heapSet is the persistence; the env
-# write-back is skipped for a ref base since the binding it would touch is not a live name).
-## To assignRecv (base: Text, env: Text) -> Text:
-    If isRef(concat(base, "")):
-        Return concat(base, "").
-    Return envGet(concat(env, ""), concat(base, "")).
+# `( { [` open a nesting level, `) } ]` close one — used to find TOP-LEVEL (depth-0) tokens.
+## To isOpenDelim (t: Text) -> Bool:
+    If t is equal to chr(40):
+        Return true.
+    If t is equal to chr(123):
+        Return true.
+    If t is equal to chr(91):
+        Return true.
+    Return false.
 
+## To isCloseDelim (t: Text) -> Bool:
+    If t is equal to chr(41):
+        Return true.
+    If t is equal to chr(125):
+        Return true.
+    If t is equal to chr(93):
+        Return true.
+    Return false.
+
+## To dotRecord (t: Text, depth: Int, i: Int, last: Int) -> Int:
+    If t is equal to ".":
+        If depth is equal to 0:
+            Return i.
+    Return last.
+
+## To brkRecord (t: Text, depth: Int, i: Int, last: Int) -> Int:
+    If t is equal to chr(91):
+        If depth is equal to 0:
+            Return i.
+    Return last.
+
+# Token index of the LAST top-level (depth-0) `.` / `[` in an assignment target, so a member LHS is
+# split at its final access operator: `a[0].b` → container `a[0]` + prop `b`; `o.list[1]` → container
+# `o.list` + key `1`; `a[0][1]` → container `a[0]` + key `1`. A `.`/`[` nested inside a bracket key
+# (`a[b.c]`, `a[b[0]]`) stays at depth>0 and is not chosen. (One recursive call per branch keeps the
+# generated Seq parameter owned rather than a borrowed slice.)
+## To lastTopDotIdx (toks: Seq of Text, i: Int, depth: Int, last: Int) -> Int:
+    If i is greater than length of toks:
+        Return last.
+    Let t be item i of toks.
+    If isOpenDelim(concat(t, "")):
+        Return lastTopDotIdx(toks, i + 1, depth + 1, last).
+    If isCloseDelim(concat(t, "")):
+        Return lastTopDotIdx(toks, i + 1, depth - 1, last).
+    Return lastTopDotIdx(toks, i + 1, depth, dotRecord(concat(t, ""), depth, i, last)).
+
+## To lastTopBrkIdx (toks: Seq of Text, i: Int, depth: Int, last: Int) -> Int:
+    If i is greater than length of toks:
+        Return last.
+    Let t be item i of toks.
+    If isOpenDelim(concat(t, "")):
+        Return lastTopBrkIdx(toks, i + 1, depth + 1, brkRecord(concat(t, ""), depth, i, last)).
+    If isCloseDelim(concat(t, "")):
+        Return lastTopBrkIdx(toks, i + 1, depth - 1, last).
+    Return lastTopBrkIdx(toks, i + 1, depth, last).
+
+# The CONTAINER of a member assignment (the object/array whose slot is written). A bare identifier
+# resolves via envGet; a substituted free-var arrives as a heap ref token (resolve to itself — this
+# is what makes a captured object/array mutate out of a callback); any compound access path
+# (`a[0]`, `o.list`, `a[0][1]`) is evaluated to the ref it denotes. Containers are always heap refs,
+# so writing a slot on the result heapSets in place and is visible through the original binding.
+## To assignContainer (c: Text, env: Text) -> Text:
+    If isRef(concat(c, "")):
+        Return concat(c, "").
+    If isSimpleName(concat(c, "")):
+        Return envGet(concat(env, ""), concat(c, "")).
+    Return jsEvalIn(concat(c, ""), concat(env, "")).
+
+# Rebind a bare-identifier container after a slot write. A ref-token or compound container already
+# mutated its shared heap object in place, so there is no live name to rewrite.
+## To assignWriteback (containerExpr: Text, res: Text, env: Text) -> Text:
+    If isRef(concat(containerExpr, "")):
+        Return env.
+    If isSimpleName(concat(containerExpr, "")):
+        Return envSet(env, containerExpr, res).
+    Return env.
+
+# Write the value into a `.name` slot of the container (a `__set_<name>` accessor is honored). Each
+# joinRange gets a fresh split so the token Seq is never passed to two consuming calls (codegen).
+## To assignDot (target: Text, ntok: Int, di: Int, value: Text, env: Text) -> Text:
+    Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, di - 1, "")).
+    Let name be trim(joinRange(split(concat(target, ""), " "), di + 1, ntok, "")).
+    Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    Let setter be objGet(concat(recv, ""), concat("__set_", name)).
+    If startsWith(setter, chr(1)):
+        Let ran be callSetter(setter, recv, value, env).
+        Return env.
+    Let res be objSet(recv, name, value).
+    Return assignWriteback(concat(containerExpr, ""), res, env).
+
+# Write the value into a `[key]` slot of the container (object property or array index).
+## To assignBrk (target: Text, ntok: Int, bi: Int, value: Text, env: Text) -> Text:
+    Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, bi - 1, "")).
+    Let keyExpr be trim(joinRange(split(concat(target, ""), " "), bi + 1, ntok - 1, "")).
+    Let keyVal be jsEvalIn(concat(keyExpr, ""), concat(env, "")).
+    Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    If isObjRef(recv):
+        Return assignWriteback(concat(containerExpr, ""), objSet(recv, materialize(keyVal), value), env).
+    Return assignWriteback(concat(containerExpr, ""), arrSetIdx(concat(recv, ""), safeInt(materialize(keyVal)), value), env).
+
+# A member assignment target `CONTAINER<op>KEY = value` is split at its LAST top-level access operator
+# and the value is written onto the container ref. This handles arbitrarily mixed dot/bracket paths
+# (`a[i].b`, `o.list[i]`, `o.a.b[i]`, `a[i][j]`) uniformly — the container is evaluated to a heap ref
+# and the final slot set in place. A target with no access operator is a plain variable binding.
 ## To assignTarget (target: Text, value: Text, env: Text) -> Text:
-    If hasTopSep(target, " . "):
-        Let base be trim(substringBefore(target, " . ")).
-        Let recvV be assignRecv(concat(base, ""), concat(env, "")).
-        Let setter be objGet(concat(recvV, ""), concat("__set_", trim(substringAfter(target, " . ")))).
-        If startsWith(setter, chr(1)):
-            Let ran be callSetter(setter, recvV, value, env).
-            Return env.
-        Let newobj be objSetPath(recvV, split(substringAfter(target, " . "), " . "), 1, value).
-        If isRef(concat(base, "")):
-            Return env.
-        Return envSet(env, base, newobj).
-    If hasSep(target, chr(91)):
-        Let ivar be trim(substringBefore(target, chr(91))).
-        Let keyVal be jsEvalIn(trim(balancedBrk(substringAfter(target, chr(91)), 1, 0, "")), concat(env, "")).
-        Let recvV be assignRecv(concat(ivar, ""), concat(env, "")).
-        If isObjRef(recvV):
-            Let oset be objSet(recvV, materialize(keyVal), value).
-            If isRef(concat(ivar, "")):
-                Return env.
-            Return envSet(env, ivar, oset).
-        Let newarr be arrSetIdx(concat(recvV, ""), safeInt(materialize(keyVal)), value).
-        If isRef(concat(ivar, "")):
-            Return env.
-        Return envSet(env, ivar, newarr).
-    Return envSet(env, target, value).
+    Let toks be split(concat(target, ""), " ").
+    Let ntok be length of toks.
+    If item ntok of toks is equal to chr(93):
+        Return assignBrk(concat(target, ""), ntok, lastTopBrkIdx(split(concat(target, ""), " "), 1, 0, 0), value, env).
+    Let di be lastTopDotIdx(split(concat(target, ""), " "), 1, 0, 0).
+    If di is greater than 0:
+        Return assignDot(concat(target, ""), ntok, di, value, env).
+    Return envSet(env, trim(concat(target, "")), value).
 
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
