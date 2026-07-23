@@ -1755,3 +1755,40 @@ null/undefined no-throw, do-while/hoisting/instanceof/labeled-flow, === type-bli
 & ToPrimitive coercion, /g match + replace-$1, UTF-8 length, let-scoping, + ~10 missing/partial
 builtins). All read-only finds (bug-hunt track #1); main.lg under concurrent edit → documented, not
 fixed. Each is a ready-made RED differential-fuzzer target once the engine owner lands fixes.
+
+---
+
+**BUG-HUNT BATCH 4 — classes/destructuring/JSON/array (2026-07-23, hunt closing).** Verified vs Node.
+Yield is dropping sharply (~2 defects/batch vs ~11 in batch 1) — the engine is largely complete in
+these areas; this batch closes the sweep.
+
+**P1 — `super.method()` (super method call).**
+- `class B extends A{ m(){ return super.m()+1 } }` → `NaN` (Node `2`). `super()` constructor calls
+  work; `super.<method>()` dispatch to the parent prototype does not.
+
+**P1 — nested destructuring patterns.**
+- `let [[a],[b]] = [[1],[2]]` → `a`/`b` = NaN (Node `1`/`2`); `let {a:{b}} = {a:{b:7}}` → `b` = NaN
+  (Node `7`). One level of array/object destructuring works (`[a,b]`, `{x,y}`, rest, defaults); a
+  NESTED pattern inside it is not recursed.
+
+**P1 — `JSON.stringify` doesn't drop `undefined` values.**
+- `JSON.stringify({a:undefined,b:1})` → `{"a":undefined,"b":1}` (Node `{"b":1}`). A property whose
+  value is `undefined` must be OMITTED (and produces INVALID JSON as emitted — `undefined` is not a
+  JSON token). Same rule: `undefined` array elements → `null`, top-level `undefined` → no output.
+
+**P2 — `Array.prototype.fill(value, start)` with a start index.**
+- `[1,2,3].fill(0,1)` → `[NaN,NaN,NaN]` (Node `[1,0,0]`). The single-arg `fill(v)` works; the
+  start/end range form corrupts (fills the whole array with NaN instead of the sub-range).
+
+(Correct in this sweep: super() ctor, static methods, private fields, class getters, single-level
+array/object/rest/default destructuring, template literals + interpolation, generators + spread,
+spread-call, JSON parse/stringify of nested/quotes/null/bool, padStart, Math.round/floor/isInteger,
+toFixed, charCodeAt, fromCharCode, slice/indexOf/sort-cmp/includes/Array.from/flat.)
+
+**HUNT SUMMARY (2026-07-23):** ~35 verified correctness defects across 4 categories-batches. The
+engine is strong on happy-path OOP/functional/collection/JSON code; the gaps cluster in (a) VALUE
+SEMANTICS — coercion, ToPrimitive, strict-eq type identity, UTF-16 length; (b) STATEMENT FORMS —
+do-while, function hoisting, labeled flow, braceless bodies; (c) THROW behavior — null/undefined
+member access; (d) a long tail of partial builtins. Two stack-overflow crashes (`+"str"`,
+`exec`-with-groups) are the only hard-fail P0s. This backlog (task #32) + the parser (task #29) are
+the concrete route from 93.94% toward ≥99%.
