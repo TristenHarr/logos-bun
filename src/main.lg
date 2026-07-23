@@ -2981,6 +2981,26 @@
 ## To arrReduce (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
     Return arrReduceLoop(arrElements(arrval), 1, fnval, env, init).
 
+# reduceRight folds from the last element toward the first (callback still (acc, el)); no-init seeds
+# acc with the last element and starts from the second-to-last.
+## To arrReduceRightLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is less than 1:
+        Return acc.
+    Let el be item i of els.
+    Let nextAcc be callFn2(concat(fnval, ""), concat(acc, ""), concat(el, ""), concat(env, "")).
+    Return arrReduceRightLoop(els, i - 1, fnval, env, nextAcc).
+
+## To arrReduceRight (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
+    Let els be arrElements(arrval).
+    Return arrReduceRightLoop(els, length of els, fnval, env, init).
+
+## To arrReduceRightNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
+    Let els be arrElements(arrval).
+    If length of els is less than 1:
+        Return "undefined".
+    Let n be length of els.
+    Return arrReduceRightLoop(els, n - 1, fnval, env, item n of els).
+
 # reduce with NO initial value seeds the accumulator with element 0 and starts from element 1.
 ## To arrReduceNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
     Let els be arrElements(arrval).
@@ -3492,7 +3512,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -3985,6 +4005,21 @@
         If initPart is equal to "":
             Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduceNoInit(raw, fnval, env)), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduce(raw, fnval, jsEvalIn(initPart, env), env)), rst)), env).
+    If lm is equal to " . reduceRight (":
+        Let bef be substringBefore(expr, " . reduceRight (").
+        Let aft be substringAfter(expr, " . reduceRight (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let atoks be split(argStr, " ").
+        Let cIdx be exprBodyEnd(atoks, 1, 0, "").
+        Let fnval be fnArgValRaw(trim(joinRange(atoks, 1, cIdx - 1, "")), env).
+        Let initPart be trim(joinRange(atoks, cIdx + 1, length of atoks, "")).
+        If initPart is equal to "":
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduceRightNoInit(raw, fnval, env)), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrReduceRight(raw, fnval, jsEvalIn(initPart, env), env)), rst)), env).
     If lm is equal to " . flatMap (":
         Let bef be substringBefore(expr, " . flatMap (").
         Let aft be substringAfter(expr, " . flatMap (").
