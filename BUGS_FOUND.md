@@ -1624,3 +1624,49 @@ this silently drops work and can hang. LIKELY FIX SITE: wherever the for/while e
 body — mirror whatever the braceless-`if` handler does (take the next single statement when the char
 after the header's `)` is not `{`). Found by a differential sweep while validating E-INC; NOT fixed
 here because src/main.lg was under active concurrent edit at the time (engine owner: please pick up).
+
+---
+
+**BUG-HUNT BATCH — coercion / equality / scoping (2026-07-23).** A differential sweep of
+under-fuzzed surfaces (read-only vs Node, no engine edit — engine under concurrent edit) turned up a
+cluster of real, verified correctness bugs. Prioritized for the engine owner; each repro is
+`bun run` vs `node -e`.
+
+**P0 — CRASH.**
+- `+"7"` (unary plus on a string) → **stack overflow / abort** (Node: `7`). Unary-plus ToNumber on a
+  string token recurses without a base case. Also implies `+x` numeric coercion of any string arg is
+  unsafe.
+
+**P0 — `===` / `!==` ignore TYPE for number-vs-numeric-string.**
+- `1 === "1"` → `true` (want `false`); `2 !== "2"` → `false` (want `true`). But `1===1`, `"a"==="a"`,
+  `true===1`→false, `NaN===NaN`→false, `null===undefined`→false all CORRECT. ROOT: numbers are plain
+  text, strings are chr(3)-tagged; strict-eq must be materializing BOTH (stripping the tag) then
+  comparing text, so `1` and `"1"` collapse to `"1"==="1"`. FIX: strict-eq compares the RAW tagged
+  form (or checks type tags first) — chr(3)+"1" must not equal bare "1". High test262 impact.
+
+**P1 — arithmetic `-` `*` `/` don't ToNumber a string operand (return the LEFT operand).**
+- `"5"-2`→`5` (want 3); `"3"*2`→`3` (want 6); `"10"/2`→`10` (want 5). (`+` concat and `2+true`→3 are
+  fine.) The non-`+` arithmetic ops skip ToNumber coercion of string operands.
+
+**P1 — array/object `+` ToPrimitive coercion produces garbage.**
+- `[1,2,3]+""` → `"2 + \"\""` (want `"1,2,3"`); `[]+[]` → `"2 + 3"` (want `""`); `[]+{}` → `"3 + 2"`
+  (want `"[object Object]"`). `+` with an array/object operand doesn't run ToPrimitive/Array.join.
+
+**P1 — loose `==` gaps (null/undefined + ToNumber of bool/"").**
+- `null==undefined`→`false` (want true); `0==""`→`false` (want true); `false==0`→`false` (want true).
+  (`1=="1"`, `"5"==5` CORRECT — numeric-string `==` works; the gaps are the null≈undefined rule and
+  ToNumber(false)=0 / ToNumber("")=0.)
+
+**P1 — `let` block scoping in `for`.**
+- Per-iteration binding missing: `for(let i…){f.push(()=>i)}` → all closures return the FINAL value
+  (`3,3,3`) instead of `0,1,2`. A fresh `i` binding per iteration is required (`var` correctly gives
+  `3,3,3`). Also `let i` in the for-header LEAKS: after the loop `typeof i` → `"number"` (want
+  `"undefined"`) — the loop `let` isn't scoped to the loop.
+
+**P2 — misc.**
+- `(1e21).toString()` → `NaN` (want `"1e+21"`) — large-magnitude number formatting.
+- `Number.prototype.toLocaleString` missing.
+
+Found via bug-hunt track (task #1) while the engine was under concurrent edit; NOT fixed here.
+Each would make a clean RED differential fuzzer (`coercion-diff`, `stricteq-diff`, `letscope-diff`)
+once the engine owner lands fixes.
