@@ -5641,8 +5641,74 @@
         Return trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks)).
     Return concat(concat(lhs, " . "), tail).
 
+# The constructor NAME for a value — what `x.constructor.name` reports. An Error (a heap object carrying
+# both `name` and `message`) reports its own `name` (`TypeError`); a plain class instance is unmarked so
+# it reads as `Object` (a documented limitation — instances don't carry their class name).
+## To constructorName (v: Text) -> Text:
+    If isArrRef(v):
+        Return "Array".
+    If isObjRef(v):
+        If objGet(concat(v, ""), "message") is not equal to "undefined":
+            If objGet(concat(v, ""), "name") is not equal to "undefined":
+                Return materialize(objGet(concat(v, ""), "name")).
+        Return "Object".
+    If startsWith(v, tagStr ()):
+        Return "String".
+    If startsWith(v, chr(34)):
+        Return "String".
+    If startsWith(v, chr(1)):
+        Return "Function".
+    If v is equal to "true":
+        Return "Boolean".
+    If v is equal to "false":
+        Return "Boolean".
+    Return "Number".
+
+# `.constructor` is only meaningful once the receiver has resolved to a concrete VALUE — until then
+# (a bare identifier / half-resolved member path) resolveObjDot must run first, so resolveCtor waits.
+## To ctorReceiver (v: Text) -> Bool:
+    If isArrRef(v):
+        Return true.
+    If isObjRef(v):
+        Return true.
+    If startsWith(v, tagStr ()):
+        Return true.
+    If startsWith(v, chr(34)):
+        Return true.
+    If startsWith(v, chr(1)):
+        Return true.
+    If v is equal to "true":
+        Return true.
+    If v is equal to "false":
+        Return true.
+    Return isNumericStr(concat(v, "")).
+
+# A receiver object that has its OWN `constructor` property — leave it for the normal member path
+# (`{constructor: 5}.constructor` is 5), don't override it with the synthetic type object.
+## To ownCtor (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "constructor") is not equal to "undefined".
+    Return false.
+
+# Rewrite `<value> . constructor` to a synthetic `{ name: <constructorName> }` object, so a following
+# `.name` resolves through the ordinary member path — covering the `x.constructor.name` type probe.
+## To resolveCtor (expr: Text) -> Text:
+    If substringBefore(expr, " . constructor") is equal to expr:
+        Return expr.
+    Let lhs be substringBefore(expr, " . constructor").
+    Let tail be substringAfter(expr, " . constructor").
+    Let lhsToks be split(lhs, " ").
+    Let recv be item (length of lhsToks) of lhsToks.
+    If ctorReceiver(concat(recv, "")) is equal to false:
+        Return expr.
+    If ownCtor(concat(recv, "")):
+        Return expr.
+    Let cobj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "name", concat(tagStr (), constructorName(concat(recv, "")))).
+    Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+    Return resolveCtor(trim(concat(concat(concat(newPrefix, " "), cobj), tail))).
+
 ## To resolveAccess (expr: Text) -> Text:
-    Let once be resolveOptChain(resolveArrays(resolveObjDot(expr))).
+    Let once be resolveOptChain(resolveArrays(resolveObjDot(resolveCtor(expr)))).
     If once is equal to expr:
         Return once.
     Return resolveAccess(once).

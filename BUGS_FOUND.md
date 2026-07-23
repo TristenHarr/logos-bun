@@ -2718,3 +2718,21 @@ Full sweep green (388/388). KNOWN gap (documented, deferred): argument-position 
 the throw (the call machinery doesn't yet consult the pending-throw channel mid-argument-eval), as does a
 bare expression-statement `null.x;` (not evaluated at all); and `error.constructor.name` is undefined
 (the error object has no `constructor`) — use `e.name`/`e instanceof TypeError`, which work.
+
+**`value.constructor.name` type probe (2026-07-23, 66th engine fix).** The common runtime type check
+`x.constructor.name` (and `e.constructor.name` for error type) returned NaN — `.constructor` wasn't
+resolved at all (no member handler for it, so it fell to a NaN coercion). Added `resolveCtor` into the
+`resolveAccess` fixpoint: once the receiver has resolved to a concrete VALUE (ctorReceiver — an array/
+object/string ref, a string literal, a function, a boolean, or a number), `<value> . constructor` is
+rewritten to a synthetic `{ name: <constructorName> }` object so a following `.name` resolves through the
+ordinary member path. `constructorName` maps Array→"Array", Object→"Object", String→"String" (both a
+tagStr value and a raw `"…"` literal), Number/Boolean/Function, and an Error (a heap object carrying both
+`name` and `message`) → its own `name` ("TypeError"/"RangeError"/…). An object with its OWN `constructor`
+property (`ownCtor`) is left for the normal member path (`{constructor:5}.constructor` stays 5). `[1,2]`,
+`{}`, `"s"`, `5`, `true`, a function literal, `new Error/TypeError/RangeError`, and a caught TypeError all
+report the right `.constructor.name`; `.name`/`.length`/normal props, error `name`/`message`, and an
+object that merely has `name`+`message` as data (not treated as an error for its OWN `.name`) are
+unchanged. New `ctorname-diff` fuzzer (1500 checks/6 seeds). It caught a bad probe of a bare method
+reference (`(5).toString` as a Function value — a deeper, unimplemented feature) which was scoped out.
+Full sweep green (390/390). DEFERRED (documented): constructor IDENTITY (`x.constructor === Array`, needs
+singleton globals) and a class instance's real class name (instances are unmarked → "Object").
