@@ -63,6 +63,14 @@ channel). Unblocks a large class of test262 + real defensive code.
 
 ## Cluster F — hoisting & scoping (~3 bugs)
 
+> **ATTEMPTED + REVERTED (2026-07-23):** a naive hoist pre-pass (define every `function ` statement
+> into the block env before running) works for plain functions BUT breaks classes — `desugarClass`
+> emits the class as a top-level `function <ClassName>(...)` statement (see main.lg ~5730), so the
+> hoist double-defines the class and static methods break (classstatic fuzzer went RED). The sweep
+> caught it; reverted clean. NEXT ATTEMPT: hoist BEFORE class desugaring, or skip `function ` names
+> that `desugarClass` will emit (mark the class-constructor function distinctly so hoistFns ignores
+> it). Both `run` (runModuleBody) and `__js` (jsRun→runProgram) entry paths need the hoist.
+
 - Function declarations not hoisted: `f(); function f(){}` → NaN (want the call to succeed)
 - `let` in `for` — no per-iteration binding (closures capture the final value) + the header `let`
   leaks past the loop (`typeof i`→"number")
