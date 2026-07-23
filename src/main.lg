@@ -3602,6 +3602,23 @@
         Let aft be substringAfter(expr, "Object . entries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Reflect . ownKeys (") is not equal to expr:
+        Let bef be substringBefore(expr, "Reflect . ownKeys (").
+        Let aft be substringAfter(expr, "Reflect . ownKeys (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objKeys(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Reflect . has (") is not equal to expr:
+        Let bef be substringBefore(expr, "Reflect . has (").
+        Let aft be substringAfter(expr, "Reflect . has (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(objGet(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))) is not equal to "undefined")), rst)), env).
+    If substringBefore(expr, "Reflect . get (") is not equal to expr:
+        Let bef be substringBefore(expr, "Reflect . get (").
+        Let aft be substringAfter(expr, "Reflect . get (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, objGet(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Object . fromEntries (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . fromEntries (").
         Let aft be substringAfter(expr, "Object . fromEntries (").
