@@ -2426,3 +2426,16 @@ Surfaced while writing the fuzzer (pre-existing, orthogonal to `delete` — both
 (→`[1,null,3]` in JS — an `undefined`/hole array element serializes as `null`) both diverge; ours keeps
 `undefined`. Direct index reads, `.length`, and `.join` (undefined→"") all match. The `JSON.stringify`
 `undefined`→`null` array-element case is the cleaner next fix.
+
+**`JSON.stringify` of `undefined` / functions (2026-07-23, 48th engine fix).** The two non-representable
+value kinds were mis-serialized: `undefined` came out as the literal `undefined` and a function value
+as an empty/garbage token, producing invalid JSON (`{"a":1,"f":}`). Per spec they serialize as `null`
+inside an ARRAY and are OMITTED (property dropped) inside an OBJECT. New `isJsonOmit` (true for
+`undefined` and any function value); `jsonArrElem` emits `null` for an omittable array element;
+`jsonObjLoop` skips an omittable property and joins on `acc` rather than the index so a
+leading/trailing/only dropped property leaves no stray comma; top-level `JSON.stringify(undefined)` /
+of a function yields `undefined`. `JSON.stringify([1,undefined,3])`→`[1,null,3]`,
+`{a:1,b:undefined,c:3}`→`{"a":1,"c":3}`, function-in-array→`null`, function-property→omitted,
+`{a:[1,undefined],b:2}`→`{"a":[1,null],"b":2}`, leading `{a:undefined,b:2}`→`{"b":2}` and trailing
+`{a:1,b:undefined}`→`{"a":1}` all match Node; normal objects/arrays/primitives unchanged. New
+`jsonundef-diff` fuzzer (2400 checks/6 seeds, random undefined/function/nested mix). Full sweep green.

@@ -2159,20 +2159,39 @@
         Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
     Return jsonEscape(s, i + 1, concat(acc, c)).
 
+# JSON.stringify drops non-representable values: `undefined`, a function, or a symbol serializes as
+# `null` inside an ARRAY and causes its property to be OMITTED inside an OBJECT.
+## To isJsonOmit (v: Text) -> Bool:
+    If v is equal to "undefined":
+        Return true.
+    If startsWith(concat(v, ""), chr(1)):
+        Return true.
+    Return false.
+
+## To jsonArrElem (v: Text) -> Text:
+    If isJsonOmit(concat(v, "")):
+        Return "null".
+    Return jsonStringify(concat(v, "")).
+
 ## To jsonArrLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
-    Let s be jsonStringify(concat(item i of els, "")).
+    Let s be jsonArrElem(concat(item i of els, "")).
     If i is equal to 1:
         Return jsonArrLoop(els, i + 1, s).
     Return jsonArrLoop(els, i + 1, concat(concat(acc, ","), s)).
 
+# A property whose value is omittable is skipped entirely; the comma join keys off `acc` (not the
+# index) so a leading/trailing/only omitted property never leaves a stray comma.
 ## To jsonObjLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, tagObjKV ()), 1, "")), chr(34)), ":"), jsonStringify(concat(substringAfter(entry, tagObjKV ()), ""))).
-    If i is equal to 1:
+    Let val be substringAfter(entry, tagObjKV ()).
+    If isJsonOmit(concat(val, "")):
+        Return jsonObjLoop(entries, i + 1, acc).
+    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, tagObjKV ()), 1, "")), chr(34)), ":"), jsonStringify(concat(val, ""))).
+    If acc is equal to "":
         Return jsonObjLoop(entries, i + 1, pair).
     Return jsonObjLoop(entries, i + 1, concat(concat(acc, ","), pair)).
 
@@ -2183,6 +2202,8 @@
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
     If isObjRef(v):
         Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeq(v), 1, "")), encBraceR ()).
+    If isJsonOmit(concat(v, "")):
+        Return "undefined".
     Return v.
 
 ## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
