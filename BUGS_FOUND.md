@@ -1891,3 +1891,36 @@ clean (binary sanity-checked). Un-hunted areas again yielded clusters + a 10th c
 **Running tally (task #32): ~53 verified defects, 10 P0 crashes** (added: tagged-template). Regex
 alternation and array iterators are the highest-impact new items (both common). Read-only find;
 main.lg under concurrent edit.
+
+---
+
+**BUG-HUNT BATCH 8 — Map/Set operations + arguments object (2026-07-23).** Verified clean. Map/Set
+are heavily used and their mutation/iteration is substantially broken.
+
+**P0 — CRASH (→ 11 total).**
+- `new Map([["a",1],["b",2]]).delete("a")` then `[...m.keys()]` → **stack overflow** (Node keys `"b"`).
+  `Map.prototype.delete` (or key-iteration after a delete) recurses/overflows.
+
+**P1 — Map/Set mutation & iteration.**
+- `Set.prototype.delete` is a NO-OP: `new Set([1,2,3]).delete(2)` leaves `[1,2,3]` (want `[1,3]`), and
+  returns `NaN` (want `true`).
+- `Map.prototype.forEach` / `Set.prototype.forEach` never invoke the callback:
+  `new Map([["a",1],["b",2]]).forEach((v,k)=>…)` → nothing (want `a1b2`); Set.forEach sum → `0`
+  (want `3`). (Map/Set `.set`/`.add`/`.get`/`.has`/`.size`/construction + spread `[...m]` all work;
+  only delete + forEach are broken.)
+
+**P1 — the `arguments` object is broken.**
+- `function f(){return arguments[0]+arguments[1]}; f(3,4)` → `NaN` (want `7`); `arguments.length`
+  → `9` (want the real arg count). The magic `arguments` binding isn't populated with the call args.
+  (Named params, `...rest`, defaults, extra args, destructured params all work — so use `...args`;
+  but legacy `arguments` fails.)
+
+**P2 — missing.**
+- `WeakMap` — `new WeakMap().set(k,5).get(k)` → `NaN` (unimplemented; task #26).
+- `Number.prototype.toExponential` → `NaN` (missing).
+
+(Correct: default/rest/destructured params, extra-arg tolerance, Set/Map set/add/get/has/size/spread,
+toFixed, toString(radix), parseInt-whitespace, Array.isArray/of/flat(depth)/findIndex.)
+
+**Running tally (task #32): ~60 verified defects, 11 P0 crashes** (added Map.delete). Map/Set delete
++ forEach and the `arguments` object are the impactful new items. Read-only; main.lg concurrent.
