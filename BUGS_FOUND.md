@@ -2439,3 +2439,19 @@ of a function yields `undefined`. `JSON.stringify([1,undefined,3])`→`[1,null,3
 `{a:[1,undefined],b:2}`→`{"a":[1,null],"b":2}`, leading `{a:undefined,b:2}`→`{"b":2}` and trailing
 `{a:1,b:undefined}`→`{"a":1}` all match Node; normal objects/arrays/primitives unchanged. New
 `jsonundef-diff` fuzzer (2400 checks/6 seeds, random undefined/function/nested mix). Full sweep green.
+
+**Object destructuring — `...rest`, nested value patterns, first-`}` truncation (2026-07-23, 49th
+engine fix).** Three gaps in object destructuring, fixed together. (1) `destructObjLoop` had no
+`...rest` case — `let {a,...rest}=o` bound a garbage `...rest` variable → `rest` was `NaN`. (2) The
+`:` (rename) branch never recursed, so a nested value pattern `let {a:{b}}=o` / `{list:[x,y]}` bound a
+variable literally named `{b}` → `NaN`. (3) `destructureObj` extracted the pattern inner with
+`substringBefore(…,"}")`, stopping at the FIRST `}` — a nested object's closing brace — so anything
+after it (a trailing `...rest`) was silently dropped (`{a:{b},...rest}`). Fixes: a `consumed`-keys
+accumulator threads through `destructObjLoop`; on `...name` `objRestBuild` collects every own property
+of the source not already consumed into a fresh object; the `:` branch recurses via
+`destructureObj`/`destructureArr` when the value starts with `{`/`[`; and `destructureObj` now drops
+the trailing `}` (balanced, like the earlier `destructureArr` fix) instead of cutting at the first.
+`{a,...rest}`→rest`{b,c}`, renamed `{a:r,...rest}`, defaulted `{a=9,...rest}`, empty rest `{x,...y}`→
+`{}`, nested `{a:{b:{c}}}`→c, `{list:[x,y]}`, and the full combo `{p:{q},r,...s}`→`1|2|{"x":..,"y":..}`
+all match Node; flat/default/array-nested destructuring and function-param destructuring unchanged.
+New `objdestructure-diff` fuzzer (2400 checks/6 seeds). Full sweep green.

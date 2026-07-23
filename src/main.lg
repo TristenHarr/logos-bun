@@ -5392,12 +5392,39 @@
             Return i.
     Return topEqIdx(s, i + 1, depth).
 
-## To destructObjLoop (fields: Seq of Text, i: Int, objval: Text, env: Text) -> Text:
+# The object KEY a destructuring field consumes: `k:v`→`k`, `a=d`→`a`, `k:v=d`→`k`, bare `a`→`a`.
+## To destructKeyOf (field: Text) -> Text:
+    Let f be trim(field).
+    If hasSep(f, ":"):
+        Return trim(substringBefore(f, ":")).
+    If hasSep(f, " = "):
+        Return trim(substringBefore(f, " = ")).
+    Return f.
+
+# The running set of already-consumed keys, each wrapped in chr(31) so membership is an exact match.
+## To consumedAppend (consumed: Text, field: Text) -> Text:
+    Return concat(concat(concat(consumed, chr(31)), destructKeyOf(concat(field, ""))), chr(31)).
+
+# Build the `...rest` object: every own property of the source not already bound by an earlier field.
+## To objRestBuild (entries: Seq of Text, ei: Int, consumed: Text, acc: Text) -> Text:
+    If ei is greater than length of entries:
+        Return acc.
+    Let entry be item ei of entries.
+    Let k be trim(substringBefore(entry, tagObjKV ())).
+    If hasSep(concat(consumed, ""), concat(concat(chr(31), k), chr(31))):
+        Return objRestBuild(entries, ei + 1, concat(consumed, ""), acc).
+    Return objRestBuild(entries, ei + 1, concat(consumed, ""), objSet(acc, concat(k, ""), substringAfter(entry, tagObjKV ()))).
+
+## To destructObjLoop (fields: Seq of Text, i: Int, objval: Text, consumed: Text, env: Text) -> Text:
     If i is greater than length of fields:
         Return env.
     Let field be trim(item i of fields).
     If field is equal to "":
-        Return destructObjLoop(fields, i + 1, objval, env).
+        Return destructObjLoop(fields, i + 1, objval, consumed, env).
+    If startsWith(field, "..."):
+        Let rn be trim(substringAfter(field, "...")).
+        Let restObj be objRestBuild(objEntrySeq(concat(objval, "")), 1, concat(consumed, ""), newObjRef(concat(tagObj (), tagObjEnd ()))).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), consumed, envSet(env, rn, restObj)).
     If hasSep(field, " = "):
         Let lhsPart be trim(substringBefore(field, " = ")).
         Let defExpr be trim(substringAfter(field, " = ")).
@@ -5405,14 +5432,18 @@
             Let dk be trim(substringBefore(lhsPart, ":")).
             Let dvn be trim(substringAfter(lhsPart, ":")).
             Let dval be defaultOr(objGet(concat(objval, ""), dk), defExpr, concat(env, "")).
-            Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, dvn, dval)).
+            Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, dvn, dval)).
         Let bval be defaultOr(objGet(concat(objval, ""), concat(lhsPart, "")), defExpr, concat(env, "")).
-        Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, lhsPart, bval)).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, lhsPart, bval)).
     If hasSep(field, ":"):
         Let k be trim(substringBefore(field, ":")).
         Let vn be trim(substringAfter(field, ":")).
-        Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, vn, objGet(concat(objval, ""), k))).
-    Return destructObjLoop(fields, i + 1, concat(objval, ""), envSet(env, concat(field, ""), objGet(concat(objval, ""), field))).
+        If startsWith(vn, chr(123)):
+            Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), destructureObj(concat(vn, ""), objGet(concat(objval, ""), k), concat(env, ""))).
+        If startsWith(vn, chr(91)):
+            Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), destructureArr(concat(vn, ""), objGet(concat(objval, ""), k), concat(env, ""))).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, vn, objGet(concat(objval, ""), k))).
+    Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, concat(field, ""), objGet(concat(objval, ""), field))).
 
 ## To destructArrLoop (fields: Seq of Text, i: Int, arrval: Text, env: Text) -> Text:
     If i is greater than length of fields:
@@ -5435,8 +5466,9 @@
     Return destructArrLoop(fields, i + 1, concat(arrval, ""), envSet(env, concat(field, ""), arrGet(concat(arrval, ""), i - 1))).
 
 ## To destructureObj (pattern: Text, objval: Text, env: Text) -> Text:
-    Let inner be trim(substringBefore(substringAfter(pattern, chr(123)), chr(125))).
-    Return destructObjLoop(patFields(inner), 1, objval, env).
+    Let afterOpen be substringAfter(trim(pattern), chr(123)).
+    Let inner be trim(strSliceLoop(concat(afterOpen, ""), 1, (length of afterOpen) - 1, "")).
+    Return destructObjLoop(patFields(inner), 1, objval, "", env).
 
 # Extract the pattern's inner between the opening `[` and its MATCHING (last) `]` by dropping the
 # trailing bracket — `substringBefore(…, "]")` would stop at the FIRST `]` and truncate a nested-first
