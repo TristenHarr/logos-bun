@@ -2837,7 +2837,29 @@
         Return concat("-", intToRadixPos(0 - n, radix, "")).
     Return intToRadixPos(n, radix, "").
 
+# Error.prototype.toString = `name: message` (or just one if the other is empty). An Error is the
+# heap object newError builds (both `name` and `message` set), so require BOTH to avoid treating a
+# plain object as an Error.
+## To errToString (raw: Text) -> Text:
+    Let nm be materialize(objGet(concat(raw, ""), "name")).
+    Let msg be materialize(objGet(concat(raw, ""), "message")).
+    If msg is equal to "":
+        Return concat(tagStr (), nm).
+    If nm is equal to "":
+        Return concat(tagStr (), msg).
+    Return concat(tagStr (), concat(concat(nm, ": "), msg)).
+
+## To objToStringVal (raw: Text) -> Text:
+    If objGet(concat(raw, ""), "name") is not equal to "undefined":
+        If objGet(concat(raw, ""), "message") is not equal to "undefined":
+            Return errToString(raw).
+    Return concat(tagStr (), "[object Object]").
+
 ## To numToStringVal (raw: Text, argText: Text, env: Text) -> Text:
+    If isArrRef(concat(raw, "")):
+        Return arrJoin(raw, ",").
+    If isObjRef(concat(raw, "")):
+        Return objToStringVal(raw).
     If isIntStr(concat(materialize(raw), "")):
         If trim(argText) is equal to "":
             Return concat(tagStr (), materialize(raw)).
