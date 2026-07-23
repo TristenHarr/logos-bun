@@ -115,8 +115,9 @@ A JS engine must never abort the process on ordinary input. All 9 are small, loc
 | bitwise w/ NaN + hex≥0x100 | `0xFF\|0x100` | `511` | fix hex parse + ToInt32(NaN)=0 |
 | `Error.prototype.toString` | `String(new Error("x"))` | `"Error: x"` | `name+": "+message`, no recurse |
 | tagged template call | `` f`hi` `` | `"hi"` | handle tag-fn application (plain `` `${}` `` works) |
+| `Map.delete` + keys | `m.delete("a"); [...m.keys()]` | `["b"]` | fix delete/key-iter recursion |
 
-These 10 are the highest value/effort ratio in the whole backlog.
+These 11 are the highest value/effort ratio in the whole backlog.
 
 ## Recommended fix order (impact × shared-fix leverage)
 
@@ -136,3 +137,25 @@ fix the bulk of real-program breakage. Each cluster becomes a RED differential f
 its fix lands.
 
 *Synthesis of the 2026-07-23 differential hunt; no code touched (engine under concurrent edit).*
+
+## Cluster L — Map/Set mutation & iteration + the `arguments` object (batch 8, ~5 bugs)
+
+- `Set.delete` is a no-op (returns NaN); `Map.delete` **crashes** (Priority-0); `Map/Set.forEach`
+  never invoke the callback. (set/add/get/has/size/`[...m]` spread work — only delete + forEach.)
+- The magic `arguments` object isn't populated (`arguments[0]`→NaN, `.length` wrong). Named/rest/
+  default/destructured params work → the fix is to bind `arguments` at call entry.
+- `WeakMap` (task #26) + `Number.toExponential` missing.
+
+## Cluster M — generator advanced protocol + async-fn return + freeze (batch 9, ~5 bugs)
+
+- Generators: `yield*` delegation, `return` value delivery, and bidirectional `next(arg)` all broken
+  (basic `yield` + `[...g()]` work). Extend the generator state machine (it currently only forwards
+  simple yields).
+- `async function` plain `return v` isn't wrapped so `.then` fires (await + `Promise.resolve().then`
+  chains work → the microtask engine is fine; the async-fn return→resolve bridge is the one gap).
+- `Object.freeze` is a NO-OP (mutation not prevented; `isFrozen`→NaN) — enforce frozen semantics.
+- `String.matchAll` over-yields (per-char, not per-match).
+
+---
+*Batches 7-9 fold-in (2026-07-23). Full tally: ~66 verified defects, 11 P0 crashes. The crash table
++ Clusters A-M are the complete fix plan; task #32. No code touched (engine under concurrent edit).*
