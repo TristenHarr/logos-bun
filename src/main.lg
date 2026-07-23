@@ -3001,6 +3001,57 @@
     Let n be length of els.
     Return arrReduceRightLoop(els, n - 1, fnval, env, item n of els).
 
+# Array.copyWithin(target, start, end): copy the [start,end) slice onto position target in place
+# (length unchanged, read from the ORIGINAL els so overlap is safe). Indices clamp to [0,n] (negatives
+# from the end); count = clamp(min(end-start, n-target), >=0).
+## To clampIdxN (i: Int, n: Int) -> Int:
+    Let a be negIdx(i, n).
+    If a is less than 0:
+        Return 0.
+    If a is greater than n:
+        Return n.
+    Return a.
+
+## To posMin (a: Int, b: Int) -> Int:
+    If a is less than b:
+        If a is less than 0:
+            Return 0.
+        Return a.
+    If b is less than 0:
+        Return 0.
+    Return b.
+
+## To copyWithinSrc (i: Int, tgt: Int, start: Int, count: Int) -> Int:
+    If i is greater than or equal to tgt:
+        If i is less than (tgt + count):
+            Return (start + (i - tgt)) + 1.
+    Return i + 1.
+
+## To copyWithinLoop (els: Seq of Text, i: Int, n: Int, tgt: Int, start: Int, count: Int, acc: Text) -> Text:
+    If i is greater than or equal to n:
+        Return acc.
+    Let si be copyWithinSrc(i, tgt, start, count).
+    Let v be item si of els.
+    If acc is equal to "":
+        Return copyWithinLoop(els, i + 1, n, tgt, start, count, v).
+    Return copyWithinLoop(els, i + 1, n, tgt, start, count, concat(concat(acc, tagArrSep ()), v)).
+
+## To copyWithinArg (args: Seq of Text, idx: Int, env: Text, dflt: Int) -> Int:
+    If idx is greater than length of args:
+        Return dflt.
+    If trim(item idx of args) is equal to "":
+        Return dflt.
+    Return safeInt(materialize(jsEvalIn(trim(item idx of args), concat(env, "")))).
+
+## To copyWithin (arrval: Text, tgt: Int, start: Int, end: Int) -> Text:
+    Let els be arrElements(arrval).
+    Let n be length of els.
+    Let t be clampIdxN(tgt, n).
+    Let s be clampIdxN(start, n).
+    Let e be clampIdxN(end, n).
+    Let count be posMin(e - s, n - t).
+    Return mutArr(concat(arrval, ""), concat(concat(tagArr (), copyWithinLoop(els, 0, n, t, s, count, "")), tagArrEnd ())).
+
 # reduce with NO initial value seeds the accumulator with element 0 and starts from element 1.
 ## To arrReduceNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
     Let els be arrElements(arrval).
@@ -3512,7 +3563,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -4228,6 +4279,18 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), arrFill(raw, jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If lm is equal to " . copyWithin (":
+        Let bef be substringBefore(expr, " . copyWithin (").
+        Let aft be substringAfter(expr, " . copyWithin (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let args be splitArgsN(methodArg(aft)).
+        Let tgt be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
+        Let cstart be copyWithinArg(args, 2, env, 0).
+        Let cend be copyWithinArg(args, 3, env, length of arrElements(raw)).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), copyWithin(raw, tgt, cstart, cend)), rst)), env).
     If lm is equal to " . charAt (":
         Let bef be substringBefore(expr, " . charAt (").
         Let aft be substringAfter(expr, " . charAt (").
