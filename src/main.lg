@@ -3883,6 +3883,11 @@
         Let aft be substringAfter(expr, "String . fromCharCode (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
+    If substringBefore(expr, "String . fromCodePoint (") is not equal to expr:
+        Let bef be substringBefore(expr, "String . fromCodePoint (").
+        Let aft be substringAfter(expr, "String . fromCodePoint (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
     If substringBefore(expr, "Object . keys (") is not equal to expr:
         Let bef be substringBefore(expr, "Object . keys (").
         Let aft be substringAfter(expr, "Object . keys (").
