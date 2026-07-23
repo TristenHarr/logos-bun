@@ -2468,3 +2468,18 @@ variables). This is distinct from a member write, whose LHS starts with the cont
 declarations unchanged. New `destructassign-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
 (Object destructuring assignment `({a,b}=o)` — the parenthesized form whose `=` sits at paren-depth 1
 — is a separate follow-up.)
+
+**Braceless loop bodies (2026-07-23, 51st engine fix).** A loop whose body is a single BRACELESS
+statement (`for (…) f();`, `while (c) x++;`, `for (const v of xs) s+=v;`, `for (k in o) …`) didn't
+run its body — `if` handled braceless, loops did not. Every loop executor took its body as
+`braceBody(substringAfter(stmt,"{"))` — the first `{` anywhere — so a braceless body was empty: the
+loop no-op'd (`for`/`for-of`/`for-in` returned 0/""), and a braceless `while` whose update lives in
+the (now empty) body **HUNG** (`while (i<3) s+=i++` — infinite loop). New `loopBody` locates the body
+AFTER the header's MATCHING `)` (found via `balancedArg`, so a `{`/`(` inside the header — a
+`for (const {a} of xs)` destructuring pattern, a `while (f(x))` call — no longer misdirects it) and
+returns the braced content or the lone trailing statement; wired into `execWhile`, the C-style
+`forStmt`, `execForOf`, `execForIn` (do-while, whose body precedes its `while(cond)`, is untouched).
+Braceless for/for-of/for-in/while, a braceless `if` inside a braceless `for`, and (bonus, from the
+balanced-header extraction) `for (const {a} of arr) s+=a` and nested braceless inner loops all match
+Node; every braced loop and do-while unchanged. New `bracelessloop-diff` fuzzer (2400 checks/6 seeds,
+4s per-run timeout so a regressed hang surfaces). Full sweep green.

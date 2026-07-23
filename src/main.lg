@@ -6270,11 +6270,24 @@
     Let st be item i of stmts.
     Return runBlock(stmts, i + 1, drainPendingThrow(execStmt(st, env))).
 
+# A loop's body is either a `{ … }` block or a single braceless statement (`while (c) x++;`,
+# `for (…) f();`). We locate the body AFTER the header's matching `)` (found via balancedArg, so a
+# `{`/`(` inside the header — a `for (const {a} of xs)` destructuring pattern, a `while (f(x))` call —
+# doesn't fool it), then take the braced content or the lone trailing statement. The old code took the
+# first `{` anywhere, so a braceless body was empty (loop no-op, or a `while` that never updates hangs).
+## To loopBody (stmt: Text) -> Text:
+    Let afterOpen be substringAfter(concat(stmt, ""), "(").
+    Let hdr be balancedArg(concat(afterOpen, ""), 1, 0, "").
+    Let afterClose be trim(strSliceLoop(concat(afterOpen, ""), (length of hdr) + 2, length of afterOpen, "")).
+    If startsWith(afterClose, chr(123)):
+        Return braceBody(substringAfter(afterClose, chr(123)), 1, 0, "").
+    Return trim(afterClose).
+
 ## To execWhile (stmt: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
-    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Let body be loopBody(concat(stmt, "")).
     If boolOf(jsEvalIn(cond, env)):
         Let afterBody be runBlockStr(body, env).
         If hasHalt(afterBody):
@@ -6315,7 +6328,7 @@
     Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
     Let cond be trim(item 2 of parts).
     If boolOf(jsEvalIn(cond, env)):
-        Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+        Let body be loopBody(concat(stmt, "")).
         Let update be trim(item 3 of parts).
         Let afterBody be runBlockStr(body, env).
         If hasHalt(afterBody):
@@ -6357,7 +6370,7 @@
     Let afterKw be trim(substringAfter(hdr, " ")).
     Let varName be trim(substringBefore(afterKw, " of ")).
     Let arrExpr be trim(substringAfter(afterKw, " of ")).
-    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Let body be loopBody(concat(stmt, "")).
     Return forOfLoop(iterElements(jsEvalIn(arrExpr, env)), 1, varName, body, env).
 
 ## To arrIndexKeys (n: Int, i: Int, acc: Text) -> Text:
@@ -6380,7 +6393,7 @@
     Let afterKw be trim(substringAfter(hdr, " ")).
     Let varName be trim(substringBefore(afterKw, " in ")).
     Let objExpr be trim(substringAfter(afterKw, " in ")).
-    Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
+    Let body be loopBody(concat(stmt, "")).
     Return forOfLoop(arrElements(forInKeys(jsEvalIn(objExpr, env))), 1, varName, body, env).
 
 ## To execFor (stmt: Text, env: Text) -> Text:
