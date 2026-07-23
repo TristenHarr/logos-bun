@@ -2572,3 +2572,19 @@ empty condition ⇒ true. `for(let i=0;;i++){ if(i>3) return i }`→4, `for(;;){
 and empty init+update `for(;i<4;){ i++ }`→4 all match Node; every conditioned for-loop (braced,
 braceless, multi-declarator, for-of) unchanged. New `emptyfor-diff` fuzzer (2400 checks/6 seeds, 4s
 timeout catches a regressed infinite loop). Full sweep green.
+
+**Multi-argument `new Date(y, m, d, …)` (2026-07-23, 59th engine fix).** Only the single-timestamp
+`new Date(ms)` worked; the component form `new Date(2024, 0, 15)` returned NaN (the comma-list was
+`jsEvalIn`'d as one expression, not parsed into an epoch). Implemented `dateFromParts` + `daysFromCivil`
+(Howard Hinnant's exact civil→epoch day count, verified `daysFromCivil(1970,1,1)=0`): the constructor
+now maps `(year, monthIndex, day?, hours?, minutes?, seconds?, ms?)` — JS's 0-indexed month → the
+1-indexed civil month, JS defaults (day 1, else 0) — to the UTC epoch its getters read back (the engine
+is UTC-only, so `getFullYear == getUTCFullYear` and a component-built date round-trips). `new Date(2024,
+0,15).getUTCFullYear()`→2024, `.getUTCMonth()`→0, `.getUTCDate()`→20, `new Date(2000,0,1).getTime()`→
+946684800000, `getUTCHours`/`getUTCDay`, and the 6-component form all match Node; single-timestamp
+`Date`, all getters, `Date.now()` unchanged. Codegen: a `Seq of Text` local can't be passed to a
+consuming call twice, so `dpNum`/`nthArg` take the arg TEXT and re-`splitArgsN` per component. New
+`datefromparts-diff` fuzzer (1800 checks/6 seeds; forces `TZ=UTC` so Node's local-time constructor
+aligns with our UTC epoch). Full sweep green. (`getTime` of a component date is UTC here; a non-UTC
+`new Date(y,m,d).getTime()` would differ from Node's local-time value — the timezone-independent
+getUTC\* fields are exact regardless.)

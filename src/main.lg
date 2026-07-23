@@ -2857,6 +2857,53 @@
 ## To newDate (ms: Text) -> Text:
     Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__date_ms", materialize(ms)).
 
+# Days from the Unix epoch (1970-01-01) to a civil date (year, 1-indexed month, day) — Howard
+# Hinnant's `days_from_civil`, exact for the ordinary positive-year range. Lets `new Date(y, m, d, …)`
+# build the same UTC epoch its component getters read back (the engine is UTC-only, so getFullYear ==
+# getUTCFullYear, and a component-built date round-trips).
+## To civilY (y: Int, m: Int) -> Int:
+    If m is less than 3:
+        Return y - 1.
+    Return y.
+
+## To civilMAdj (m: Int) -> Int:
+    If m is greater than 2:
+        Return m - 3.
+    Return m + 9.
+
+## To daysFromCivil (y0: Int, m: Int, d: Int) -> Int:
+    Let y be civilY(y0, m).
+    Let era be y // 400.
+    Let yoe be y - (era * 400).
+    Let doy be (((153 * civilMAdj(m)) + 2) // 5) + (d - 1).
+    Let doe be ((yoe * 365) + (yoe // 4) - (yoe // 100)) + doy.
+    Return ((era * 146097) + doe) - 719468.
+
+## To nthArg (argStr: Text, i: Int) -> Text:
+    Let a be splitArgsN(concat(argStr, "")).
+    If i is greater than length of a:
+        Return "".
+    Return trim(item i of a).
+
+## To dpNum (argStr: Text, i: Int, env: Text, dflt: Int) -> Int:
+    Let a be nthArg(concat(argStr, ""), i).
+    If a is equal to "":
+        Return dflt.
+    Return safeInt(materialize(jsEvalIn(concat(a, ""), env))).
+
+# `new Date(year, monthIndex, day?, hours?, minutes?, seconds?, ms?)` → epoch milliseconds. The month
+# is 0-indexed in JS, so it becomes the 1-indexed civil month `mo + 1`; omitted parts default the way
+# JS does (day 1, everything else 0).
+## To dateFromParts (argStr: Text, env: Text) -> Text:
+    Let y be dpNum(concat(argStr, ""), 1, env, 1970).
+    Let mo be dpNum(concat(argStr, ""), 2, env, 0).
+    Let d be dpNum(concat(argStr, ""), 3, env, 1).
+    Let h be dpNum(concat(argStr, ""), 4, env, 0).
+    Let mi be dpNum(concat(argStr, ""), 5, env, 0).
+    Let sec be dpNum(concat(argStr, ""), 6, env, 0).
+    Let msP be dpNum(concat(argStr, ""), 7, env, 0).
+    Return toText(((((daysFromCivil(y, mo + 1, d) * 86400000) + (h * 3600000)) + (mi * 60000)) + (sec * 1000)) + msP).
+
 ## To isDateObj (v: Text) -> Bool:
     If isObjRef(v):
         Return objGet(concat(v, ""), "__date_ms") is not equal to "undefined".
@@ -4204,6 +4251,8 @@
         Let aft be substringAfter(expr, "new Date (").
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newDate(jsDateNow())), methodRest(aft))), env).
+        If length of splitArgsN(concat(methodArg(aft), "")) is greater than 1:
+            Return resolveMethods(trim(concat(concat(bef, newDate(dateFromParts(concat(methodArg(aft), ""), env))), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newDate(materialize(jsEvalIn(trim(methodArg(aft)), env)))), methodRest(aft))), env).
     If substringBefore(expr, "Date . now (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Date . now (") is equal to false:
