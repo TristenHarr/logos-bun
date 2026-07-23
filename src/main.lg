@@ -4130,7 +4130,14 @@
         Let maft be substringAfter(expr, " . match (").
         Let mre be jsEvalIn(trim(methodArg(maft)), env).
         If isRegex(mre):
-            Let mfound be reFind(decodeStr(materialize(objGet(concat(mre, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(recvExpr(concat(mbef, "")), env)))).
+            Let msrc be decodeStr(materialize(objGet(concat(mre, ""), "__regex_src"))).
+            Let mtext be decodeStr(materialize(jsEvalIn(recvExpr(concat(mbef, "")), env))).
+            If reHasG(materialize(objGet(concat(mre, ""), "__regex_flags"))):
+                Let mall be reFindAll(msrc, mtext).
+                If mall is equal to "":
+                    Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), mall), tagArrEnd ()))), methodRest(maft))), env).
+            Let mfound be reFind(msrc, mtext).
             If mfound is equal to "":
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), concat(tagStr (), mfound)), tagArrEnd ()))), methodRest(maft))), env).
@@ -7109,6 +7116,29 @@
     If start is equal to 0:
         Return "".
     Return strSliceLoop(text, start, (reMatchEnd(pat, text, start) - 1), "").
+
+# Every match of `pat` in `text` (for a global `.match`), returned as tagStr-tagged pieces joined by
+# tagArrSep — ready to wrap in an array. Walks left-to-right past each match; a zero-width match would
+# loop forever, so it stops after recording one there (matching reReplaceLoop's guard).
+## To appendArrPiece (acc: Text, piece: Text) -> Text:
+    If acc is equal to "":
+        Return piece.
+    Return concat(concat(acc, tagArrSep ()), piece).
+
+## To reFindAllLoop (pat: Text, text: Text, acc: Text) -> Text:
+    Let start be reSearchStart(pat, text).
+    If start is equal to 0:
+        Return acc.
+    Let endp be reMatchEnd(pat, text, start).
+    Let matched be concat(tagStr (), strSliceLoop(text, start, endp - 1, "")).
+    Let after be strSliceLoop(text, endp, length of text, "").
+    Let nextAcc be appendArrPiece(acc, matched).
+    If endp is greater than start:
+        Return reFindAllLoop(pat, after, nextAcc).
+    Return nextAcc.
+
+## To reFindAll (pat: Text, text: Text) -> Text:
+    Return reFindAllLoop(pat, text, "").
 
 ## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
     If length of rargs is less than 2:

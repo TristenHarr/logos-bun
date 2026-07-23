@@ -2154,3 +2154,11 @@ their (accumulator, element) pair — so `[[1,2],[3,4]].reduce((a,[x,y])=>a+x+y,
 `bindParamVal`. `reduce((s,[a,b])=>…)`, `reduce((s,{a})=>…)`, `reduceRight((a,[x,y])=>…)` all correct;
 plain reduce + Math-in-reduce unaffected. Extended `destructcb-diff` with reduce cases (2400 checks/6
 seeds). Full sweep green.
+
+**`String.match` with the global flag (2026-07-23, 31st engine fix).** `"a1b2c3".match(/\d/g)` returned
+only the FIRST match (`["1"]`, `.length` 1) instead of all matches (`["1","2","3"]`) — the dispatch
+always used `reFind` (first-only) and ignored the `g` flag. Added `reFindAll` (walks left-to-right past
+each match via `reSearchStart`/`reMatchEnd`, the same iteration `reReplaceLoop` uses, with a zero-width
+guard) and a global branch that checks `reHasG(__regex_flags)`. `match(/\d/g)`→all digits,
+`match(/\w+/g)`→all words, no-match→null; non-global `match` (first-only) unchanged. New
+`matchglobal-diff` fuzzer (2400 checks/6 seeds). Full sweep green.
