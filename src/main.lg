@@ -2627,6 +2627,22 @@
         Return "undefined".
     Return v.
 
+# JSON.stringify honors a user-defined toJSON(): a plain object carrying a callable `toJSON` property is
+# replaced by its toJSON() result before serialization. Date has its own ISO path, so it is excluded.
+# Returns false for every value without a callable toJSON (strings/arrays/plain objects) so the common
+# path is byte-unchanged. Applied at the top-level stringify argument (nested toJSON is a follow-up).
+## To hasUserToJSON (v: Text) -> Bool:
+    If isObjRef(concat(v, "")) is equal to false:
+        Return false.
+    If isDateObj(concat(v, "")):
+        Return false.
+    Return startsWith(objGet(concat(v, ""), "toJSON"), chr(1)).
+
+## To jsonValueOf (argExpr: Text, rawV: Text, env: Text) -> Text:
+    If hasUserToJSON(concat(rawV, "")):
+        Return jsEvalIn(concat(concat(argExpr, ""), " . toJSON ( )"), env).
+    Return concat(rawV, "").
+
 # Pretty-printing stringify — the third JSON.stringify argument (a per-level indent). `gap` is one
 # indent unit (encoded whitespace), `pad` the accumulated indent at the current depth. Objects/arrays
 # place each member on its own line at pad+gap and a colon is followed by one space; empty {} / [] stay
@@ -5922,7 +5938,8 @@
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let sargs be splitArgsN(concat(argStr, "")).
-        Let valV be jsEvalIn(trim(item 1 of sargs), env).
+        Let arg1 be trim(item 1 of sargs).
+        Let valV be jsonValueOf(concat(arg1, ""), concat(jsEvalIn(concat(arg1, ""), env), ""), env).
         If length of sargs is greater than 2:
             If trim(item 3 of sargs) is not equal to "":
                 Let gap be indentGap(jsEvalIn(trim(item 3 of sargs), env)).
