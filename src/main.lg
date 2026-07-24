@@ -2533,6 +2533,8 @@
     Return fromEntriesLoop(pairs, i + 1, objSet(acc, pk, arrGet(concat(pair, ""), 1))).
 
 ## To objFromEntries (arrval: Text) -> Text:
+    If isMap(concat(arrval, "")):
+        Return newObjRef(fromEntriesLoop(arrElements(mapEntriesArr(concat(arrval, ""))), 1, concat(tagObj (), tagObjEnd ()))).
     Return newObjRef(fromEntriesLoop(arrElements(arrval), 1, concat(tagObj (), tagObjEnd ()))).
 
 ## To assignMergeEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
