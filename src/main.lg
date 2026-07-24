@@ -1829,6 +1829,71 @@
         Return replaceAll(expr, "Math . E", "2.718281828459045").
     Return concat(expr, "").
 
+## To isIdentStartChar (c: Text) -> Bool:
+    Return hasSep("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$", concat(c, "")).
+
+# Keywords that can legitimately precede a `(` as something OTHER than a call (control-flow heads,
+# grouping after a unary/expression keyword). A callee that is one of these must NOT be treated as a
+# failed function call.
+## To isParenKeyword (tok: Text) -> Bool:
+    Let kws be ["return", "typeof", "void", "delete", "new", "in", "of", "instanceof", "if", "while", "for", "switch", "catch", "do", "else", "function", "throw", "case", "yield", "await", "super", "this"].
+    Return kws contains concat(tok, "").
+
+# A token in CALLEE position — an identifier or a value literal sitting directly before a `(`, which in
+# JS grammar is ALWAYS a call, never a grouping paren. Used to tell `undefined()` (a failed call →
+# TypeError) apart from a grouping `(2+3)` whose preceding token is empty, an operator, or a control
+# keyword. Operators/punctuation fail `isIdentStartChar`; the paren-keywords are excluded explicitly.
+## To looksLikeCallee (tok: Text) -> Bool:
+    If tok is equal to "":
+        Return false.
+    If isParenKeyword(concat(tok, "")):
+        Return false.
+    If isIdentStartChar(item 1 of concat(tok, "")):
+        Return true.
+    If isNumericStr(concat(tok, "")):
+        Return true.
+    If startsWith(concat(tok, ""), tagStr ()):
+        Return true.
+    If startsWith(concat(tok, ""), tagBig ()):
+        Return true.
+    If isObjRef(concat(tok, "")):
+        Return true.
+    If isArrRef(concat(tok, "")):
+        Return true.
+    Return false.
+
+# The value of a callee token: its env binding if any, else the literal itself evaluated.
+## To calleeValue (tok: Text, env: Text) -> Text:
+    Let bound be envGet(concat(env, ""), concat(tok, "")).
+    If bound is not equal to "":
+        Return bound.
+    Return jsEvalIn(concat(tok, ""), concat(env, "")).
+
+# A value that is DEFINITELY not callable — a primitive (undefined/null/boolean/number) — so calling it
+# is unambiguously a TypeError. Deliberately narrow: objects, strings, arrays, class constructors, and
+# generator functions are NOT judged here (they reach the callee fall-through in positions the call
+# branches above do not all cover, and mis-judging one would turn a valid call into a spurious throw), so
+# only the primitive cases — the overwhelming majority of real "x is not a function" errors — throw.
+## To isNonCallablePrimitive (cv: Text) -> Bool:
+    If cv is equal to "undefined":
+        Return true.
+    If cv is equal to "null":
+        Return true.
+    If cv is equal to "true":
+        Return true.
+    If cv is equal to "false":
+        Return true.
+    If isNumericStr(concat(cv, "")):
+        Return true.
+    Return false.
+
+# The human display for a "<x> is not a function" TypeError: a bare identifier is shown as-is (`x`,
+# `undefined`), any tagged value is materialized (`"s"()` → the string form).
+## To calleeDisp (tok: Text, cv: Text) -> Text:
+    If isIdentStartChar(item 1 of concat(tok, "")):
+        Return concat(tok, "").
+    Return materialize(concat(cv, "")).
+
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
         Return expr.
@@ -1919,6 +1984,12 @@
                     Let result be callMethod(mfn, inner, recvVal, env).
                     Let newPrefix be joinRange(ptoks, 1, recvStartIdx - 1, "").
                     Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If looksLikeCallee(concat(lastTok, "")):
+        Let cvC be calleeValue(concat(lastTok, ""), env).
+        If isNonCallablePrimitive(concat(cvC, "")):
+            Let teC be throwSet(newError("TypeError", concat(tagStr (), encodeStr(concat(calleeDisp(concat(lastTok, ""), concat(cvC, "")), " is not a function"))))).
+            Let newPrefixC be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+            Return resolveCalls(concat(concat(concat(newPrefixC, " "), "undefined"), rest), env).
     Let innerVal be jsEvalIn(inner, env).
     Return resolveCalls(concat(concat(concat(prefix, " "), innerVal), rest), env).
 

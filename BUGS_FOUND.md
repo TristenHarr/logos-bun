@@ -3532,3 +3532,20 @@ String()/concat/template/join surfaces, and a `toString` that reads `this` (`"su
 `valueOf` under `+` on two non-string operands — `{valueOf(){return 10}} + 5` — is a separate ToPrimitive path,
 not addressed here; an object with only `toString` still coerces correctly under `+` because the default hint
 falls back to `toString`.)
+
+**Calling a non-function primitive silently returned undefined instead of throwing TypeError (2026-07-24,
+129th engine fix).** `undefined()`, `null()`, `true()`, and `x()` where `x` holds a number/null fell through
+the call dispatch to the grouping-paren fall-through and evaluated to `undefined`, so a `try/catch` around a
+bad call never fired. Now, at that fall-through, when the callee token is genuinely in call position — an
+identifier or value literal directly before the `(`, distinguished from a grouping paren whose preceding token
+is empty/an operator/a control keyword — AND it resolves to a non-callable PRIMITIVE (undefined/null/boolean/
+number), a `TypeError` (`<x> is not a function`) is thrown via the pending-throw channel and caught normally.
+The predicate is deliberately narrow to primitives: an earlier broad version (any concrete non-callable) turned
+valid **class-constructor calls in nested position** (`Object.keys(new C())`, `[new P(1)].join()`) and
+**generator calls** (`[...g()]`, `g().next()`) into spurious throws, because those reach the same fall-through
+in positions the call branches above do not all cover — the sweep caught it (supermethod/tostringcoerce/
+yieldstar went red), and restricting to primitives fixed every false positive while keeping the real throws.
+New `callnonfn-diff` fuzzer (1200+ checks, 6 seeds) pits the throws against a large valid-call/grouping
+regression set. Full sweep green (256/256, seeds 1-2). (Unhandled edges, deliberately not thrown to stay safe:
+a missing METHOD `o.missing()` — a bare property name doesn't resolve to a primitive — and a string-literal
+call `"s"()`; both remain a silent `undefined`, no worse than before.)
