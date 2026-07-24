@@ -3519,3 +3519,16 @@ a variable (which already recursed) are unchanged. New `namediife-diff` fuzzer (
 sweep green (254/254, seeds 1-2). (The named-expression's name still leaks into the surrounding scope when the
 expression is assigned to a variable — a pre-existing, separate spec deviation; the IIFE form has no observable
 leak.)
+
+**An object's `toString` method was ignored in string coercion (2026-07-24, 128th engine fix).** `String(obj)`,
+`"" + obj`, a template `` `${obj}` ``, and `[obj].join()` all produced the default `[object Object]` even when
+the object (a class instance or an object literal) defined a `toString` method — only an explicit `obj.toString()`
+call worked. The object→string chokepoint (`materialize`) now, for a non-Error object, invokes a `toString`
+function-valued slot with `this` bound to the object and returns its (recursively materialized) result. A plain
+object with no `toString` still yields `[object Object]`, `JSON.stringify` is unaffected (it omits function
+values, never calls `toString`), and arrays/primitives are unchanged. Class instances and object literals, the
+String()/concat/template/join surfaces, and a `toString` that reads `this` (`"sum:"+this.x`) all match Node. New
+`tostringcoerce-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (255/255, seeds 1-2). (A numeric-hint
+`valueOf` under `+` on two non-string operands — `{valueOf(){return 10}} + 5` — is a separate ToPrimitive path,
+not addressed here; an object with only `toString` still coerces correctly under `+` because the default hint
+falls back to `toString`.)

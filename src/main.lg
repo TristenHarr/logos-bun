@@ -1948,6 +1948,9 @@
         If objGet(concat(v, ""), "name") is not equal to "undefined":
             If objGet(concat(v, ""), "message") is not equal to "undefined":
                 Return substringAfter(errToString(v), tagStr ()).
+        Let ts be objGet(concat(v, ""), "toString").
+        If startsWith(ts, chr(1)):
+            Return materialize(callMethod(concat(ts, ""), "", concat(v, ""), "")).
         Return objectTagStr ().
     Return v.
 
