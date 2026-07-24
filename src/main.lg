@@ -5315,7 +5315,61 @@
         Return concat(tagStr (), jsToLocaleNum(materialize(concat(raw, "")))).
     Return concat(tagStr (), materialize(concat(raw, ""))).
 
+# `Type.prototype.method.call(thisArg, ...args)` is semantically `thisArg.method(...args)`, and
+# `Type.prototype.method.apply(thisArg, argArray)` is `thisArg.method(...argArray)` — the classic borrow of
+# a native (or user) prototype method. We rewrite the borrow to a direct method call on the borrowed
+# receiver and let ordinary method dispatch handle it, which is what makes `Array.prototype.slice.call(
+# arguments)` work. Before this, the unresolved `Type.prototype.method` receiver drove the `.call`/`.apply`
+# handler's receiver evaluation into unbounded recursion → a stack-overflow abort of the whole engine.
+## To protoCallRewrite (expr: Text) -> Text:
+    If hasSep(concat(expr, ""), " . prototype . ") is equal to false:
+        Return concat(expr, "").
+    Let pre be substringBefore(concat(expr, ""), " . prototype . ").
+    Let after be substringAfter(concat(expr, ""), " . prototype . ").
+    Let mtoks be split(concat(after, ""), " ").
+    Let mname be item 1 of mtoks.
+    Let opStart be trim(joinRange(mtoks, 2, length of mtoks, "")).
+    Let preToks be split(concat(pre, ""), " ").
+    Let realPrefix be joinRange(preToks, 1, recvStart(preToks, length of preToks) - 1, "").
+    If startsWith(concat(opStart, ""), ". call ("):
+        Let aft be substringAfter(concat(opStart, ""), ". call (").
+        Let argStr be balancedArg(concat(aft, ""), 1, 0, "").
+        Let rst be strSliceLoop(concat(aft, ""), (length of argStr) + 2, length of aft, "").
+        Let cargs be splitArgsN(concat(argStr, "")).
+        Let thisArg be protoThisArg(trim(item 1 of cargs)).
+        Let callArgs be joinCommaFrom(cargs, 2, 2, "").
+        Return protoJoin(concat(realPrefix, ""), concat(thisArg, ""), concat(mname, ""), concat(callArgs, ""), trim(rst)).
+    If startsWith(concat(opStart, ""), ". apply ("):
+        Let aftA be substringAfter(concat(opStart, ""), ". apply (").
+        Let argStrA be balancedArg(concat(aftA, ""), 1, 0, "").
+        Let rstA be strSliceLoop(concat(aftA, ""), (length of argStrA) + 2, length of aftA, "").
+        Let cargsA be splitArgsN(concat(argStrA, "")).
+        Let thisArgA be protoThisArg(trim(item 1 of cargsA)).
+        Let arrArgA be trim(item 2 of cargsA).
+        Return protoJoin(concat(realPrefix, ""), concat(thisArgA, ""), concat(mname, ""), concat(concat("... ", arrArgA), ""), trim(rstA)).
+    Return concat(expr, "").
+
+# Assemble a `<prefix> ( thisArg ) . method ( args ) <rest>` rewrite with all internal spacing collapsed to
+# single spaces — a stray double space leaves an empty token that desyncs the method-chain resolver
+# (recvExpr indexes off token positions) into unbounded recursion.
+## To protoJoin (prefix: Text, thisArg: Text, mname: Text, args: Text, rst: Text) -> Text:
+    Let recvpart be concat(concat(concat(prefix, " ( "), thisArg), " ) . ").
+    Let callpart be concat(concat(concat(mname, " ( "), args), " ) ").
+    Let raw be concat(concat(recvpart, callpart), rst).
+    Return trim(replaceAll(replaceAll(concat(raw, ""), "  ", " "), "  ", " ")).
+
+# The borrowed `this` for a rewritten prototype-method call — an empty (`.call()` with no args) receiver
+# becomes `undefined`, so the rewrite never emits an empty `( )` receiver.
+## To protoThisArg (t: Text) -> Text:
+    If concat(t, "") is equal to "":
+        Return "undefined".
+    Return concat(t, "").
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
+    If hasSep(concat(expr, ""), " . prototype . "):
+        Let rw be protoCallRewrite(concat(expr, "")).
+        If rw is not equal to concat(expr, ""):
+            Return resolveMethods(concat(rw, ""), env).
     Let lmm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lmm) is not equal to expr:
         Let urecv be jsEvalIn(recvExpr(concat(substringBefore(expr, lmm), "")), concat(env, "")).

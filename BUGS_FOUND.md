@@ -3560,3 +3560,18 @@ match Node. New `arrfromgen-diff` fuzzer (1200+ checks, 6 seeds). Full sweep gre
 separate generator bug remains: a generator stored in a variable and advanced by multiple separate `.next()`
 calls in one expression doesn't preserve its cursor — the eager-snapshot cursor model — tracked for a
 dedicated generator-state fix.)
+
+**`Type.prototype.method.call(...)` STACK-OVERFLOWED the engine (2026-07-24, 131st engine fix).**
+`Array.prototype.slice.call([1,2,3])`, `String.prototype.trim.call("  x  ")`, and every prototype-method
+borrow aborted the whole process with a stack overflow: `.prototype.` was never resolved as a value, so the
+`.call`/`.apply` handler's receiver evaluation recursed without bound. A prototype-method borrow is now
+rewritten at the top of the method resolver to a direct method call on the borrowed receiver —
+`Type.prototype.M.call(thisArg, ...args)` becomes `thisArg.M(...args)` and `Type.prototype.M.apply(thisArg,
+arr)` becomes `thisArg.M(...arr)` — and ordinary method dispatch handles it. The classic
+`Array.prototype.slice.call(arguments)` idiom (arguments → real array) now works, as do slice/map/filter/concat/
+indexOf/join borrowed onto arrays and String.prototype methods borrowed onto strings. A subtlety that cost a
+build: the rewrite's internal spacing must be collapsed to single spaces — a stray double space leaves an empty
+token that desyncs the token-position-based chain resolver (`recvExpr`) back into unbounded recursion, so a
+trailing `.join(...)` re-crashed until the spaces were normalized. New `protocall-diff` fuzzer (1200+ checks, 6
+seeds). Full sweep green (258/258, seeds 1-2). (`Math.max.apply(null, [...])` — a native FUNCTION, not a
+prototype method — is a separate native-fn-`.apply` gap, still returns NaN, not a crash.)
