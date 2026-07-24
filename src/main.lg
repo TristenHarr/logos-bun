@@ -3427,12 +3427,16 @@
         Return tagStr ().
     Return concat(tagStr (), strSliceLoop(s, st + 1, clampIdx(st + len, n), "")).
 
+# indexOf/lastIndexOf compare with strict `===`, under which NaN is equal to nothing — so a NaN element
+# never matches and a NaN target is never found. A numeric NaN element is stored bare as `NaN`; a string
+# "NaN" is tag-prefixed, so excluding a bare-`NaN` match leaves genuine "NaN" strings matchable.
 ## To arrIndexOfLoop (els: Seq of Text, i: Int, target: Text) -> Int:
     If i is greater than length of els:
         Return -1.
     Let el be item i of els.
     If el is equal to target:
-        Return i - 1.
+        If el is not equal to "NaN":
+            Return i - 1.
     Return arrIndexOfLoop(els, i + 1, target).
 
 ## To arrIndexOf (arrval: Text, target: Text) -> Int:
@@ -3443,6 +3447,21 @@
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
 
+# Array.prototype.includes uses SameValueZero, under which NaN DOES equal NaN — so unlike indexOf it
+# finds a NaN element. A plain element-equality scan already has that behavior (NaN is stored bare as
+# `NaN`), which is exactly why includes can't be `indexOf(x) !== -1` once indexOf excludes NaN.
+## To arrIncludesLoop (els: Seq of Text, i: Int, target: Text) -> Bool:
+    If i is greater than length of els:
+        Return false.
+    If item i of els is equal to target:
+        Return true.
+    Return arrIncludesLoop(els, i + 1, target).
+
+## To includesOf (raw: Text, subEval: Text) -> Bool:
+    If isArrRef(raw):
+        Return arrIncludesLoop(arrElements(raw), 1, subEval).
+    Return strIndexOf(materialize(raw), materialize(subEval)) is not equal to -1.
+
 # Array.prototype.lastIndexOf: scan BACKWARD, returning the last element strictly-equal to the target
 # (0-based) or -1. Distinct from string lastIndexOf — an array receiver must compare ELEMENTS, not the
 # materialized `a,b,c` join (where `["a","b","c","b"].lastIndexOf("b")` would wrongly find char index 6).
@@ -3451,7 +3470,8 @@
         Return -1.
     Let el be item i of els.
     If el is equal to target:
-        Return i - 1.
+        If el is not equal to "NaN":
+            Return i - 1.
     Return arrLastIndexOfLoop(els, i - 1, target).
 
 ## To arrLastIndexOf (arrval: Text, target: Text) -> Int:
@@ -5531,7 +5551,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Let subEval be jsEvalIn(trim(methodArg(aft)), env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(idxOf(raw, subEval) is not equal to -1)), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(includesOf(raw, subEval))), rst)), env).
     If lm is equal to " . startsWith (":
         Let bef be substringBefore(expr, " . startsWith (").
         Let aft be substringAfter(expr, " . startsWith (").

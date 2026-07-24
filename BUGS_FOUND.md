@@ -3000,3 +3000,13 @@ booleans, null/undefined, NaN, and object identity (same handle true, distinct l
 Node. The +0/-0 SameValue distinction is not observable (the engine collapses -0 to 0), so it is not
 special-cased. New `objectis-diff` fuzzer (1800+ checks, atom cross-product + object identity). Full sweep
 green (216/216).
+
+**indexOf/includes NaN split (2026-07-24, 88th engine fix).** `[NaN].indexOf(NaN)` returned 0 — the loop
+compared stored representations, and a numeric NaN is stored bare as `NaN`, so it wrongly matched a NaN
+target. But indexOf/lastIndexOf use strict `===`, under which NaN equals nothing → must return -1.
+Guarded both loops to skip a bare-`NaN` match (a string "NaN" is tag-prefixed, so genuine "NaN" strings
+still match). That exposed that `includes` was implemented as `indexOf(x) !== -1`, but includes uses
+SameValueZero where NaN DOES match — so it now has a dedicated arrIncludesLoop/includesOf path. `indexOf`,
+`lastIndexOf`, and `indexOf(x, fromIndex)` exclude NaN; `includes` finds it; string includes and non-NaN
+searches unchanged. New `indexofnan-diff` fuzzer (1800+ checks, NaN-laced arrays × all three methods +
+string includes). Full sweep green (217/217).
