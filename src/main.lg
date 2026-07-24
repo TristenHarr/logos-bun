@@ -3993,6 +3993,13 @@
         Return false.
     Return true.
 
+# Number.isFinite (unlike global isFinite) does NOT coerce: the value must already be a NUMBER
+# (a bare numeric literal, integer OR decimal — a tagStr string / bool / object is not) and finite.
+## To jsIsFiniteNumber (v: Text) -> Bool:
+    If isNumericStr(concat(v, "")) is equal to false:
+        Return false.
+    Return isFiniteNum(concat(v, "")).
+
 # Numeric magnitude compare of two number-typed values (-1/0/1): int-exact, else the sign of the
 # native f64 difference (so `10.5 > 9.5` is not decided by lexicographic text).
 ## To numCmpVal (a: Text, b: Text) -> Int:
@@ -5833,6 +5840,12 @@
             Return resolveMethods(trim(concat(concat(bef, "Infinity"), rst)), env).
         Let args be splitArgsN(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMathMaxMin("min", joinArgVals(args, 1, env, ""))), rst)), env).
+    If substringBefore(expr, "Math . random (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . random (") is equal to false:
+        Let bef be substringBefore(expr, "Math . random (").
+        Let aft be substringAfter(expr, "Math . random (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, jsMath1("random", "0")), rst)), env).
     If substringBefore(expr, "Math . abs (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Math . abs (") is equal to false:
         Let bef be substringBefore(expr, "Math . abs (").
@@ -5932,7 +5945,7 @@
         Let bef be substringBefore(expr, "Number . isFinite (").
         Let aft be substringAfter(expr, "Number . isFinite (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(jsIsFiniteNumber(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Number . isSafeInteger (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Number . isSafeInteger (") is equal to false:
         Let bef be substringBefore(expr, "Number . isSafeInteger (").
