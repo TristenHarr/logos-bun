@@ -3144,3 +3144,14 @@ captured groups (via capExtract, laid out as chr(0)-separated fields by capChr0L
 a group-less split degrades to the plain piece-per-match behavior. Capturing separators (`(\d)`, `(-)`,
 `(\d+)`, multi-group), non-capturing `(?:…)`, plain classes, and the `i` flag all match Node. New
 `splitcaptures-diff` fuzzer (1500+ checks). Full sweep green (230/230).
+
+**Regex ^ anchor inside alternation (2026-07-24, 102nd engine fix).** `/^\s+|\s+$/g` (the classic trim
+regex) only stripped the leading whitespace — reSearchStart/reTest/reMatchEnd treated a leading `^` as
+anchoring the WHOLE pattern (matching at position 1 only, with the `^` sliced off), so in `^\s+|\s+$` the
+second alternative `\s+$` never got to run at the trailing position. Moved `^` into mh as an anchor atom
+(matches only at ti==1, else fails) and dropped the whole-pattern `^` special-casing in the three entry
+points, so each alternative is anchored independently and the matcher's ordinary alternation split handles
+it. `^X+|X+$` trim, standalone `^`/`$`, `^…$` full-match tests, and `^`/`$` replaces all match Node;
+plain matching is unchanged. New `anchoralt-diff` fuzzer (1500+ checks). Full sweep green (231/231). (The
+zero-width both-ends case `/^|$/g` — emitting a match at start AND end — remains a documented zero-width
+edge.)

@@ -8877,6 +8877,10 @@
         If starTry is greater than 0:
             Return starTry.
         Return mh(starRest, 1, text, ti).
+    If item pi of pat is equal to "^":
+        If ti is equal to 1:
+            Return mh(pat, pi + 1, text, ti).
+        Return 0.
     If item pi of pat is equal to "$":
         If pi is equal to length of pat:
             If ti is greater than length of text:
@@ -8920,8 +8924,6 @@
 
 ## To reTest (pat: Text, text: Text, flags: Text) -> Bool:
     Let ci be reApplyCi(concat(flags, "")).
-    If startsWith(pat, "^"):
-        Return mh(pat, 2, text, 1) is greater than 0.
     Return reSearchFrom(pat, text, 1) is greater than 0.
 
 # A RegExp value is a heap object carrying its source pattern and flags; isRegex classifies it.
@@ -8936,15 +8938,9 @@
     Return false.
 
 ## To reSearchStart (pat: Text, text: Text) -> Int:
-    If startsWith(pat, "^"):
-        If mh(pat, 2, text, 1) is greater than 0:
-            Return 1.
-        Return 0.
     Return reSearchFrom(pat, text, 1).
 
 ## To reMatchEnd (pat: Text, text: Text, start: Int) -> Int:
-    If startsWith(pat, "^"):
-        Return mh(pat, 2, text, start).
     Return mh(pat, 1, text, start).
 
 ## To reFind (pat: Text, text: Text, flags: Text) -> Text:
