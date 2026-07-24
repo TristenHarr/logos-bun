@@ -8693,61 +8693,64 @@
     Return replaceAll(ii, encNewline (), chr(10)).
 
 ## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return normJsN(concat(s, ""), i, inStr, acc, charLen(concat(s, ""))).
+
+## To normJsN (s: Text, i: Int, inStr: Bool, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return normJs(s, i + 1, inStr is equal to false, concat(acc, c)).
+        Return normJsN(s, i + 1, inStr is equal to false, concat(acc, c), len).
     If inStr:
         If c is equal to chr(92):
-            If i is less than length of s:
+            If i is less than len:
                 Let nx be item (i + 1) of s.
                 If nx is equal to chr(34):
-                    Return normJs(s, i + 2, inStr, concat(acc, encQuote ())).
+                    Return normJsN(s, i + 2, inStr, concat(acc, encQuote ()), len).
                 If nx is equal to chr(92):
-                    Return normJs(s, i + 2, inStr, concat(acc, encBackslash ())).
+                    Return normJsN(s, i + 2, inStr, concat(acc, encBackslash ()), len).
                 If nx is equal to "n":
-                    Return normJs(s, i + 2, inStr, concat(acc, encNewline ())).
+                    Return normJsN(s, i + 2, inStr, concat(acc, encNewline ()), len).
                 If nx is equal to "t":
-                    Return normJs(s, i + 2, inStr, concat(acc, chr(9))).
-                Return normJs(s, i + 2, inStr, concat(acc, nx)).
-            Return normJs(s, i + 1, inStr, concat(acc, c)).
+                    Return normJsN(s, i + 2, inStr, concat(acc, chr(9)), len).
+                Return normJsN(s, i + 2, inStr, concat(acc, nx), len).
+            Return normJsN(s, i + 1, inStr, concat(acc, c), len).
         If c is equal to " ":
-            Return normJs(s, i + 1, inStr, concat(acc, encSpace ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encSpace ()), len).
         If c is equal to chr(91):
-            Return normJs(s, i + 1, inStr, concat(acc, encBrkL ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encBrkL ()), len).
         If c is equal to chr(93):
-            Return normJs(s, i + 1, inStr, concat(acc, encBrkR ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encBrkR ()), len).
         If c is equal to chr(123):
-            Return normJs(s, i + 1, inStr, concat(acc, encBraceL ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encBraceL ()), len).
         If c is equal to chr(125):
-            Return normJs(s, i + 1, inStr, concat(acc, encBraceR ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encBraceR ()), len).
         If c is equal to "(":
-            Return normJs(s, i + 1, inStr, concat(acc, encParenL ())).
+            Return normJsN(s, i + 1, inStr, concat(acc, encParenL ()), len).
         If c is equal to ")":
-            Return normJs(s, i + 1, inStr, concat(acc, encParenR ())).
-        Return normJs(s, i + 1, inStr, concat(acc, c)).
+            Return normJsN(s, i + 1, inStr, concat(acc, encParenR ()), len).
+        Return normJsN(s, i + 1, inStr, concat(acc, c), len).
     If c is equal to ".":
         If digitChar(lastCharOf(acc)):
-            If i is less than length of s:
+            If i is less than len:
                 If digitChar(item (i + 1) of s):
-                    Return normJs(s, i + 1, inStr, concat(acc, c)).
+                    Return normJsN(s, i + 1, inStr, concat(acc, c), len).
                 If item (i + 1) of s is equal to ".":
-                    Return normJs(s, i + 1, inStr, concat(acc, "")).
+                    Return normJsN(s, i + 1, inStr, concat(acc, ""), len).
     If expSignChar(c):
         If expMarkerEnd(concat(acc, "")):
-            If i is less than length of s:
+            If i is less than len:
                 If digitChar(item (i + 1) of s):
-                    Return normJs(s, i + 1, inStr, concat(acc, c)).
+                    Return normJsN(s, i + 1, inStr, concat(acc, c), len).
     Let op3 be nchars(s, i, 3).
     If isOp3(op3):
-        Return normJs(s, i + 3, inStr, concat(acc, spaced(op3))).
+        Return normJsN(s, i + 3, inStr, concat(acc, spaced(op3)), len).
     Let op2 be nchars(s, i, 2).
     If isOp2(op2):
-        Return normJs(s, i + 2, inStr, concat(acc, spaced(op2))).
+        Return normJsN(s, i + 2, inStr, concat(acc, spaced(op2)), len).
     If isOp1(c):
-        Return normJs(s, i + 1, inStr, concat(acc, spaced(c))).
-    Return normJs(s, i + 1, inStr, concat(acc, c)).
+        Return normJsN(s, i + 1, inStr, concat(acc, spaced(c)), len).
+    Return normJsN(s, i + 1, inStr, concat(acc, c), len).
 
 ## To digitChar (c: Text) -> Bool:
     If c is equal to "":
@@ -9033,35 +9036,38 @@
     Return desugarArrows(buildArrow(joinRange(lt, 1, nL - 1, ""), lastL, right)).
 
 ## To desugarTemplates (s: Text, i: Int, mode: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return desugarTemplatesN(concat(s, ""), i, mode, depth, acc, charLen(concat(s, ""))).
+
+## To desugarTemplatesN (s: Text, i: Int, mode: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If mode is equal to 0:
         If c is equal to chr(96):
-            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, chr(34))).
-        Return desugarTemplates(s, i + 1, 0, 0, concat(acc, c)).
+            Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, chr(34)), len).
+        Return desugarTemplatesN(s, i + 1, 0, 0, concat(acc, c), len).
     If mode is equal to 1:
         If c is equal to chr(96):
-            Return desugarTemplates(s, i + 1, 0, 0, concat(acc, chr(34))).
+            Return desugarTemplatesN(s, i + 1, 0, 0, concat(acc, chr(34)), len).
         If c is equal to "$":
-            If i is less than length of s:
+            If i is less than len:
                 If item (i + 1) of s is equal to chr(123):
-                    Return desugarTemplates(s, i + 2, 2, 1, concat(acc, concat(chr(34), " + ("))).
-            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
-        Return desugarTemplates(s, i + 1, 1, 0, concat(acc, c)).
+                    Return desugarTemplatesN(s, i + 2, 2, 1, concat(acc, concat(chr(34), " + (")), len).
+            Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, c), len).
+        Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, c), len).
     If mode is equal to 3:
         If c is equal to chr(34):
-            Return desugarTemplates(s, i + 1, 2, depth, concat(acc, c)).
-        Return desugarTemplates(s, i + 1, 3, depth, concat(acc, c)).
+            Return desugarTemplatesN(s, i + 1, 2, depth, concat(acc, c), len).
+        Return desugarTemplatesN(s, i + 1, 3, depth, concat(acc, c), len).
     If c is equal to chr(34):
-        Return desugarTemplates(s, i + 1, 3, depth, concat(acc, c)).
+        Return desugarTemplatesN(s, i + 1, 3, depth, concat(acc, c), len).
     If c is equal to chr(123):
-        Return desugarTemplates(s, i + 1, 2, depth + 1, concat(acc, c)).
+        Return desugarTemplatesN(s, i + 1, 2, depth + 1, concat(acc, c), len).
     If c is equal to chr(125):
         If depth is equal to 1:
-            Return desugarTemplates(s, i + 1, 1, 0, concat(acc, concat(") + ", chr(34)))).
-        Return desugarTemplates(s, i + 1, 2, depth - 1, concat(acc, c)).
-    Return desugarTemplates(s, i + 1, 2, depth, concat(acc, c)).
+            Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, concat(") + ", chr(34))), len).
+        Return desugarTemplatesN(s, i + 1, 2, depth - 1, concat(acc, c), len).
+    Return desugarTemplatesN(s, i + 1, 2, depth, concat(acc, c), len).
 
 # Class desugar: `class C { constructor(p){ctor} m(q){body} }` becomes a constructor function
 # `function C (p) { this.m = function(q){body} ; ctor }` — each non-constructor method is assigned
@@ -9388,95 +9394,114 @@
     Return item j of s.
 
 ## To desugarRegexLits (s: Text, i: Int, lastSig: Text, inStr: Bool, strCh: Text, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return desugarRegexLitsN(concat(s, ""), i, lastSig, inStr, strCh, acc, charLen(concat(s, ""))).
+
+## To desugarRegexLitsN (s: Text, i: Int, lastSig: Text, inStr: Bool, strCh: Text, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If inStr:
         If c is equal to chr(92):
-            If i is less than length of s:
+            If i is less than len:
                 Let nc be item (i + 1) of s.
-                Return desugarRegexLits(s, i + 2, lastSig, true, strCh, concat(acc, concat(c, nc))).
-            Return desugarRegexLits(s, i + 1, lastSig, true, strCh, concat(acc, c)).
+                Return desugarRegexLitsN(s, i + 2, lastSig, true, strCh, concat(acc, concat(c, nc)), len).
+            Return desugarRegexLitsN(s, i + 1, lastSig, true, strCh, concat(acc, c), len).
         If c is equal to strCh:
-            Return desugarRegexLits(s, i + 1, strCh, false, "", concat(acc, c)).
-        Return desugarRegexLits(s, i + 1, lastSig, true, strCh, concat(acc, c)).
+            Return desugarRegexLitsN(s, i + 1, strCh, false, "", concat(acc, c), len).
+        Return desugarRegexLitsN(s, i + 1, lastSig, true, strCh, concat(acc, c), len).
     If c is equal to chr(34):
-        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+        Return desugarRegexLitsN(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c), len).
     If c is equal to chr(39):
-        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+        Return desugarRegexLitsN(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c), len).
     If c is equal to chr(96):
-        Return desugarRegexLits(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c)).
+        Return desugarRegexLitsN(s, i + 1, concat(c, ""), true, concat(c, ""), concat(acc, c), len).
     If c is equal to "/":
         Let nx be rxNextOr(s, i + 1).
         If nx is equal to "/":
             Let le be rxLineEnd(s, i).
             Let seg be strSliceLoop(s, i, le - 1, "").
-            Return desugarRegexLits(s, le, lastSig, false, "", concat(acc, seg)).
+            Return desugarRegexLitsN(s, le, lastSig, false, "", concat(acc, seg), len).
         If nx is equal to "*":
             Let bend be rxBlockEnd(s, i + 2).
             Let bseg be strSliceLoop(s, i, bend - 1, "").
-            Return desugarRegexLits(s, bend, lastSig, false, "", concat(acc, bseg)).
+            Return desugarRegexLitsN(s, bend, lastSig, false, "", concat(acc, bseg), len).
         If rxIsStart(lastSig, acc):
             Let closeIdx be rxBodyEnd(s, i + 1, false).
             If closeIdx is equal to 0:
-                Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
+                Return desugarRegexLitsN(s, i + 1, "/", false, "", concat(acc, c), len).
             Let pat be strSliceLoop(s, i + 1, closeIdx - 1, "").
             Let fend be rxFlagsEnd(s, closeIdx + 1).
             Let flags be strSliceLoop(s, closeIdx + 1, fend - 1, "").
             Let repl be concat("new RegExp(", concat(chr(34), concat(rxEscape(pat, 1, ""), concat(chr(34), concat(", ", concat(chr(34), concat(flags, concat(chr(34), ")")))))))).
-            Return desugarRegexLits(s, fend, ")", false, "", concat(acc, repl)).
-        Return desugarRegexLits(s, i + 1, "/", false, "", concat(acc, c)).
+            Return desugarRegexLitsN(s, fend, ")", false, "", concat(acc, repl), len).
+        Return desugarRegexLitsN(s, i + 1, "/", false, "", concat(acc, c), len).
     If rxIsSpace(c):
-        Return desugarRegexLits(s, i + 1, lastSig, false, "", concat(acc, c)).
-    Return desugarRegexLits(s, i + 1, concat(c, ""), false, "", concat(acc, c)).
+        Return desugarRegexLitsN(s, i + 1, lastSig, false, "", concat(acc, c), len).
+    Return desugarRegexLitsN(s, i + 1, concat(c, ""), false, "", concat(acc, c), len).
 
 # Single-quoted strings are normalized to double-quoted FIRST (the tokenizer only knows `"`): inside a
 # `'…'`, a literal `"` becomes `\"`, a `\'` becomes a bare `'`, other escapes pass through, and the
 # delimiters flip to `"`. Double-quoted and backtick strings pass through untouched (single quotes
 # inside a `${…}` template hole are not converted — a rare edge). mode: 0 normal · 1 single · 2 double
 # · 3 backtick.
-## To convertQuotes (s: Text, i: Int, mode: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+# The CHARACTER length of a string (Unicode scalar count), not the byte length that `length of` returns for
+# a Text. LOGOS indexes a Text by character (`item i of s` is the i-th scalar), so a source-walking lexer
+# pass must bound its loop by the char count — a byte-length bound over-runs past the last character on any
+# non-ASCII input (each multibyte scalar makes bytes exceed chars), and the out-of-range `item` clamps to
+# the last character, appending garbage that compounds across the passes (a plain `"café"` literal was mauled
+# into `"café"""""` and then mis-read as NaN). Computed by dropping the first character (`substringAfter` past
+# it — char-boundary-safe) and counting; O(n²), so it is computed ONCE per pass and threaded, never re-called
+# inside the loop bound.
+## To charLen (s: Text) -> Int:
+    If concat(s, "") is equal to "":
+        Return 0.
+    Return 1 + charLen(substringAfter(concat(s, ""), item 1 of concat(s, ""))).
+
+## To convertQuotes (s: Text) -> Text:
+    Return convertQuotesN(concat(s, ""), 1, 0, "", charLen(concat(s, ""))).
+
+## To convertQuotesN (s: Text, i: Int, mode: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If mode is equal to 0:
         If c is equal to chr(39):
-            Return convertQuotes(s, i + 1, 1, concat(acc, chr(34))).
+            Return convertQuotesN(s, i + 1, 1, concat(acc, chr(34)), len).
         If c is equal to chr(34):
-            Return convertQuotes(s, i + 1, 2, concat(acc, c)).
+            Return convertQuotesN(s, i + 1, 2, concat(acc, c), len).
         If c is equal to chr(96):
-            Return convertQuotes(s, i + 1, 3, concat(acc, c)).
-        Return convertQuotes(s, i + 1, 0, concat(acc, c)).
+            Return convertQuotesN(s, i + 1, 3, concat(acc, c), len).
+        Return convertQuotesN(s, i + 1, 0, concat(acc, c), len).
     If mode is equal to 1:
         If c is equal to chr(92):
-            If i is less than length of s:
+            If i is less than len:
                 Let nx be item (i + 1) of s.
                 If nx is equal to chr(39):
-                    Return convertQuotes(s, i + 2, 1, concat(acc, chr(39))).
-                Return convertQuotes(s, i + 2, 1, concat(acc, concat(c, nx))).
-            Return convertQuotes(s, i + 1, 1, concat(acc, c)).
+                    Return convertQuotesN(s, i + 2, 1, concat(acc, chr(39)), len).
+                Return convertQuotesN(s, i + 2, 1, concat(acc, concat(c, nx)), len).
+            Return convertQuotesN(s, i + 1, 1, concat(acc, c), len).
         If c is equal to chr(39):
-            Return convertQuotes(s, i + 1, 0, concat(acc, chr(34))).
+            Return convertQuotesN(s, i + 1, 0, concat(acc, chr(34)), len).
         If c is equal to chr(34):
-            Return convertQuotes(s, i + 1, 1, concat(acc, concat(chr(92), chr(34)))).
-        Return convertQuotes(s, i + 1, 1, concat(acc, c)).
+            Return convertQuotesN(s, i + 1, 1, concat(acc, concat(chr(92), chr(34))), len).
+        Return convertQuotesN(s, i + 1, 1, concat(acc, c), len).
     If mode is equal to 2:
         If c is equal to chr(92):
-            If i is less than length of s:
+            If i is less than len:
                 Let nx2 be item (i + 1) of s.
-                Return convertQuotes(s, i + 2, 2, concat(acc, concat(c, nx2))).
-            Return convertQuotes(s, i + 1, 2, concat(acc, c)).
+                Return convertQuotesN(s, i + 2, 2, concat(acc, concat(c, nx2)), len).
+            Return convertQuotesN(s, i + 1, 2, concat(acc, c), len).
         If c is equal to chr(34):
-            Return convertQuotes(s, i + 1, 0, concat(acc, c)).
-        Return convertQuotes(s, i + 1, 2, concat(acc, c)).
+            Return convertQuotesN(s, i + 1, 0, concat(acc, c), len).
+        Return convertQuotesN(s, i + 1, 2, concat(acc, c), len).
     If c is equal to chr(92):
-        If i is less than length of s:
+        If i is less than len:
             Let nx3 be item (i + 1) of s.
-            Return convertQuotes(s, i + 2, 3, concat(acc, concat(c, nx3))).
-        Return convertQuotes(s, i + 1, 3, concat(acc, c)).
+            Return convertQuotesN(s, i + 2, 3, concat(acc, concat(c, nx3)), len).
+        Return convertQuotesN(s, i + 1, 3, concat(acc, c), len).
     If c is equal to chr(96):
-        Return convertQuotes(s, i + 1, 0, concat(acc, c)).
-    Return convertQuotes(s, i + 1, 3, concat(acc, c)).
+        Return convertQuotesN(s, i + 1, 0, concat(acc, c), len).
+    Return convertQuotesN(s, i + 1, 3, concat(acc, c), len).
 
 # Object method shorthand and accessors desugar to the `key : function` form the object machinery
 # already handles. It must run BEFORE resolveCalls, which would otherwise consume a bare `name ( )` as
@@ -9683,7 +9708,7 @@
     Return concat(concat(concat(concat(concat(concat(bef, "class "), head), chr(123)), fixedBody), chr(125)), classBodySemis(concat(remainder, ""))).
 
 ## To normalizeJs (s: Text) -> Text:
-    Let sq be classBodySemis(convertQuotes(s, 1, 0, "")).
+    Let sq be classBodySemis(convertQuotes(s)).
     Let rx be desugarRegexLits(sq, 1, "", false, "", "").
     Let templated be desugarTemplates(rx, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").

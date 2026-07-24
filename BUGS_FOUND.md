@@ -3636,3 +3636,19 @@ Node; accumulators, index pushes, and products are unchanged. New `forletclosure
 seeds). Full sweep green (262/262, seeds 1-2). (A closure that captures a per-iteration BODY binding rather
 than the loop var itself — `for(let i…){ const j=i*i; out.push(()=>j) }` — still shares `j`'s final value;
 baking every body-local binding per iteration is a deeper follow-up.)
+
+**Unicode groundwork: char-consistent normalize front-end (2026-07-24, 136th — PARTIAL, literals do not yet
+round-trip).** Root-caused the long-standing `"café"` → NaN corruption: the source-walking lexer passes bound
+their recursion with `length of s` (BYTE count) while LOGOS indexes a Text by CHARACTER (`item i of s` is the
+i-th scalar), so any non-ASCII source over-iterates past the last character — the out-of-range `item` clamps to
+the last char and appends it, and this compounds across passes (`"café"` was mauled into `"café"""""`). Added a
+pure-`.lg` `charLen` (drop the first char via `substringAfter(s, item 1 of s)` — char-boundary-safe — and
+count) and threaded a precomputed char length through the four front-end passes `convertQuotes`, `normJs`,
+`desugarTemplates`, and `desugarRegexLits` (computed once per pass, never in the loop bound, to stay O(n²) not
+O(n³)). Instrumentation confirms a `"café"` literal is now CLEAN through the whole normalize front-end
+(`normed=["café"]`). Full sweep green (262/262, seeds 1-2) — ASCII is byte==char so entirely unaffected.
+HONEST STATUS: this does NOT yet make `"café"` round-trip — the token-desugars and the runtime eval chain
+(`resolveStaticProps`/`resolveInstanceof` and downstream) contain the SAME byte-bound char-walking pattern
+(~100 more `length of s` references engine-wide), and those still mangle a non-ASCII literal after normalize.
+Finishing unicode is a systematic sweep of every remaining char-walking loop by the same `charLen`-threading
+recipe — a large dedicated project; this commit lays the reusable `charLen` primitive and fixes the front end.
