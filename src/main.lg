@@ -1894,6 +1894,18 @@
         Return concat(tok, "").
     Return materialize(concat(cv, "")).
 
+# A `function (){…}` literal in OBJECT-PROPERTY position (`{ key : function … }` — the token immediately
+# before it is `:`) is a STORED closure that escapes with the object, so its captured free variables must be
+# baked with the defining env here (this branch converts the literal to a function value BEFORE jsEvalIn's
+# substitute runs, so an escaping object method would otherwise keep an unresolved name and read NaN once the
+# object leaves the scope). A sync callback (`map(function…)`, preceded by a method name, consumed in place)
+# is left un-baked so it keeps its names for live-handle resolution.
+## To bakeIfObjValue (body: Text, ptoks: Seq of Text, env: Text) -> Text:
+    If length of ptoks is greater than 1:
+        If item ((length of ptoks) - 1) of ptoks is equal to ":":
+            Return substitute(concat(body, ""), concat(env, "")).
+    Return concat(body, "").
+
 ## To resolveCalls (expr: Text, env: Text) -> Text:
     If substringBefore(expr, "(") is equal to expr:
         Return expr.
@@ -1919,7 +1931,7 @@
         Let afterBrace be substringAfter(rest, chr(123)).
         Let body be braceBody(afterBrace, 1, 0, "").
         Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
-        Let fnval be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(trim(body))).
+        Let fnval be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(bakeIfObjValue(trim(body), ptoks, env))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), fnval), remainder), env).
     If length of ptoks is greater than 1:

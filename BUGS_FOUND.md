@@ -3606,3 +3606,19 @@ distinct cases are NOT covered and remain: a `for (let i …)` loop closure need
 not boxing; and an inline closure inside a RETURNED object literal — `return { inc: () => ++n }` — fails to
 capture even for a plain object (`return { inc: () => ++o.n }` is NaN without any boxing), a separate
 pre-existing capture bug.)
+
+**A closure inline in an object literal lost its capture on escape (2026-07-24, 134th engine fix).** A closure
+written inline as an object-property value — `function mk(){ let o={n:0}; return { inc: () => ++o.n } }` — was
+converted to a function value by the `resolveCalls` anonymous-function branch (the IIFE handler, which fires
+for an inline `function(){}` in ANY expression position) BEFORE `jsEvalIn`'s substitute ran, so its captured
+free variables were left as unresolved NAMES; once the object was returned and left the defining scope, those
+names were gone and the closure read NaN. The branch now BAKES the body with the defining env when the literal
+is in object-property position (the token immediately before `function` is `:`) — a stored closure that
+escapes — while a sync callback (`map(function…)`, preceded by a method name and consumed in place) is left
+un-baked so it keeps resolving names against the live handle. The module/factory pattern now works: a counter
+factory, an adder with per-instance capture, a getter over a captured variable, and a captured object mutated
+through the escaped closure all match Node; same-scope object closures, `this`-methods, and sync callbacks are
+unchanged. New `objclosure-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (261/261, seeds 1-2). (A
+mutated captured scalar with a NON-numeric-literal init — `let n = s; ++n` — is still baked by value across an
+escape because only numeric-literal scalars are heap-boxed; boxing an identifier init can't be done safely
+because it might alias a function, whose `this`-binding a box would change.)
