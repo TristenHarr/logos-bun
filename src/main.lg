@@ -49,6 +49,10 @@
 
 ## To native jsToLocaleNum (x: Text) -> Text
 
+## To native jsUriEncode (s: Text, component: Int) -> Text
+
+## To native jsUriDecode (s: Text) -> Text
+
 ## To native jsToExponential (x: Text, n: Int) -> Text
 
 ## To native jsBigintEval (expr: Text) -> Text
@@ -1648,7 +1652,7 @@
     Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array", "structuredClone"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array", "structuredClone", "encodeURIComponent", "decodeURIComponent"].
     Return names contains name.
 
 ## To globalCall (name: Text, inner: Text, env: Text) -> Text:
@@ -1661,6 +1665,10 @@
     Let av be jsEvalIn(inner, env).
     If name is equal to "BigInt":
         Return concat(tagBig (), jsParseIntText(decodeStr(materialize(av)))).
+    If name is equal to "encodeURIComponent":
+        Return concat(tagStr (), encodeStr(jsUriEncode(decodeStr(materialize(av)), 1))).
+    If name is equal to "decodeURIComponent":
+        Return concat(tagStr (), encodeStr(jsUriDecode(decodeStr(materialize(av))))).
     If name is equal to "parseFloat":
         Return jsParseFloat(decodeStr(materialize(av))).
     If name is equal to "Number":

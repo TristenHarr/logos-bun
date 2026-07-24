@@ -2896,3 +2896,16 @@ Object`, `new Error/TypeError/RangeError/SyntaxError` against each error type + 
 Object, and `[1,2] instanceof Error`/`"str" instanceof Object` (false) all match Node; user-class instanceof
 (subclass ancestry chain) and unrelated-class checks unchanged. New `instanceof-diff` fuzzer (1200+ checks
 over value×constructor pairs). Full sweep green (414/414).
+
+**encodeURIComponent / decodeURIComponent (2026-07-24, 79th engine fix).** Both global functions were
+unimplemented (→ empty). Added native `js_uri_encode` (percent-encode the UTF-8 bytes except the unreserved
+set A-Z a-z 0-9 `- _ . ! ~ * ' ( )`, a `component` flag also keeping the reserved delimiters for a future
+encodeURI) and `js_uri_decode` (`%XX` → byte → UTF-8), registered `encodeURIComponent`/`decodeURIComponent`
+in `isGlobalFn`/`globalCall`. The encoded result is wrapped in `encodeStr` so its literal `(`/`)` (kept by
+encodeURIComponent) don't flow back into the evaluator as grouping parens (giving NaN). `encodeURIComponent`
+of spaces/reserved (`&=?/#:@`)/percent/parens/email, the round-trip, and `decodeURIComponent` of `%XX`
+sequences all match Node; `parseInt`/`String`/`Number` and other globals unchanged. New `uricomp-diff`
+fuzzer (1800+ checks over mixed-symbol strings). Toolchain change (env.rs + program.rs) committed alongside.
+Full sweep green (416/416). KNOWN pre-existing limitation (documented, not this fix): a decoded (or any)
+string VALUE containing a semicolon truncates on output — `return "a;b"` yields "a" though `"a;b".length`
+is 3 — so `decodeURIComponent("%3B")` hits it; the `;` is excluded from the fuzzer pool. (Fixed next.)
