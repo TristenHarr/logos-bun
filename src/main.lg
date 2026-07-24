@@ -1213,7 +1213,8 @@
     Let body be fnBody(concat(fnVal, "")).
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
-    Let doneEnv be runBlockStr(body, localEnv).
+    Let withArgs be argsBind(concat(body, ""), concat(argsText, ""), concat(localEnv, ""), baseEnv).
+    Let doneEnv be runBlockStr(body, withArgs).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return retVal(doneEnv).
 
@@ -1716,6 +1717,17 @@
     If i is equal to 1:
         Return joinComma(els, i + 1, el).
     Return joinComma(els, i + 1, concat(concat(acc, ","), el)).
+
+# Re-join a comma-separated argument list from index `start` (no leading comma), for Function.prototype
+# call/apply: `f.call(thisArg, a, b)` hands `a , b` to callMethod, and `f.apply(thisArg, [a,b])` spreads the
+# array's element values the same way.
+## To joinCommaFrom (els: Seq of Text, i: Int, start: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be trim(item i of els).
+    If i is equal to start:
+        Return joinCommaFrom(els, i + 1, start, el).
+    Return joinCommaFrom(els, i + 1, start, concat(concat(acc, " , "), el)).
 
 ## To expandSpreadLoop (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -5076,7 +5088,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . call (", " . apply (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -5701,6 +5713,33 @@
         Return expr.
     If markerInBody(concat(expr, ""), lm):
         Return expr.
+    If lm is equal to " . call (":
+        Let bef be substringBefore(expr, " . call (").
+        Let aft be substringAfter(expr, " . call (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If startsWith(concat(fnv, ""), chr(1)) is equal to false:
+            Return concat(expr, "").
+        Let cargs be splitArgsN(concat(argStr, "")).
+        Let thisArg be jsEvalIn(trim(item 1 of cargs), env).
+        Let callArgs be joinCommaFrom(cargs, 2, 2, "").
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), callMethod(concat(fnv, ""), concat(callArgs, ""), thisArg, env)), rst)), env).
+    If lm is equal to " . apply (":
+        Let bef be substringBefore(expr, " . apply (").
+        Let aft be substringAfter(expr, " . apply (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If startsWith(concat(fnv, ""), chr(1)) is equal to false:
+            Return concat(expr, "").
+        Let cargs be splitArgsN(concat(argStr, "")).
+        Let thisArg be jsEvalIn(trim(item 1 of cargs), env).
+        Let argArr be jsEvalIn(trim(item 2 of cargs), env).
+        Let callArgs be joinCommaFrom(arrElements(concat(argArr, "")), 1, 1, "").
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), callMethod(concat(fnv, ""), concat(callArgs, ""), thisArg, env)), rst)), env).
     If lm is equal to " . reduce (":
         Let bef be substringBefore(expr, " . reduce (").
         Let aft be substringAfter(expr, " . reduce (").

@@ -3454,3 +3454,17 @@ Node). Plain calls, rest params, defaults, destructuring params, and arrows are 
 `argumentsobj-diff` fuzzer (800+ checks). Full sweep green (251/251). (Separate, not addressed: `arguments`
 is a real array here rather than a distinct arguments-exotic object, and `Array.prototype.slice.call
 (arguments)` needs `.call()` on a prototype method — a different feature.)
+
+**Function.prototype.call / .apply were unimplemented (2026-07-24, 124th engine fix).** `f.call(thisArg,…)`
+and `f.apply(thisArg, argsArray)` weren't recognized at all — they fell through to garbage. Added `.call`/
+`.apply` to the method dispatch list and handlers that route to `callMethod` (which binds `this` + params):
+`.call(thisArg, a, b)` binds `this`=thisArg and passes `a, b`; `.apply(thisArg, [a, b])` spreads the array's
+element VALUES the same way (jsEvalIn is idempotent on values, so no re-eval). The handlers only fire for a
+real function value (a `chr(1)` function) — a non-function receiver is left untouched, so no ordinary method
+call is affected. Also threaded `arguments` binding into `callMethod` (it previously only lived in `callFn`),
+so a call/apply'd function that uses `arguments` works. Now `f.call(obj)`/`f.call(obj,a,b)`/`f.apply(null,
+[a,b])`, borrowing a method via `.call`, and arguments inside a call/apply'd function all match Node; class
+methods, getters/setters, `super.method()`, and plain calls are unchanged. New `callapply-diff` fuzzer (800+
+checks). Full sweep green (252/252). (Not addressed: `.call`/`.apply` on a NATIVE/prototype function — e.g.
+`Math.max.apply(null, arr)` or `Array.prototype.slice.call(...)` — needs native-function dispatch; `.bind`;
+and `map(fn, thisArg)`'s 2nd-arg this — separate features.)
