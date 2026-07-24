@@ -1152,13 +1152,22 @@
 ## To fnBody (fnVal: Text) -> Text:
     Return decFn(substringAfter(substringAfter(fnVal, chr(1)), chr(1))).
 
+# A function's return value: its `__ret` slot, or `undefined` when the body never executed a value-
+# bearing `return` (an empty body, a bare `return;`, or fell off the end). An empty `__ret` means "no
+# return happened" — a function that returns the empty STRING stores a tagged value, never bare "".
+## To retVal (doneEnv: Text) -> Text:
+    Let r be envGet(concat(doneEnv, ""), "__ret").
+    If r is equal to "":
+        Return "undefined".
+    Return r.
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
     Let doneEnv be runBlockStr(body, localEnv).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
-    Return envGet(doneEnv, "__ret").
+    Return retVal(doneEnv).
 
 ## To callFn2 (fnVal: Text, v1: Text, v2: Text, env: Text) -> Text:
     Let paramStr be fnParams(concat(fnVal, "")).
@@ -1167,7 +1176,7 @@
     Let e1 be bindParamVal(trim(item 1 of params), v1, env).
     Let e2 be bindParamVal(trim(item 2 of params), v2, e1).
     Let doneEnv be runBlockStr(body, e2).
-    Return envGet(doneEnv, "__ret").
+    Return retVal(doneEnv).
 
 # Like callFn2 but with a third argument (the index for a reduce callback `(acc, el, i) => …`), bound only
 # when the callback declares a third parameter — so a 2-arg reducer is untouched.
@@ -1178,8 +1187,8 @@
     Let e1 be bindParamVal(trim(item 1 of params), v1, env).
     Let e2 be bindParamVal(trim(item 2 of params), v2, e1).
     If length of params is greater than 2:
-        Return envGet(runBlockStr(body, bindParamVal(trim(item 3 of params), v3, e2)), "__ret").
-    Return envGet(runBlockStr(body, e2), "__ret").
+        Return retVal(runBlockStr(body, bindParamVal(trim(item 3 of params), v3, e2))).
+    Return retVal(runBlockStr(body, e2)).
 
 # Method invocation: a function-valued property called as `recv.method(args)` runs with `this`
 # bound to the receiver (the heap ref), so `this.x` reads/writes the receiver's own slots. this
@@ -1191,7 +1200,7 @@
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
     Let doneEnv be runBlockStr(body, localEnv).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
-    Return envGet(doneEnv, "__ret").
+    Return retVal(doneEnv).
 
 # Accessor properties (class `get x(){…}` / `set x(v){…}`) are stored as `__get_x` / `__set_x`
 # function-valued slots. getMember reads a plain property but, when absent, invokes the getter
@@ -7041,6 +7050,8 @@
     If startsWith(s, "function "):
         Return defineFn(s, env).
     If startsWith(s, "return"):
+        If trim(substringAfter(s, "return")) is equal to "":
+            Return envSet(env, "__ret", "undefined").
         If trim(substringAfter(s, "return")) is equal to "__GENMAKE":
             Return envSet(env, "__ret", genMake()).
         If isFnLiteral(trim(substringAfter(s, "return"))):
@@ -7048,10 +7059,10 @@
         If startsWith(trim(substringAfter(s, "return")), "console . log ("):
             Let logged be doConsoleLog(balancedArg(substringAfter(trim(substringAfter(s, "return")), "console . log ("), 1, 0, ""), env).
             Return envSet(env, "__ret", "undefined").
-        Let retVal be jsEvalIn(substringAfter(s, "return"), env).
+        Let rv be jsEvalIn(substringAfter(s, "return"), env).
         If throwPending() is equal to "1":
             Return env.
-        Return envSet(env, "__ret", retVal).
+        Return envSet(env, "__ret", rv).
     If startsWith(s, "throw "):
         Return envSet(env, "__throw", jsEvalIn(substringAfter(s, "throw "), env)).
     If startsWith(s, "try "):

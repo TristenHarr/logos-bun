@@ -3045,3 +3045,14 @@ function inside a callback both propagate with the right message; non-throwing m
 unchanged (the throwPending check is inert when nothing throws). New `callbackthrow-diff` fuzzer (1200+
 checks). Full sweep green (220/220). (forEach scalar `s+=`/`c++` closure-writeback and chained `x.y.z` on an
 undefined intermediate — `(1).y.z` throws nothing even outside a callback — remain separate pre-existing gaps.)
+
+**Function with no return → undefined, not NaN (2026-07-24, 92nd engine fix).** A function that never ran a
+value-bearing return — an empty body `(function(){})()`, a bare `return;`, an unreached conditional return,
+or falling off the end — yielded the empty `__ret` slot, which coerced downstream to NaN (`String(f())` gave
+"NaN", `"x"+f()` gave "x", `typeof f()` gave "number"). Added retVal (empty `__ret` → "undefined"; a function
+that returns the empty STRING stores a tagged value, never bare "") and routed callFn/callFn2/callFn3/
+callMethod through it; a bare `return;` now sets `__ret` to "undefined" directly. `String()`, `typeof`, and
+string concatenation of a no-return call all match Node (undefined); value-returning calls, callbacks, and
+reducers unchanged. (Also renamed a local `retVal` in the return handler that shadowed the new function.)
+New `undefinedreturn-diff` fuzzer (1500+ checks, fall-off/bare-return/conditional × String/typeof/concat).
+Full sweep green (221/221).
