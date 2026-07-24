@@ -3922,6 +3922,23 @@
     Let restToks be joinRange(atoks, 2, length of atoks, "").
     Return resolveTypeof(trim(concat(concat(before, typeOfTag(tok)), restToks))).
 
+# The `void` operator: evaluate the operand (for its side effects) and yield undefined. Matched only as
+# a space-delimited token (a leading space is prepended so a start-of-expression `void` folds into the
+# same ` void ` check) so it never fires inside an identifier like `avoid`. Operand extent reuses
+# typeofOperandLen for correct unary precedence (`void 0 + ""` is `(void 0) + ""`).
+## To resolveVoid (expr: Text) -> Text:
+    Let e be concat(" ", concat(expr, "")).
+    If substringBefore(e, " void ") is equal to e:
+        Return expr.
+    Let before be substringBefore(e, " void ").
+    Let after be substringAfter(e, " void ").
+    Let atoks be split(after, " ").
+    Let opend be typeofOperandLen(atoks, 1).
+    Let operand be joinRange(atoks, 1, opend, "").
+    Let urest be joinRange(atoks, opend + 1, length of atoks, "").
+    Let discarded be jsEvalCmp(concat(operand, "")).
+    Return resolveVoid(trim(concat(concat(before, " undefined"), urest))).
+
 ## To cmpVals (a: Text, b: Text) -> Int:
     If startsWith(a, tagStr ()):
         Return compareText(materialize(a), materialize(b)).
@@ -7116,7 +7133,7 @@
     Return resolveAccess(once).
 
 ## To evalResolved (expr: Text) -> Text:
-    Return jsEvalTernary(resolveTypeof(resolveProps(resolveAccess(resolveObjects(expr))))).
+    Return jsEvalTernary(resolveTypeof(resolveVoid(resolveProps(resolveAccess(resolveObjects(expr)))))).
 
 # A value containing a `;` would collide with the env's `;` pair-separator and truncate on readback, so
 # the value's semicolons are escaped to chr(12) here and restored in envScan. A value without a `;`
