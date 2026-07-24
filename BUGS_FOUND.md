@@ -2848,3 +2848,15 @@ NaN → 0), not 12. Added `bitOperandInt` = ToNumber (`jsToNumberOf`) then `safe
 every number/bool operand match Node; the existing number-bitwise ops, `Number("0xff")`, and all other
 ToNumber uses unchanged. New `bitcoerce-diff` fuzzer (1800+ checks over number/float/decimal-string/
 hex-string/junk operands across all 7 ops). Full sweep green (406/406).
+
+**Array.from(Set / Map) (2026-07-24, 75th engine fix).** `Array.from(new Set(...))` / `Array.from(new
+Map(...))` returned an empty array — `arrFromBase` treated any object as an array-like keyed on `.length`,
+which a Set/Map doesn't have (they carry `__set_vals` / `__map_keys`+`__map_vals`), so `parseInt(undefined)`
+gave 0 elements. Added Set/Map branches: a Set → a FRESH array of its (deduped, insertion-order) values
+(copied via joinChr6 so the result doesn't alias the Set's internal array — mutating it leaves the Set
+unchanged); a Map → an array of its `[key, value]` entry pairs (via the existing `mapEntriesArr`). Placed
+before the generic array-like branch. `Array.from(new Set([1,1,2,3]))`→[1,2,3],
+`Array.from(new Map([["a",1],["b",2]]))`→[["a",1],["b",2]], the two-arg `Array.from(set, x=>x*2)` map form,
+string elements, and the no-alias guarantee all match Node; `Array.from("abc")`, `Array.from([1,2,3])`,
+`Array.from({length:3}, …)` array-like, and `[...set]` spread unchanged. New `arrfromset-diff` fuzzer (1800+
+checks). Full sweep green (408/408).
