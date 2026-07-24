@@ -3587,3 +3587,22 @@ empty token desyncs the resolver (the same lesson as the prototype-borrow fix). 
 and user-function `.apply`/`.call` are unchanged (the branch fires only for a `Math.` receiver). New
 `mathapply-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (259/259, seeds 1-2). (Borrowing native
 functions from other namespaces via `.apply` is scoped to `Math.` here; other native fns remain a follow-up.)
+
+**Scalar-closure heap-boxing — captured mutable scalars now shared, not baked (2026-07-24, 133rd engine fix;
+the #1 documented keystone).** A closure captures free variables by value (`substitute` bakes their current
+value into the closure body), so a captured mutable SCALAR neither propagated the closure's mutations back out
+nor saw later outer updates: `let c = 0; const inc = () => ++c; inc(); inc()` left c at 0, `let c = 5; const
+get = () => c; c = 10; get()` returned 5. Object mutations through a closure already worked (a shared heap
+ref), so we mirror that: at block execution (`runBlockStr`), a captured NUMERIC-initialised `let`/`var` scalar
+is BOXED into a single-field heap object `{ v: <init> }` and every use of the name is rewritten to `name.v`
+(with `name.method` → `name.v.method` for a boxed number's `.toFixed`, and an already-boxed `name.v` left
+alone so the transform is idempotent). The box is a reference, so the closure and the enclosing scope share it
+and mutations flow both ways. Scoped to numeric-init scalars (a number is never an object, so no `c.field` can
+be mis-rewritten) and skipped when the name is shadowed (re-declared or used as a closure parameter). Now
+increment/compound-assign through a stored closure, repeated calls accumulating, outer updates seen by the
+closure, a returned closure keeping its box, and a boxed number's method all match Node. New
+`scalarclosure-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (260/260, seeds 1-2). (Two RELATED but
+distinct cases are NOT covered and remain: a `for (let i …)` loop closure needs a fresh per-iteration binding,
+not boxing; and an inline closure inside a RETURNED object literal — `return { inc: () => ++n }` — fails to
+capture even for a plain object (`return { inc: () => ++o.n }` is NaN without any boxing), a separate
+pre-existing capture bug.)

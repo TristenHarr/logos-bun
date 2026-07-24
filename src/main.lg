@@ -7392,8 +7392,179 @@
         Return hoistFns(stmts, i + 1, defineFn(st, env)).
     Return hoistFns(stmts, i + 1, env).
 
+# --- scalar-closure heap-boxing ---
+# A closure captures free variables by VALUE (substitute bakes their current value into the closure body),
+# so a captured mutable SCALAR neither propagates the closure's mutations back out nor sees later outer
+# updates — `let c = 0; const inc = () => ++c; inc(); inc()` leaves c at 0. Object mutations through a
+# closure already work (a shared heap ref), so we mirror that: a captured `let`/`var` scalar is BOXED into a
+# single-field heap object `{ v: <init> }`, and every use of the name is rewritten to `name.v`. The box is a
+# reference, so the closure and the enclosing scope share it and mutations flow both ways. Scoped to
+# NUMERIC-initialised scalars (a number is never an object, so no `c.field` access can be mis-rewritten),
+# skipped when the name is shadowed (re-declared or used as a closure parameter) so a nested binding is
+# never clobbered. The transform is idempotent (`c.v` is left alone) so re-running it per block is safe.
+## To hasClosureMarker (flat: Text) -> Bool:
+    If hasSep(concat(flat, ""), "=>"):
+        Return true.
+    Return hasSep(concat(flat, ""), "function ").
+
+## To declKw (s: Text) -> Text:
+    If startsWith(concat(s, ""), "let "):
+        Return "let ".
+    If startsWith(concat(s, ""), "var "):
+        Return "var ".
+    Return "".
+
+# The name declared by a top-level `let`/`var` scalar statement whose initializer is a plain numeric literal
+# — else "" (not a boxable scalar: destructuring, non-numeric init, or not a declaration).
+## To scalarDeclName (s: Text) -> Text:
+    Let kw be declKw(trim(concat(s, ""))).
+    If kw is equal to "":
+        Return "".
+    Let rest be trim(substringAfter(trim(concat(s, "")), kw)).
+    If hasTopSep(concat(rest, ""), " = ") is equal to false:
+        Return "".
+    Let nm be trim(substringBefore(concat(rest, ""), " = ")).
+    If isSimpleName(concat(nm, "")) is equal to false:
+        Return "".
+    If isNumericStr(trim(substringAfter(concat(rest, ""), " = "))):
+        Return nm.
+    Return "".
+
+## To scalarDeclNames (stmts: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of stmts:
+        Return trim(acc).
+    Let nm be scalarDeclName(concat(item i of stmts, "")).
+    If nm is not equal to "":
+        Return scalarDeclNames(stmts, i + 1, concat(concat(acc, " "), nm)).
+    Return scalarDeclNames(stmts, i + 1, concat(acc, "")).
+
+# `name` used as a closure PARAMETER (`name =>` or a member of a parenthesised parameter list) — a distinct
+# binding that shadows the outer scalar, so boxing must be skipped to avoid rewriting the inner name.
+## To paramScan (toks: Seq of Text, i: Int, name: Text) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If item i of toks is equal to concat(name, ""):
+        If i is less than length of toks:
+            If item (i + 1) of toks is equal to "=>":
+                Return true.
+        If i is greater than 1:
+            Let prev be item (i - 1) of toks.
+            If prev is equal to "(":
+                If i is less than length of toks:
+                    If paramBoundary(item (i + 1) of toks):
+                        Return true.
+            If prev is equal to ",":
+                If i is less than length of toks:
+                    If paramBoundary(item (i + 1) of toks):
+                        Return true.
+    Return paramScan(toks, i + 1, concat(name, "")).
+
+## To paramBoundary (t: Text) -> Bool:
+    If t is equal to ")":
+        Return true.
+    If t is equal to ",":
+        Return true.
+    Return false.
+
+## To usedAsParam (flat: Text, name: Text) -> Bool:
+    Return paramScan(split(concat(flat, ""), " "), 1, concat(name, "")).
+
+# `name` declared more than once (a nested re-declaration shadows) — count `let`/`var`/`const name ` starts.
+## To declaredTwice (flat: Text, name: Text) -> Bool:
+    Let n1 be occurrences(concat(flat, ""), concat("let ", concat(name, " "))).
+    Let n2 be occurrences(concat(flat, ""), concat("var ", concat(name, " "))).
+    Let n3 be occurrences(concat(flat, ""), concat("const ", concat(name, " "))).
+    Return (n1 + n2) + n3 is greater than 1.
+
+## To occurrences (s: Text, sub: Text) -> Int:
+    If hasSep(concat(s, ""), concat(sub, "")) is equal to false:
+        Return 0.
+    Return 1 + occurrences(substringAfter(concat(s, ""), concat(sub, "")), concat(sub, "")).
+
+# Box `name` iff it is captured (used beyond its declaration inside a closure-bearing body), not shadowed,
+# and not used as a parameter.
+## To boxSafe (flat: Text, name: Text) -> Bool:
+    If usedAsParam(concat(flat, ""), concat(name, "")):
+        Return false.
+    If declaredTwice(concat(flat, ""), concat(name, "")):
+        Return false.
+    Return occurrences(concat(flat, ""), concat(" ", concat(name, " "))) is greater than 0.
+
+# Rewrite a NON-declaration statement's uses of `name`: bare `name` → `name . v`; `name . X` → `name . v . X`
+# (deref then access, e.g. a boxed number's `.toFixed`); an already-boxed `name . v` is left as-is
+# (idempotent); a property name (preceded by `.`) and an object-literal key/label (followed by `:`) are left.
+## To dotVRewrite (toks: Seq of Text, i: Int, name: Text, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return trim(acc).
+    Let t be item i of toks.
+    If concat(t, "") is equal to concat(name, ""):
+        If i is greater than 1:
+            If item (i - 1) of toks is equal to ".":
+                Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), t)).
+        If i is less than length of toks:
+            If item (i + 1) of toks is equal to ".":
+                If i + 1 is less than length of toks:
+                    If item (i + 2) of toks is equal to "v":
+                        Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), t)).
+                Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), concat(concat(name, ""), " . v"))).
+            If item (i + 1) of toks is equal to ":":
+                Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), t)).
+        Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), concat(concat(name, ""), " . v"))).
+    Return dotVRewrite(toks, i + 1, concat(name, ""), concat(concat(acc, " "), t)).
+
+## To isDeclOf (stmt: Text, name: Text) -> Bool:
+    Let kw be declKw(trim(concat(stmt, ""))).
+    If kw is equal to "":
+        Return false.
+    Let rest be trim(substringAfter(trim(concat(stmt, "")), kw)).
+    If hasTopSep(concat(rest, ""), " = ") is equal to false:
+        Return false.
+    Return trim(substringBefore(concat(rest, ""), " = ")) is equal to concat(name, "").
+
+## To boxDecl (stmt: Text, name: Text) -> Text:
+    Let kw be declKw(trim(concat(stmt, ""))).
+    Let rest be trim(substringAfter(trim(concat(stmt, "")), kw)).
+    Let init be trim(substringAfter(concat(rest, ""), " = ")).
+    Return concat(kw, concat(name, concat(" = ", concat(chr(123), concat(" v : ", concat(init, concat(" ", chr(125)))))))).
+
+## To boxStmts (stmts: Seq of Text, i: Int, name: Text, acc: Text) -> Text:
+    If i is greater than length of stmts:
+        Return acc.
+    Let st be item i of stmts.
+    Let out be boxOneStmt(concat(st, ""), concat(name, "")).
+    If i is equal to 1:
+        Return boxStmts(stmts, i + 1, name, out).
+    Return boxStmts(stmts, i + 1, name, concat(concat(acc, chr(10)), out)).
+
+## To boxOneStmt (stmt: Text, name: Text) -> Text:
+    If isDeclOf(concat(stmt, ""), concat(name, "")):
+        Return boxDecl(concat(stmt, ""), concat(name, "")).
+    Return dotVRewrite(split(concat(stmt, ""), " "), 1, concat(name, ""), "").
+
+## To boxOne (flat: Text, name: Text) -> Text:
+    Return boxStmts(split(concat(flat, ""), chr(10)), 1, concat(name, ""), "").
+
+## To boxNames (flat: Text, names: Seq of Text, i: Int) -> Text:
+    If i is greater than length of names:
+        Return concat(flat, "").
+    Let nm be trim(item i of names).
+    If nm is equal to "":
+        Return boxNames(concat(flat, ""), names, i + 1).
+    If boxSafe(concat(flat, ""), concat(nm, "")):
+        Return boxNames(boxOne(concat(flat, ""), concat(nm, "")), names, i + 1).
+    Return boxNames(concat(flat, ""), names, i + 1).
+
+## To boxCaptured (flat: Text) -> Text:
+    If hasClosureMarker(concat(flat, "")) is equal to false:
+        Return concat(flat, "").
+    Let stmts be split(concat(flat, ""), chr(10)).
+    Let names be scalarDeclNames(stmts, 1, "").
+    If names is equal to "":
+        Return concat(flat, "").
+    Return boxNames(concat(flat, ""), split(concat(names, ""), " "), 1).
+
 ## To runBlockStr (body: Text, env: Text) -> Text:
-    Let flat be splitTop(body, 1, 0, "").
+    Let flat be boxCaptured(splitTop(body, 1, 0, "")).
     Return runBlock(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, env)).
 
 ## To switchMatchIdx (clauses: Seq of Text, i: Int, disc: Text, env: Text) -> Int:
