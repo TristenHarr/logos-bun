@@ -7274,14 +7274,18 @@
     If startsWith(s, "var "):
         Return bindAssign(substringAfter(s, "var "), env).
     If hasSep(s, " . push ("):
-        Let pv be trim(substringBefore(s, " . push (")).
-        If isArrRef(jsEvalIn(concat(pv, ""), concat(env, ""))):
-            Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
-            Return assignTarget(concat(pv, ""), arrPushAll(jsEvalIn(concat(pv, ""), concat(env, "")), splitArgsN(concat(pa, "")), 1, env), env).
+        If hasTopSep(s, " = ") is equal to false:
+            If markerInBody(concat(s, ""), " . push (") is equal to false:
+                Let pv be trim(substringBefore(s, " . push (")).
+                If isArrRef(jsEvalIn(concat(pv, ""), concat(env, ""))):
+                    Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
+                    Return assignTarget(concat(pv, ""), arrPushAll(jsEvalIn(concat(pv, ""), concat(env, "")), splitArgsN(concat(pa, "")), 1, env), env).
     If hasSep(s, " . pop ("):
-        Let ov be trim(substringBefore(s, " . pop (")).
-        If isArrRef(jsEvalIn(concat(ov, ""), concat(env, ""))):
-            Return assignTarget(concat(ov, ""), arrPop(jsEvalIn(concat(ov, ""), concat(env, ""))), env).
+        If hasTopSep(s, " = ") is equal to false:
+            If markerInBody(concat(s, ""), " . pop (") is equal to false:
+                Let ov be trim(substringBefore(s, " . pop (")).
+                If isArrRef(jsEvalIn(concat(ov, ""), concat(env, ""))):
+                    Return assignTarget(concat(ov, ""), arrPop(jsEvalIn(concat(ov, ""), concat(env, ""))), env).
     If hasSep(s, " . sort ("):
         Let sv be trim(substringBefore(s, " . sort (")).
         Let saft be substringAfter(s, " . sort (").

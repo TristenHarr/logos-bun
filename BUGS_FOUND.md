@@ -3239,3 +3239,23 @@ Scalar accumulators, counters, max-tracking, multiple scalars, index-arg, and fu
 all persist and match Node; object/array accumulators and map/filter are unchanged. New `foreachscalar-diff`
 fuzzer (1500+ checks). Full sweep green (237/237). (General closure scalar mutation outside a forEach —
 `const inc=()=>count++` — and map/filter/reduce scalar side-effects remain the boxing follow-up.)
+
+**Bare array-mutation statement handlers misfired on nested-callback statements (2026-07-24, 110th engine
+fix — the rpn blocker).** `out.push(s.pop())` inside a forEach/map callback pushed TWO values (the mutated
+receiver AND the popped element) instead of one, `[9].map(x=>{s.pop()})` didn't mutate `s` at all, and
+`let v=s.pop()` popped twice — so any stack/queue idiom (RPN evaluator, BFS drain) was wrong. Root cause: the
+execStmt bare-array-mutation statement handlers (`arr.push(x)` / `arr.pop()` as a whole statement, which
+write the mutated receiver back via assignTarget) fired for the OUTER `[…].forEach(fn)` statement because the
+method marker (`" . push ("` / `" . pop ("`) also appears INSIDE the callback body — so `pv =
+substringBefore(stmt, " . push (")` became the truncated `[9].forEach(function(t){ out`, and the handler's
+`isArrRef(jsEvalIn(pv))` guard EVALUATED that truncated forEach as a side effect, double-running the body's
+push. (Other call forms — IIFE, named fn, arrow-via-var — escaped only because their truncated `pv` happened
+to evaluate non-array; forEach's evaluated to a ref, so it fired.) Fixed with two guards on the push/pop
+statement handlers, mirroring the forEach handler's own protection: skip when the statement has a top-level
+` = ` (it's an assignment RHS like `r.v=s.pop()` — the `=` handler owns it, and evaluating the receiver
+would run the assignment as a side effect) and skip when `markerInBody` reports the marker sits inside a
+nested function body (the outer call handler owns it). sort/fill/reverse were already protected by their
+`isSimpleName(receiver)` guard. Now `out.push(s.pop())` in forEach/map, `map` mutations, `let v=s.pop()`,
+RPN evaluation, shift/unshift/splice-in-callback, and nested-forEach grid builds all match Node; bare
+`arr.push(x)`/`arr.pop()` and push-return-value are unchanged. New `callbackmutate-diff` fuzzer (1200+ checks:
+nested mutating args, RPN, stack/queue drains). Full sweep green (239/239).
