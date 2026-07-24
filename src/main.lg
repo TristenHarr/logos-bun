@@ -6538,6 +6538,9 @@
         Return envSet(env, trim(assign), "undefined").
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
+    If hasTopSep(rhs, " = "):
+        Let e2 be execStmt(concat(rhs, ""), env).
+        Return envSet(e2, name, jsEvalIn(trim(substringBefore(concat(rhs, ""), " = ")), e2)).
     If isFnLiteral(rhs):
         Let fv be funcValueOf(substitute(rhs, env)).
         Let e2 be envSet(env, name, fv).
@@ -7418,6 +7421,10 @@
         Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
     If hasTopSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
+        If hasTopSep(trim(substringAfter(s, " = ")), " = "):
+            Let chainRhs be trim(substringAfter(s, " = ")).
+            Let e2 be execStmt(concat(chainRhs, ""), env).
+            Return execStmt(concat(concat(lhs, " = "), trim(substringBefore(concat(chainRhs, ""), " = "))), e2).
         Let sfk be staticFieldKey(concat(lhs, ""), concat(env, "")).
         If sfk is not equal to "":
             Return bindAssign(concat(concat(sfk, " = "), substringAfter(s, " = ")), env).

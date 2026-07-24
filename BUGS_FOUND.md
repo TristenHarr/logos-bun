@@ -3335,3 +3335,18 @@ work; numeric indexing is unchanged. New `objkeysarray-diff` fuzzer (800+ checks
 (Separate pre-existing gap, not addressed: an arrow with an EXPRESSION body that is an assignment side-effect
 — `forEach(k=>s+=k)` — doesn't write back, because compound/plain assignment in expression position doesn't
 mutate the env; the block-body form `forEach(k=>{s+=k})` works.)
+
+**Chained assignment `a = b = c` (2026-07-24, 116th engine fix).** A right-associative assignment chain set
+only the LEFTMOST target: `a=b=7` gave a=7 but left b undefined; `a=b=c=9`, `x=y=10`, `o.x=o.y=5`,
+`let y=x=5` all failed the same way. The RHS `b = 7` was evaluated as an expression (yielding 7) without
+mutating b — assignment in expression position doesn't thread env changes back in the value-threaded env
+model. Fixed at the two assignment surfaces: when the RHS of an assignment statement (execStmt's ` = `
+handler) or a let/const/var initializer (bindOne) itself contains a top-level ` = `, execute that RHS as a
+statement first (setting the inner target), then assign the outer target to the inner target's value —
+recursively, so `a=b=c=9` threads all the way down. The check is depth-aware (hasTopSep), so comparisons
+(`==`/`===`, which tokenize as ` == `/` === `) and a `=` inside parens/arrows (`f(a=5)`, `()=>x`) don't trip
+it. Scalar chains, member/bracket chains (`o.x=o.y=v`, `arr[i]=arr[j]=v`), and let-initializer chains
+(`let y=x=5`) now match Node; simple/compound/ternary/fn-literal assignments are unchanged. New
+`chainassign-diff` fuzzer (800+ checks). Full sweep green (244/244). (The general assignment-in-expression-
+position case — a nested `let y=(x=5)` or arrow-expr `k=>s+=k` — is still open; only the top-level chain
+forms are threaded here.)
