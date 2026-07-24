@@ -6830,9 +6830,33 @@
     If hasSep(s, " -= "):
         If isMemberTarget(trim(substringBefore(s, " -= "))):
             Return concat(concat(trim(substringBefore(s, " -= ")), " = "), concat(concat(trim(substringBefore(s, " -= ")), " - "), trim(substringAfter(s, " -= ")))).
+    If hasSep(s, " **= "):
+        If isMemberTarget(trim(substringBefore(s, " **= "))):
+            Return concat(concat(trim(substringBefore(s, " **= ")), " = "), concat(concat(trim(substringBefore(s, " **= ")), " ** "), trim(substringAfter(s, " **= ")))).
     If hasSep(s, " *= "):
         If isMemberTarget(trim(substringBefore(s, " *= "))):
             Return concat(concat(trim(substringBefore(s, " *= ")), " = "), concat(concat(trim(substringBefore(s, " *= ")), " * "), trim(substringAfter(s, " *= ")))).
+    If hasSep(s, " /= "):
+        If isMemberTarget(trim(substringBefore(s, " /= "))):
+            Return concat(concat(trim(substringBefore(s, " /= ")), " = "), concat(concat(trim(substringBefore(s, " /= ")), " / "), trim(substringAfter(s, " /= ")))).
+    If hasSep(s, " %= "):
+        If isMemberTarget(trim(substringBefore(s, " %= "))):
+            Return concat(concat(trim(substringBefore(s, " %= ")), " = "), concat(concat(trim(substringBefore(s, " %= ")), " % "), trim(substringAfter(s, " %= ")))).
+    If hasSep(s, " &= "):
+        If isMemberTarget(trim(substringBefore(s, " &= "))):
+            Return concat(concat(trim(substringBefore(s, " &= ")), " = "), concat(concat(trim(substringBefore(s, " &= ")), " & "), trim(substringAfter(s, " &= ")))).
+    If hasSep(s, " |= "):
+        If isMemberTarget(trim(substringBefore(s, " |= "))):
+            Return concat(concat(trim(substringBefore(s, " |= ")), " = "), concat(concat(trim(substringBefore(s, " |= ")), " | "), trim(substringAfter(s, " |= ")))).
+    If hasSep(s, " ^= "):
+        If isMemberTarget(trim(substringBefore(s, " ^= "))):
+            Return concat(concat(trim(substringBefore(s, " ^= ")), " = "), concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), trim(substringAfter(s, " ^= ")))).
+    If hasSep(s, " <<= "):
+        If isMemberTarget(trim(substringBefore(s, " <<= "))):
+            Return concat(concat(trim(substringBefore(s, " <<= ")), " = "), concat(concat(trim(substringBefore(s, " <<= ")), " << "), trim(substringAfter(s, " <<= ")))).
+    If hasSep(s, " >>= "):
+        If isMemberTarget(trim(substringBefore(s, " >>= "))):
+            Return concat(concat(trim(substringBefore(s, " >>= ")), " = "), concat(concat(trim(substringBefore(s, " >>= ")), " >> "), trim(substringAfter(s, " >>= ")))).
     If hasSep(s, " ||= "):
         If isMemberTarget(trim(substringBefore(s, " ||= "))):
             Return concat(concat(trim(substringBefore(s, " ||= ")), " = "), concat(concat(trim(substringBefore(s, " ||= ")), " || "), trim(substringAfter(s, " ||= ")))).
@@ -7125,8 +7149,24 @@
         Return envSet(env, trim(substringBefore(s, " += ")), jsEvalIn(concat(concat(trim(substringBefore(s, " += ")), " + "), substringAfter(s, " += ")), env)).
     If hasTopSep(s, " -= "):
         Return envSet(env, trim(substringBefore(s, " -= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " -= ")), " - "), substringAfter(s, " -= ")), env)).
+    If hasTopSep(s, " **= "):
+        Return envSet(env, trim(substringBefore(s, " **= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " **= ")), " ** "), substringAfter(s, " **= ")), env)).
     If hasTopSep(s, " *= "):
         Return envSet(env, trim(substringBefore(s, " *= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " *= ")), " * "), substringAfter(s, " *= ")), env)).
+    If hasTopSep(s, " /= "):
+        Return envSet(env, trim(substringBefore(s, " /= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " /= ")), " / "), substringAfter(s, " /= ")), env)).
+    If hasTopSep(s, " %= "):
+        Return envSet(env, trim(substringBefore(s, " %= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " %= ")), " % "), substringAfter(s, " %= ")), env)).
+    If hasTopSep(s, " <<= "):
+        Return envSet(env, trim(substringBefore(s, " <<= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " <<= ")), " << "), substringAfter(s, " <<= ")), env)).
+    If hasTopSep(s, " >>= "):
+        Return envSet(env, trim(substringBefore(s, " >>= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " >>= ")), " >> "), substringAfter(s, " >>= ")), env)).
+    If hasTopSep(s, " &= "):
+        Return envSet(env, trim(substringBefore(s, " &= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " &= ")), " & "), substringAfter(s, " &= ")), env)).
+    If hasTopSep(s, " |= "):
+        Return envSet(env, trim(substringBefore(s, " |= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " |= ")), " | "), substringAfter(s, " |= ")), env)).
+    If hasTopSep(s, " ^= "):
+        Return envSet(env, trim(substringBefore(s, " ^= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), substringAfter(s, " ^= ")), env)).
     If hasTopSep(s, " ||= "):
         Return envSet(env, trim(substringBefore(s, " ||= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ||= ")), " || "), substringAfter(s, " ||= ")), env)).
     If hasTopSep(s, " &&= "):
@@ -7466,6 +7506,12 @@
         Return true.
     If t is equal to "??=":
         Return true.
+    If t is equal to "**=":
+        Return true.
+    If t is equal to "<<=":
+        Return true.
+    If t is equal to ">>=":
+        Return true.
     Return false.
 
 ## To isOp2 (t: Text) -> Bool:
@@ -7496,6 +7542,16 @@
     If t is equal to "-=":
         Return true.
     If t is equal to "*=":
+        Return true.
+    If t is equal to "/=":
+        Return true.
+    If t is equal to "%=":
+        Return true.
+    If t is equal to "&=":
+        Return true.
+    If t is equal to "|=":
+        Return true.
+    If t is equal to "^=":
         Return true.
     If t is equal to "++":
         Return true.

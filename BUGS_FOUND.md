@@ -3056,3 +3056,12 @@ string concatenation of a no-return call all match Node (undefined); value-retur
 reducers unchanged. (Also renamed a local `retVal` in the return handler that shadowed the new function.)
 New `undefinedreturn-diff` fuzzer (1500+ checks, fall-off/bare-return/conditional × String/typeof/concat).
 Full sweep green (221/221).
+
+**All compound assignment operators (2026-07-24, 93rd engine fix).** `a **= 2` left a unchanged (25 →
+still 5); `/= %= <<= >>= &= |= ^=` were likewise unwired. Only `+= -= *=` (and logical `||= &&= ??=`) were
+recognized — the rest fell through to the plain ` = ` handler with a broken lhs. Added `/= %= &= |= ^=` to
+isOp2 and `**= <<= >>=` to isOp3 (so the tokenizer emits one operator token), plus a handler in execStmt
+and the member-target rewrite for each, mapping to the already-working binary operator. All eleven compound
+operators now work on a simple variable, an object member, and an array index (`o.n **= 2`, `arr[0] >>= 1`),
+and chain (`a += 2; a *= 4; a -= 1`); the existing `+= -= *=` and logical forms are unchanged. New
+`compoundassign-diff` fuzzer (1800+ checks, all ops × var/member/index). Full sweep green (222/222).
