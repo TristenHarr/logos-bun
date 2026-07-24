@@ -8024,11 +8024,33 @@
         Return "".
     Return item i of parts.
 
+# A derived class with NO explicit constructor gets an implicit `constructor(...args){ super(...args) }`.
+# Rest+spread through super isn't supported, so the synthesized constructor forwards a fixed run of
+# positional args (undefined for those not passed — the parent ignores params it doesn't declare); a base
+# class or a class with its own constructor is untouched.
+## To implicitCtorParams (parent: Text, cparams: Text, cbody: Text) -> Text:
+    If parent is equal to "":
+        Return concat(cparams, "").
+    If cparams is not equal to "":
+        Return concat(cparams, "").
+    If cbody is not equal to "":
+        Return concat(cparams, "").
+    Return "a0 , a1 , a2 , a3 , a4 , a5".
+
+## To implicitCtorBody (parent: Text, cparams: Text, cbody: Text) -> Text:
+    If parent is equal to "":
+        Return concat(cbody, "").
+    If cparams is not equal to "":
+        Return concat(cbody, "").
+    If cbody is not equal to "":
+        Return concat(cbody, "").
+    Return "super ( a0 , a1 , a2 , a3 , a4 , a5 )".
+
 ## To classWalk (cname: Text, parent: Text, body: Text, cparams: Text, cbody: Text, methods: Text, statics: Text, fields: Text) -> Text:
     Let b be trim(body).
     If b is equal to "":
-        Let head be concat(concat(concat(concat("function ", cname), " ( "), cparams), " ) ").
-        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, cbody, methods, fields))), " "), chr(125)).
+        Let head be concat(concat(concat(concat("function ", cname), " ( "), implicitCtorParams(parent, concat(cparams, ""), concat(cbody, ""))), " ) ").
+        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, implicitCtorBody(parent, concat(cparams, ""), concat(cbody, "")), methods, fields))), " "), chr(125)).
         Return concat(statics, fnDef).
     If startsWith(b, ";"):
         Return classWalk(cname, parent, trim(substringAfter(b, ";")), cparams, cbody, methods, statics, fields).

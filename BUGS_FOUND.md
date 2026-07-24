@@ -3167,3 +3167,13 @@ match-array builders (reMatchArrayInner, reMatchAllLoop, reFindAllLoop) — capE
 replace/split, which re-encode downstream. `[\w.]` email validation, `[\s]+`/`[^\w]+` with spaces, and
 `.length`/index on space-containing matches all match Node. New `classescape-diff` fuzzer (1500+ checks).
 Full sweep green (232/232).
+
+**Subclass implicit constructor inheritance (2026-07-24, 104th engine fix).** A derived class with no
+explicit constructor — `class Dog extends Animal {}` — didn't inherit the parent's: `new Dog("Rex")` left
+`this.name` undefined because classWalk kept cparams/cbody empty and the synthesized constructor called
+`super()` with no args. JS gives such a class an implicit `constructor(...args){ super(...args) }`; rest+spread
+through super isn't supported here, so the synthesized constructor now forwards a fixed run of positional args
+(`constructor(a0..a5){ super(a0..a5) }`) — the parent ignores params it doesn't declare, and unpassed args are
+undefined. Implicit-ctor inheritance works with added subclass methods, overrides, and multi-level chains
+(Base→Mid→Leaf); base classes and classes with their own constructor are unchanged. New `implicitctor-diff`
+fuzzer (1200+ checks). Full sweep green (233/233).
