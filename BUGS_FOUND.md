@@ -3065,3 +3065,12 @@ and the member-target rewrite for each, mapping to the already-working binary op
 operators now work on a simple variable, an object member, and an array index (`o.n **= 2`, `arr[0] >>= 1`),
 and chain (`a += 2; a *= 4; a -= 1`); the existing `+= -= *=` and logical forms are unchanged. New
 `compoundassign-diff` fuzzer (1800+ checks, all ops × var/member/index). Full sweep green (222/222).
+
+**Predicate methods' (value, index, array) callback (2026-07-24, 94th engine fix).** `some`/`every`/`find`/
+`findIndex`/`findLast`/`findLastIndex` called their predicate via callFnIdx (value + index only), so a
+predicate referencing its third parameter saw undefined — `[1,2,3].every((x,i,a)=>x===a[i])` was false
+instead of true. Switched all six to callFnIdx3 (the map/filter/forEach path) with the source array threaded,
+and added a throwPending short-circuit so a throwing predicate surfaces to the enclosing try/catch (matching
+the 91st fix). The array third arg (`a.length`, `a[i]`), the index second arg, value-only predicates, and
+short-circuit semantics all match Node. New `predicatearg-diff` fuzzer (1500+ checks, six methods × index/
+array/value callbacks). Full sweep green (223/223).

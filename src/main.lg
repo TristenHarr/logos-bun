@@ -4285,49 +4285,60 @@
 ## To arrFilter (arrval: Text, fnval: Text, env: Text) -> Text:
     Return newArr(concat(concat(tagArr (), arrFilterLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env, "")), tagArrEnd ())).
 
-## To arrSomeLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Bool:
+# some/every/find/findIndex pass their predicate `(value, index, array)` — like map/filter/forEach — and
+# short-circuit if the predicate throws (a pending throw surfaces to the enclosing try/catch).
+## To arrSomeLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Bool:
     If i is greater than length of els:
         Return false.
-    Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+    Let r be callFnIdx3(concat(fnval, ""), concat(item i of els, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return false.
+    If boolOf(r):
         Return true.
-    Return arrSomeLoop(els, i + 1, fnval, env).
+    Return arrSomeLoop(els, i + 1, fnval, arrv, env).
 
 ## To arrSome (arrval: Text, fnval: Text, env: Text) -> Bool:
-    Return arrSomeLoop(arrElements(arrval), 1, fnval, env).
+    Return arrSomeLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env).
 
-## To arrEveryLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Bool:
+## To arrEveryLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Bool:
     If i is greater than length of els:
         Return true.
-    Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
-        Return arrEveryLoop(els, i + 1, fnval, env).
+    Let r be callFnIdx3(concat(fnval, ""), concat(item i of els, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return true.
+    If boolOf(r):
+        Return arrEveryLoop(els, i + 1, fnval, arrv, env).
     Return false.
 
 ## To arrEvery (arrval: Text, fnval: Text, env: Text) -> Bool:
-    Return arrEveryLoop(arrElements(arrval), 1, fnval, env).
+    Return arrEveryLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env).
 
-## To arrFindLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+## To arrFindLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Text:
     If i is greater than length of els:
         Return "undefined".
     Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+    Let r be callFnIdx3(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return "undefined".
+    If boolOf(r):
         Return el.
-    Return arrFindLoop(els, i + 1, fnval, env).
+    Return arrFindLoop(els, i + 1, fnval, arrv, env).
 
 ## To arrFind (arrval: Text, fnval: Text, env: Text) -> Text:
-    Return arrFindLoop(arrElements(arrval), 1, fnval, env).
+    Return arrFindLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env).
 
-## To arrFindIndexLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Int:
+## To arrFindIndexLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Int:
     If i is greater than length of els:
         Return -1.
-    Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+    Let r be callFnIdx3(concat(fnval, ""), concat(item i of els, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return -1.
+    If boolOf(r):
         Return i - 1.
-    Return arrFindIndexLoop(els, i + 1, fnval, env).
+    Return arrFindIndexLoop(els, i + 1, fnval, arrv, env).
 
 ## To arrFindIndex (arrval: Text, fnval: Text, env: Text) -> Int:
-    Return arrFindIndexLoop(arrElements(arrval), 1, fnval, env).
+    Return arrFindIndexLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env).
 
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
@@ -4558,29 +4569,34 @@
         Return idx + n.
     Return idx.
 
-## To arrFindLastLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Text:
+## To arrFindLastLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Text:
     If i is less than 1:
         Return "undefined".
     Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+    Let r be callFnIdx3(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return "undefined".
+    If boolOf(r):
         Return el.
-    Return arrFindLastLoop(els, i - 1, fnval, env).
+    Return arrFindLastLoop(els, i - 1, fnval, arrv, env).
 
 ## To arrFindLast (arrval: Text, fnval: Text, env: Text) -> Text:
     Let els be arrElements(arrval).
-    Return arrFindLastLoop(els, length of els, fnval, env).
+    Return arrFindLastLoop(els, length of els, fnval, concat(arrval, ""), env).
 
-## To arrFindLastIndexLoop (els: Seq of Text, i: Int, fnval: Text, env: Text) -> Int:
+## To arrFindLastIndexLoop (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Int:
     If i is less than 1:
         Return -1.
-    Let el be item i of els.
-    If boolOf(callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, ""))):
+    Let r be callFnIdx3(concat(fnval, ""), concat(item i of els, ""), toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return -1.
+    If boolOf(r):
         Return i - 1.
-    Return arrFindLastIndexLoop(els, i - 1, fnval, env).
+    Return arrFindLastIndexLoop(els, i - 1, fnval, arrv, env).
 
 ## To arrFindLastIndex (arrval: Text, fnval: Text, env: Text) -> Int:
     Let els be arrElements(arrval).
-    Return arrFindLastIndexLoop(els, length of els, fnval, env).
+    Return arrFindLastIndexLoop(els, length of els, fnval, concat(arrval, ""), env).
 
 ## To toSortedArr (arrval: Text, mode: Text, fnval: Text, env: Text) -> Text:
     Return newArr(sortFold(arrElements(arrval), 1, mode, fnval, env, concat(tagArr (), tagArrEnd ()))).
