@@ -2946,3 +2946,15 @@ reduce's own 3-arg `(acc,el,i)` path (callFn3) and Array.from's map (no array ar
 unchanged. New `callbackarr-diff` fuzzer (1800+ checks, a.length / a[i] / index-vs-length). Full
 sweep green (212/212). (The forEach scalar `s+=` closure-writeback remains a separate deferred gap —
 heap-persisting `out.push(...)` works.)
+
+**Variadic Array/String concat (2026-07-24, 83rd engine fix).** `[1,2,3].concat([4,5],6)` gave
+[1,2,3] and `[1,2,3].concat(6)` dropped the 6 — the dispatch evaluated the entire argument text as a
+single comma-expression (`jsEvalIn("[4,5],6")` → the last scalar 6), then arrConcat treated that
+scalar as a 0-element array and appended nothing. Rewrote the concat dispatch to split the args at top
+level (splitArgsN) and fold each onto the receiver via arrConcatArgs: an array arg is flattened one
+level (concatPiece), a scalar is appended as a single element, empty-array args add no slot, and
+`concat()` with no args returns a copy. String receivers take the strConcatArgs path — all args
+materialized and concatenated left to right, re-tagged as a string. `concat([4,5],6)`,
+`concat(6)`, `concat(3,4,[5,6])`, `concat("b",["c","d"])`, `concat()`, `"a".concat("b","c","d")` all
+match Node. New `concatargs-diff` fuzzer (1800+ checks, mixed array/scalar args + string concat). Full
+sweep green (213/213).

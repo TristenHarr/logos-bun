@@ -3888,6 +3888,38 @@
     Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), newInner), tagArrEnd ())).
     Return toText(length of arrElements(concat(arrval, ""))).
 
+# Array.concat's contribution from one argument: an array argument is flattened one level (its
+# joined elements), a scalar argument becomes itself (appended as a single element). An empty array
+# yields "" so the caller can skip it without inserting a blank slot.
+## To concatPiece (argv: Text) -> Text:
+    If isArrRef(concat(argv, "")):
+        Let els be arrElements(concat(argv, "")).
+        Return joinChr6(els, 1, length of els, "").
+    Return concat(argv, "").
+
+# Fold the variadic concat argument list onto the receiver's elements: each arg is evaluated and
+# either flattened (array) or appended (scalar), skipping empty-array pieces so they add no slot.
+## To arrConcatArgs (innerAcc: Text, args: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of args:
+        Return innerAcc.
+    If trim(item i of args) is equal to "":
+        Return arrConcatArgs(innerAcc, args, i + 1, env).
+    Let piece be concatPiece(jsEvalIn(trim(item i of args), env)).
+    If piece is equal to "":
+        Return arrConcatArgs(innerAcc, args, i + 1, env).
+    If innerAcc is equal to "":
+        Return arrConcatArgs(piece, args, i + 1, env).
+    Return arrConcatArgs(concat(concat(innerAcc, tagArrSep ()), piece), args, i + 1, env).
+
+# String.prototype.concat over a variadic argument list: materialize the receiver then each arg,
+# concatenated left to right; the result is re-tagged as a string.
+## To strConcatArgs (acc: Text, args: Seq of Text, i: Int, env: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    If trim(item i of args) is equal to "":
+        Return strConcatArgs(acc, args, i + 1, env).
+    Return strConcatArgs(concat(acc, materialize(jsEvalIn(trim(item i of args), env))), args, i + 1, env).
+
 ## To arrConcat (a: Text, b: Text) -> Text:
     Let ea be arrElements(a).
     Let eb be arrElements(b).
@@ -5154,8 +5186,11 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let other be jsEvalIn(trim(argStr), env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concatOf(raw, other)), rst)), env).
+        If isArrRef(concat(raw, "")):
+            Let allInner be arrConcatArgs(concatPiece(concat(raw, "")), splitArgsN(concat(argStr, "")), 1, env).
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), newArr(concat(concat(tagArr (), allInner), tagArrEnd ()))), rst)), env).
+        Let joined be strConcatArgs(materialize(concat(raw, "")), splitArgsN(concat(argStr, "")), 1, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), joined)), rst)), env).
     If lm is equal to " . at (":
         Let bef be substringBefore(expr, " . at (").
         Let aft be substringAfter(expr, " . at (").
