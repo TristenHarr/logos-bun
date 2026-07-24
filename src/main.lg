@@ -9355,12 +9355,19 @@
 # its body with `__GENRESET` (start a fresh yield buffer) and `return __GENMAKE` (package the
 # collected yields as a generator object). `yield` statements push onto that buffer as the body
 # runs. This works for finite generators; an infinite `while(true) yield` can't be pre-collected.
+# The generator's name, or "" for an anonymous generator EXPRESSION (`const g = function*(){…}`),
+# whose first token after `function * ` is the `(` of the parameter list, not an identifier.
+## To genExprName (aft: Text) -> Text:
+    If startsWith(trim(concat(aft, "")), chr(40)):
+        Return "".
+    Return item 1 of split(trim(concat(aft, "")), " ").
+
 ## To desugarGenerators (expr: Text) -> Text:
     If substringBefore(expr, "function * ") is equal to expr:
         Return expr.
     Let bef be substringBefore(expr, "function * ").
     Let aft be substringAfter(expr, "function * ").
-    Let name be item 1 of split(trim(aft), " ").
+    Let name be genExprName(concat(aft, "")).
     Let params be trim(substringBefore(substringAfter(aft, chr(40)), chr(41))).
     Let afterBrace be substringAfter(aft, chr(123)).
     Let body be braceBody(afterBrace, 1, 0, "").
