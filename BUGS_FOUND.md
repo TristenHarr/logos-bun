@@ -3177,3 +3177,14 @@ through super isn't supported here, so the synthesized constructor now forwards 
 undefined. Implicit-ctor inheritance works with added subclass methods, overrides, and multi-level chains
 (Base→Mid→Leaf); base classes and classes with their own constructor are unchanged. New `implicitctor-diff`
 fuzzer (1200+ checks). Full sweep green (233/233).
+
+**Legacy prototype-based OOP (2026-07-24, 105th engine fix).** `Ctor.prototype.method = fn` + `new Ctor()`
+didn't link the prototype — `new T(); t.method()` couldn't find the method (only class-syntax OOP worked).
+Now `Ctor.prototype.X = …` (a method or data member) is recorded in the env as `__proto_<Ctor>_<X>`, and
+`new Ctor()` copies every such member onto the fresh instance BEFORE the constructor runs (so a same-named
+own field set in the ctor shadows it); method lookup then finds them like any own property, with `this`
+bound at call time. Prototype methods reading `this`, data properties, multi-method constructors, explicit
+`this.f = …` mutation, and `return this` chaining all match Node; class syntax and plain `new` are unchanged.
+New `prototype-diff` fuzzer (1200+ checks). Full sweep green (234/234). (`this.f++`/`++this.f` writeback
+inside a method — pre-existing, affects class methods too — is a separate documented gap; explicit
+`this.f = this.f + 1` works.)

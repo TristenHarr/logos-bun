@@ -1813,7 +1813,7 @@
     If length of ptoks is greater than 1:
         If item ((length of ptoks) - 1) of ptoks is equal to "new":
             If startsWith(envGet(env, lastTok), chr(1)):
-                Let inst be newObjRef(concat(tagObj (), tagObjEnd ())).
+                Let inst be applyProto(newObjRef(concat(tagObj (), tagObjEnd ())), concat(lastTok, ""), concat(env, "")).
                 Let ran be callMethod(envGet(env, lastTok), inner, inst, env).
                 classTagSet(refId(concat(inst, "")), instanceChain(concat(lastTok, ""), env)).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
@@ -2060,6 +2060,39 @@
     If parent is equal to "":
         Return cname.
     Return concat(concat(cname, ","), instanceChain(parent, env)).
+
+# Legacy prototype-based OOP: `Ctor.prototype.m = fn` (a data/method member on a function's prototype) is
+# recorded in the env as `__proto_<Ctor>_<m>`, and `new Ctor()` copies every such member onto the fresh
+# instance (BEFORE the constructor runs, so a same-named own field set in the ctor shadows it). Method
+# lookup then finds them like any own property; `this` is still bound at call time.
+## To isPrototypeAssign (lhs: Text) -> Bool:
+    Let toks be split(concat(lhs, ""), " ").
+    If length of toks is less than 5:
+        Return false.
+    If item 2 of toks is not equal to ".":
+        Return false.
+    If item 3 of toks is not equal to "prototype":
+        Return false.
+    If item 4 of toks is not equal to ".":
+        Return false.
+    Return true.
+
+## To protoKey (lhs: Text) -> Text:
+    Let toks be split(concat(lhs, ""), " ").
+    Return concat(concat(concat("__proto_", item 1 of toks), "_"), item 5 of toks).
+
+## To applyProtoLoop (pairs: Seq of Text, i: Int, prefix: Text, inst: Text) -> Text:
+    If i is greater than length of pairs:
+        Return concat(inst, "").
+    Let key be substringBefore(item i of pairs, "=").
+    If startsWith(concat(key, ""), concat(prefix, "")):
+        Let mval be replaceAll(substringAfter(item i of pairs, "="), chr(12), ";").
+        Let seti be objSet(concat(inst, ""), substringAfter(concat(key, ""), concat(prefix, "")), concat(mval, "")).
+        Return applyProtoLoop(pairs, i + 1, prefix, inst).
+    Return applyProtoLoop(pairs, i + 1, prefix, inst).
+
+## To applyProto (inst: Text, cname: Text, env: Text) -> Text:
+    Return applyProtoLoop(split(concat(env, ""), ";"), 1, concat(concat("__proto_", cname), "_"), concat(inst, "")).
 
 ## To isObjRef (v: Text) -> Bool:
     Return startsWith(derefObj(v), tagObj ()).
@@ -7220,6 +7253,10 @@
         If startsWith(lhs, chr(91)):
             Return destructureArr(concat(lhs, ""), jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, " . "):
+            If isPrototypeAssign(concat(lhs, "")):
+                If isFnLiteral(trim(substringAfter(s, " = "))):
+                    Return envSet(env, protoKey(concat(lhs, "")), funcValueOf(substitute(trim(substringAfter(s, " = ")), env))).
+                Return envSet(env, protoKey(concat(lhs, "")), jsEvalIn(substringAfter(s, " = "), env)).
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, chr(91)):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
