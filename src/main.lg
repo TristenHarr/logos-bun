@@ -820,7 +820,7 @@
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
     If startsWith(trim(expr), "~ "):
-        Return toText(jsBnot(safeInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
+        Return toText(jsBnot(bitOperandInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
         If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
@@ -941,32 +941,45 @@
         Return jsNullishVal(parts, i + 1).
     Return v.
 
+# A bitwise operand's integer value: ToNumber (so a string operand `"123" | 0` coerces, and `"12px"` → NaN
+# → 0), then truncate toward zero. A bare `parseInt` on the raw value can't take a tagStr string and is too
+# lenient (`"12px"` would wrongly parse to 12).
+## To bitOperandInt (v: Text) -> Int:
+    Let num be jsToNumberOf(concat(v, "")).
+    If num is equal to "NaN":
+        Return 0.
+    If num is equal to "Infinity":
+        Return 0.
+    If num is equal to "-Infinity":
+        Return 0.
+    Return safeInt(concat(num, "")).
+
 # Bitwise precedence tiers (JS: | < ^ < & < shift, all below && and above comparison; shift is
 # actually tighter than comparison, but shift-with-comparison is rare so it is placed here for a
-# single clean chain). Operands coerce to 32-bit ints via the native js_b* ops. `~` (unary NOT) is
-# handled in jsEvalCmp alongside `!`.
+# single clean chain). Operands coerce to 32-bit ints via bitOperandInt + the native js_b* ops. `~`
+# (unary NOT) is handled in jsEvalCmp alongside `!`.
 ## To jsEvalShift (expr: Text) -> Text:
     If hasSep(expr, " >>> "):
-        Return toText(jsUshr(parseInt(jsEvalCmp(substringBefore(expr, " >>> "))), parseInt(jsEvalShift(substringAfter(expr, " >>> "))))).
+        Return toText(jsUshr(bitOperandInt(jsEvalCmp(substringBefore(expr, " >>> "))), bitOperandInt(jsEvalShift(substringAfter(expr, " >>> "))))).
     If hasSep(expr, " << "):
-        Return toText(jsShl(parseInt(jsEvalCmp(substringBefore(expr, " << "))), parseInt(jsEvalShift(substringAfter(expr, " << "))))).
+        Return toText(jsShl(bitOperandInt(jsEvalCmp(substringBefore(expr, " << "))), bitOperandInt(jsEvalShift(substringAfter(expr, " << "))))).
     If hasSep(expr, " >> "):
-        Return toText(jsShr(parseInt(jsEvalCmp(substringBefore(expr, " >> "))), parseInt(jsEvalShift(substringAfter(expr, " >> "))))).
+        Return toText(jsShr(bitOperandInt(jsEvalCmp(substringBefore(expr, " >> "))), bitOperandInt(jsEvalShift(substringAfter(expr, " >> "))))).
     Return jsEvalCmp(expr).
 
 ## To jsEvalBitAnd (expr: Text) -> Text:
     If hasSep(expr, " & "):
-        Return toText(jsBand(parseInt(jsEvalShift(substringBefore(expr, " & "))), parseInt(jsEvalBitAnd(substringAfter(expr, " & "))))).
+        Return toText(jsBand(bitOperandInt(jsEvalShift(substringBefore(expr, " & "))), bitOperandInt(jsEvalBitAnd(substringAfter(expr, " & "))))).
     Return jsEvalShift(expr).
 
 ## To jsEvalBitXor (expr: Text) -> Text:
     If hasSep(expr, " ^ "):
-        Return toText(jsBxor(parseInt(jsEvalBitAnd(substringBefore(expr, " ^ "))), parseInt(jsEvalBitXor(substringAfter(expr, " ^ "))))).
+        Return toText(jsBxor(bitOperandInt(jsEvalBitAnd(substringBefore(expr, " ^ "))), bitOperandInt(jsEvalBitXor(substringAfter(expr, " ^ "))))).
     Return jsEvalBitAnd(expr).
 
 ## To jsEvalBitOr (expr: Text) -> Text:
     If hasSep(expr, " | "):
-        Return toText(jsBor(parseInt(jsEvalBitXor(substringBefore(expr, " | "))), parseInt(jsEvalBitOr(substringAfter(expr, " | "))))).
+        Return toText(jsBor(bitOperandInt(jsEvalBitXor(substringBefore(expr, " | "))), bitOperandInt(jsEvalBitOr(substringAfter(expr, " | "))))).
     Return jsEvalBitXor(expr).
 
 ## To jsEvalLogic (expr: Text) -> Text:
@@ -2713,6 +2726,8 @@
     Let x be trim(decodeStr(concat(s, ""))).
     If x is equal to "":
         Return "0".
+    If radixLit(concat(x, "")):
+        Return jsNumberText(concat(x, "")).
     If sciTok(concat(x, "")):
         Let sv be jsParseFloat(concat(x, "")).
         If sciSafe(concat(sv, "")):

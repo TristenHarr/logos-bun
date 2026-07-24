@@ -2835,3 +2835,16 @@ un-trimmed decoded string (which no longer starts with `0x`); now it trims first
 `" 0b101 "`→5, `" 0o17 "`→15, matching the no-whitespace forms. `Number.isInteger`, decimal `Number("  10  ")`,
 plain hex `Number("0xff")`, and every existing numeric path unchanged. New `safeint-diff` fuzzer (1200+
 checks over the ±2^53 boundary and whitespace-padded radix/decimal strings). Full sweep green (404/404).
+
+**Bitwise operand ToInt32 coercion + ToNumber(radix string) (2026-07-24, 74th engine fix).** Bitwise
+operators (`| & ^ ~ << >> >>>`) coerced their operands with the native `parseInt`, which (a) can't take a
+tagStr STRING — `"123" | 0` → NaN, `[1,2,3].join("") | 0` → empty; (b) PANICS on a non-integer — `3.7 | 0`
+CRASHED (empty output, a pre-existing bug); and (c) is too lenient — `"12px" | 0` should be 0 (ToNumber →
+NaN → 0), not 12. Added `bitOperandInt` = ToNumber (`jsToNumberOf`) then `safeInt` truncation (NaN/±Infinity
+→ 0, floats truncated toward zero without panicking), and wired it into all six bitwise evaluators plus the
+`~` unary. Also fixed `jsStrToNum` (the ToNumber-of-string path) to handle a radix literal, so
+`ToNumber("0xff")` = 255 everywhere — fixing `"0xff" | 0` → 255, `+"0xff"` → 255, `"0x10" * 2` → 32.
+`"123"|0`, `"5"&3`, `~"5"`→-6, `"12px"|0`→0, `3.7|0`→3, `-2.9|0`→-2, `"0b101"|0`→5, whitespace-padded, and
+every number/bool operand match Node; the existing number-bitwise ops, `Number("0xff")`, and all other
+ToNumber uses unchanged. New `bitcoerce-diff` fuzzer (1800+ checks over number/float/decimal-string/
+hex-string/junk operands across all 7 ops). Full sweep green (406/406).
