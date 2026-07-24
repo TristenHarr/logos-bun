@@ -3652,3 +3652,16 @@ HONEST STATUS: this does NOT yet make `"café"` round-trip — the token-desugar
 (~100 more `length of s` references engine-wide), and those still mangle a non-ASCII literal after normalize.
 Finishing unicode is a systematic sweep of every remaining char-walking loop by the same `charLen`-threading
 recipe — a large dedicated project; this commit lays the reusable `charLen` primitive and fixes the front end.
+
+**Unicode: top-level non-ASCII literals now round-trip (2026-07-24, 137th — more char-walkers threaded).**
+Continued the charLen-threading sweep from the 136th: threaded a precomputed char length through four more
+source-walking passes — `splitTop`/`splitTopStr` (the statement splitter run on every block body),
+`balancedArg` (call-argument extraction), and `braceBody` (function-body extraction). A bare `"café"` and
+top-level string concatenation (`"ca"+"fé"`) now round-trip correctly (previously NaN). Full sweep green
+(262/262, seeds 1-2), ASCII unaffected. STILL PARTIAL: a non-ASCII literal INSIDE a function body, a
+`console.log` argument, and an `===` comparison are still mangled — those paths traverse ~5 more byte-bound
+char-walkers each (the function-value / IIFE processing chain, the console formatter, the comparison operand
+split). Every one is the same bug and the same `charLen`-threading fix; ~90 `length of s` references remain
+engine-wide. (An alternative root fix worth weighing: encode non-ASCII code points to an ASCII placeholder
+ONCE before normalize and decode ONCE at output — one encode + one decode instead of fixing ~90 walkers — at
+the cost of byte-based length/indexing until a separate code-unit pass.)

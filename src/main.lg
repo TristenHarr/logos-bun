@@ -4795,16 +4795,19 @@
     Return arrFlat(arrMap(arrval, fnval, env)).
 
 ## To balancedArg (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return balancedArgN(concat(s, ""), i, depth, acc, charLen(concat(s, ""))).
+
+## To balancedArgN (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to "(":
-        Return balancedArg(s, i + 1, depth + 1, concat(acc, c)).
+        Return balancedArgN(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to ")":
         If depth is equal to 0:
             Return acc.
-        Return balancedArg(s, i + 1, depth - 1, concat(acc, c)).
-    Return balancedArg(s, i + 1, depth, concat(acc, c)).
+        Return balancedArgN(s, i + 1, depth - 1, concat(acc, c), len).
+    Return balancedArgN(s, i + 1, depth, concat(acc, c), len).
 
 # Like balancedArg but for `[…]`: given the text just AFTER an opening `[`, return everything up to
 # its MATCHING `]`, so a computed key that itself contains a bracket (`a[a[0]+1]`) is not truncated
@@ -7238,39 +7241,42 @@
 # Inside a string literal (opened at a chr(34) that splitTop saw), every character is copied verbatim
 # — a `;`/`{`/`(` there is DATA, not a statement/scope boundary. Escaped quotes are already encoded
 # (encQuote), so a raw chr(34) here is the real closing delimiter, handing control back to splitTop.
-## To splitTopStr (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To splitTopStrN (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return splitTop(s, i + 1, depth, concat(acc, c)).
-    Return splitTopStr(s, i + 1, depth, concat(acc, c)).
+        Return splitTopN(s, i + 1, depth, concat(acc, c), len).
+    Return splitTopStrN(s, i + 1, depth, concat(acc, c), len).
 
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return splitTopN(concat(s, ""), i, depth, acc, charLen(concat(s, ""))).
+
+## To splitTopN (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return splitTopStr(s, i + 1, depth, concat(acc, c)).
+        Return splitTopStrN(s, i + 1, depth, concat(acc, c), len).
     If c is equal to chr(123):
-        Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to "(":
-        Return splitTop(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to chr(125):
         If depth is equal to 1:
             If splitContinues(s, i + 1):
-                Return splitTop(s, i + 1, 0, concat(acc, c)).
-            Return splitTop(s, i + 1, 0, concat(concat(acc, c), chr(10))).
-        Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
+                Return splitTopN(s, i + 1, 0, concat(acc, c), len).
+            Return splitTopN(s, i + 1, 0, concat(concat(acc, c), chr(10)), len).
+        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len).
     If c is equal to ")":
-        Return splitTop(s, i + 1, depth - 1, concat(acc, c)).
+        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len).
     If c is equal to ";":
         If depth is equal to 0:
             If splitWordIs(s, splitSkipSpaces(s, i + 1), "else"):
-                Return splitTop(s, i + 1, 0, concat(acc, c)).
-            Return splitTop(s, i + 1, 0, concat(acc, chr(10))).
-        Return splitTop(s, i + 1, depth, concat(acc, c)).
-    Return splitTop(s, i + 1, depth, concat(acc, c)).
+                Return splitTopN(s, i + 1, 0, concat(acc, c), len).
+            Return splitTopN(s, i + 1, 0, concat(acc, chr(10)), len).
+        Return splitTopN(s, i + 1, depth, concat(acc, c), len).
+    Return splitTopN(s, i + 1, depth, concat(acc, c), len).
 
 ## To tryCatchRun (afterTry: Text, cparam: Text, catchBlock: Text) -> Text:
     If hasThrow(afterTry):
@@ -7360,16 +7366,19 @@
     Return env.
 
 ## To braceBody (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+    Return braceBodyN(concat(s, ""), i, depth, acc, charLen(concat(s, ""))).
+
+## To braceBodyN (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(123):
-        Return braceBody(s, i + 1, depth + 1, concat(acc, c)).
+        Return braceBodyN(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to chr(125):
         If depth is equal to 0:
             Return acc.
-        Return braceBody(s, i + 1, depth - 1, concat(acc, c)).
-    Return braceBody(s, i + 1, depth, concat(acc, c)).
+        Return braceBodyN(s, i + 1, depth - 1, concat(acc, c), len).
+    Return braceBodyN(s, i + 1, depth, concat(acc, c), len).
 
 # A class desugars (desugarClass) to `__static_<C>_m = function…` / `__super_<C> = …` bindings
 # followed by a plain `function <C>(…){…}` constructor. Unlike a real function declaration, a class
