@@ -1165,6 +1165,18 @@
     Let doneEnv be runBlockStr(body, e2).
     Return envGet(doneEnv, "__ret").
 
+# Like callFn2 but with a third argument (the index for a reduce callback `(acc, el, i) => …`), bound only
+# when the callback declares a third parameter — so a 2-arg reducer is untouched.
+## To callFn3 (fnVal: Text, v1: Text, v2: Text, v3: Text, env: Text) -> Text:
+    Let paramStr be fnParams(concat(fnVal, "")).
+    Let body be fnBody(concat(fnVal, "")).
+    Let params be patFields(paramStr).
+    Let e1 be bindParamVal(trim(item 1 of params), v1, env).
+    Let e2 be bindParamVal(trim(item 2 of params), v2, e1).
+    If length of params is greater than 2:
+        Return envGet(runBlockStr(body, bindParamVal(trim(item 3 of params), v3, e2)), "__ret").
+    Return envGet(runBlockStr(body, e2), "__ret").
+
 # Method invocation: a function-valued property called as `recv.method(args)` runs with `this`
 # bound to the receiver (the heap ref), so `this.x` reads/writes the receiver's own slots. this
 # is bound at CALL time (dynamic), never captured at method-definition time.
@@ -3618,7 +3630,7 @@
     If i is greater than length of els:
         Return acc.
     Let el be item i of els.
-    Let nextAcc be callFn2(concat(fnval, ""), concat(acc, ""), concat(el, ""), concat(env, "")).
+    Let nextAcc be callFn3(concat(fnval, ""), concat(acc, ""), concat(el, ""), toText(i - 1), concat(env, "")).
     Return arrReduceLoop(els, i + 1, fnval, env, nextAcc).
 
 ## To arrReduce (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:
@@ -3630,7 +3642,7 @@
     If i is less than 1:
         Return acc.
     Let el be item i of els.
-    Let nextAcc be callFn2(concat(fnval, ""), concat(acc, ""), concat(el, ""), concat(env, "")).
+    Let nextAcc be callFn3(concat(fnval, ""), concat(acc, ""), concat(el, ""), toText(i - 1), concat(env, "")).
     Return arrReduceRightLoop(els, i - 1, fnval, env, nextAcc).
 
 ## To arrReduceRight (arrval: Text, fnval: Text, init: Text, env: Text) -> Text:

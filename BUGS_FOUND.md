@@ -2860,3 +2860,15 @@ before the generic array-like branch. `Array.from(new Set([1,1,2,3]))`→[1,2,3]
 string elements, and the no-alias guarantee all match Node; `Array.from("abc")`, `Array.from([1,2,3])`,
 `Array.from({length:3}, …)` array-like, and `[...set]` spread unchanged. New `arrfromset-diff` fuzzer (1800+
 checks). Full sweep green (408/408).
+
+**reduce/reduceRight callback index (2026-07-24, 76th engine fix).** `[1,2,3].reduce((s,x,i)=>s+x*i,0)`
+returned NaN (should be 8) — `arrReduceLoop`/`arrReduceRightLoop` invoked the reducer with only
+`(accumulator, element)` via `callFn2`, so a callback using the third parameter (the index) saw an unbound
+variable → NaN. Added `callFn3` (binds the 3rd parameter ONLY when the callback declares it, so a 2-arg
+reducer is unchanged) and threaded the 0-based index (`i-1`) through both the forward and reduceRight loops
+(covering the with-init, no-init, and reduceRight paths, which all share those loops). `reduce((s,x,i)=>…)`,
+`reduceRight((a,x,i)=>…)`, index-conditional folds, and plain 2-arg reducers (`(a,b)=>a+b`) with/without an
+init all match Node; `map`/`filter`/`forEach` index (already correct), and all other array folds unchanged.
+New `reduceidx-diff` fuzzer (1800+ checks, both directions × index/plain × init/no-init). Full sweep green
+(410/410). (The related `forEach((x,i)=>s+=…)` on an outer SCALAR is the separate closure-scalar-writeback
+gap — heap accumulators like `r.push(x*i)` work; scalar `s +=` doesn't propagate — deferred.)
