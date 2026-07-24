@@ -1378,18 +1378,18 @@
 
 # The elements to iterate for for-of / spread: an array's own elements, or a generator's collected
 # yields.
-## To strToCharArrLoop (s: Text, i: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To strToCharArrLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let ch be concat(tagStr (), item i of s).
     If i is equal to 1:
-        Return strToCharArrLoop(s, i + 1, ch).
-    Return strToCharArrLoop(s, i + 1, concat(concat(acc, tagArrSep ()), ch)).
+        Return strToCharArrLoop(s, i + 1, ch, len).
+    Return strToCharArrLoop(s, i + 1, concat(concat(acc, tagArrSep ()), ch), len).
 
 ## To strToCharArr (s: Text) -> Text:
     If s is equal to "":
         Return newArr(concat(tagArr (), tagArrEnd ())).
-    Return newArr(concat(concat(tagArr (), strToCharArrLoop(s, 1, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), strToCharArrLoop(s, 1, "", charLen(concat(s, "")))), tagArrEnd ())).
 
 ## To iterElements (v: Text) -> Seq of Text:
     If isGenerator(v):
@@ -1574,7 +1574,7 @@
 ## To charCodeStr (s: Text, i: Int) -> Text:
     If i is less than 0:
         Return "NaN".
-    If i + 1 is greater than length of s:
+    If i + 1 is greater than charLen(concat(s, "")):
         Return "NaN".
     Return toText(strCharCodeAt(s, i)).
 
@@ -1582,7 +1582,7 @@
 ## To codePointStr (s: Text, i: Int) -> Text:
     If i is less than 0:
         Return "undefined".
-    If i + 1 is greater than length of s:
+    If i + 1 is greater than charLen(concat(s, "")):
         Return "undefined".
     Return toText(strCharCodeAt(s, i)).
 
@@ -1930,7 +1930,7 @@
     If lastTok is equal to "function":
         Let afterBrace be substringAfter(rest, chr(123)).
         Let body be braceBody(afterBrace, 1, 0, "").
-        Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+        Let remainder be strSliceLoop(afterBrace, (charLen(concat(body, ""))) + 2, length of afterBrace, "").
         Let fnval be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(bakeIfObjValue(trim(body), ptoks, env))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), fnval), remainder), env).
@@ -1938,7 +1938,7 @@
         If item ((length of ptoks) - 1) of ptoks is equal to "function":
             Let afterBraceN be substringAfter(rest, chr(123)).
             Let bodyN be braceBody(afterBraceN, 1, 0, "").
-            Let remainderN be strSliceLoop(afterBraceN, (length of bodyN) + 2, length of afterBraceN, "").
+            Let remainderN be strSliceLoop(afterBraceN, (charLen(concat(bodyN, ""))) + 2, length of afterBraceN, "").
             Let fnvalN be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(trim(bodyN))).
             Let newPrefixN be joinRange(ptoks, 1, (length of ptoks) - 2, "").
             Let envN be envSet(env, concat(lastTok, ""), concat(fnvalN, "")).
@@ -2054,26 +2054,26 @@
     Let nextAcc be concat(concat(acc, sep), piece).
     Return joinUpto(parts, i + 1, upto, sep, nextAcc).
 
-## To splitArrElemsDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To splitArrElemsDepth (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to tagArr ():
-        Return splitArrElemsDepth(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitArrElemsDepth(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to tagArrEnd ():
-        Return splitArrElemsDepth(s, i + 1, depth - 1, concat(acc, c)).
+        Return splitArrElemsDepth(s, i + 1, depth - 1, concat(acc, c), len).
     If c is equal to tagArrSep ():
         If depth is equal to 0:
-            Return splitArrElemsDepth(s, i + 1, 0, concat(acc, chr(10))).
-        Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
-    Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c)).
+            Return splitArrElemsDepth(s, i + 1, 0, concat(acc, chr(10)), len).
+        Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c), len).
+    Return splitArrElemsDepth(s, i + 1, depth, concat(acc, c), len).
 
 ## To arrElements (arrval: Text) -> Seq of Text:
     Let inner be substringAfter(derefObj(arrval), tagArr ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let content be strSliceLoop(inner, 1, (charLen(concat(inner, ""))) - 1, "").
     If content is equal to "":
         Return [] of Text.
-    Return split(splitArrElemsDepth(content, 1, 0, ""), chr(10)).
+    Return split(splitArrElemsDepth(content, 1, 0, "", charLen(concat(content, ""))), chr(10)).
 
 ## To buildArr (elems: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of elems:
@@ -2155,19 +2155,19 @@
         Return resolveArrays(trim(concat(concat(rawPrefix, newArr(concat(tagArr (), tagArrEnd ()))), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(splitArgsN(inner), 1, "")), rest))).
 
-## To splitObjEntriesDepth (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To splitObjEntriesDepth (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to tagObj ():
-        Return splitObjEntriesDepth(s, i + 1, depth + 1, concat(acc, c)).
+        Return splitObjEntriesDepth(s, i + 1, depth + 1, concat(acc, c), len).
     If c is equal to tagObjEnd ():
-        Return splitObjEntriesDepth(s, i + 1, depth - 1, concat(acc, c)).
+        Return splitObjEntriesDepth(s, i + 1, depth - 1, concat(acc, c), len).
     If c is equal to tagObjSep ():
         If depth is equal to 0:
-            Return splitObjEntriesDepth(s, i + 1, 0, concat(acc, chr(10))).
-        Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c)).
-    Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c)).
+            Return splitObjEntriesDepth(s, i + 1, 0, concat(acc, chr(10)), len).
+        Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c), len).
+    Return splitObjEntriesDepth(s, i + 1, depth, concat(acc, c), len).
 
 ## To objScanLast (entries: Seq of Text, i: Int, key: Text, found: Text) -> Text:
     If i is greater than length of entries:
@@ -2262,10 +2262,10 @@
 
 ## To objGet (objVal: Text, key: Text) -> Text:
     Let inner be substringAfter(derefObj(objVal), tagObj ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let content be strSliceLoop(inner, 1, (charLen(concat(inner, ""))) - 1, "").
     If content is equal to "":
         Return "undefined".
-    Return objScanLast(split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)), 1, key, "undefined").
+    Return objScanLast(split(splitObjEntriesDepth(content, 1, 0, "", charLen(concat(content, ""))), chr(10)), 1, key, "undefined").
 
 ## To objKeysLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
@@ -2296,10 +2296,10 @@
 
 ## To objEntrySeq (objVal: Text) -> Seq of Text:
     Let inner be substringAfter(derefObj(objVal), tagObj ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let content be strSliceLoop(inner, 1, (charLen(concat(inner, ""))) - 1, "").
     If content is equal to "":
         Return [] of Text.
-    Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
+    Return split(splitObjEntriesDepth(content, 1, 0, "", charLen(concat(content, ""))), chr(10)).
 
 # Engine-internal property keys — a class desugar stores getters/setters/super-method records and legacy
 # prototype members as ordinary object props with these prefixes, but they must never surface through
@@ -2479,23 +2479,23 @@
         Return deepCloneObjLoop(objEntrySeq(concat(v, "")), 1, newObjRef(concat(tagObj (), tagObjEnd ()))).
     Return concat(v, "").
 
-## To jsonEscape (s: Text, i: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To jsonEscape (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to encQuote ():
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34))), len).
     If c is equal to encBackslash ():
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92))), len).
     If c is equal to encNewline ():
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "n"))).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "n")), len).
     If c is equal to chr(9):
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "t"))).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), "t")), len).
     If c is equal to chr(34):
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34)))).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(34))), len).
     If c is equal to chr(92):
-        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92)))).
-    Return jsonEscape(s, i + 1, concat(acc, c)).
+        Return jsonEscape(s, i + 1, concat(acc, concat(chr(92), chr(92))), len).
+    Return jsonEscape(s, i + 1, concat(acc, c), len).
 
 # JSON.stringify drops non-representable values: `undefined`, a function, or a symbol serializes as
 # `null` inside an ARRAY and causes its property to be OMITTED inside an OBJECT.
@@ -2528,14 +2528,14 @@
     Let val be substringAfter(entry, tagObjKV ()).
     If isJsonOmit(concat(val, "")):
         Return jsonObjLoop(entries, i + 1, acc).
-    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, tagObjKV ()), 1, "")), chr(34)), ":"), jsonStringify(concat(val, ""))).
+    Let pair be concat(concat(concat(concat(chr(34), jsonEscape(substringBefore(entry, tagObjKV ()), 1, "", charLen(substringBefore(entry, tagObjKV ())))), chr(34)), ":"), jsonStringify(concat(val, ""))).
     If acc is equal to "":
         Return jsonObjLoop(entries, i + 1, pair).
     Return jsonObjLoop(entries, i + 1, concat(concat(acc, ","), pair)).
 
 ## To jsonStringify (v: Text) -> Text:
     If startsWith(v, tagStr ()):
-        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
+        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "", charLen(substringAfter(v, tagStr ())))), chr(34)).
     If isArrRef(v):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
     If isObjRef(v):
@@ -2586,7 +2586,7 @@
     Let val be substringAfter(entry, tagObjKV ()).
     If isJsonOmit(concat(val, "")):
         Return jsonIndObjLoop(entries, i + 1, gap, inner, acc).
-    Let esc be jsonEscape(substringBefore(entry, tagObjKV ()), 1, "").
+    Let esc be jsonEscape(substringBefore(entry, tagObjKV ()), 1, "", charLen(substringBefore(entry, tagObjKV ()))).
     Let keyPart be concat(concat(chr(34), esc), chr(34)).
     Let pair be concat(concat(keyPart, concat(":", encSpace ())), jsonStrInd(concat(val, ""), gap, inner)).
     Let line be concat(concat(encNewline (), inner), pair).
@@ -2596,7 +2596,7 @@
 
 ## To jsonStrInd (v: Text, gap: Text, pad: Text) -> Text:
     If startsWith(v, tagStr ()):
-        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
+        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "", charLen(substringAfter(v, tagStr ())))), chr(34)).
     If isArrRef(v):
         Let els be arrElements(v).
         If length of els is less than 1:
@@ -2614,45 +2614,45 @@
         Return "undefined".
     Return v.
 
-## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
-    If i is greater than length of s:
+## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of concat(s, "").
     If inStr:
         If jsonIsBackslash(concat(c, "")):
-            If i is less than length of concat(s, ""):
+            If i is less than len:
                 Let nxt be item (i + 1) of concat(s, "").
-                Return jsonSplitTop(concat(s, ""), i + 2, depth, true, concat(concat(acc, c), nxt)).
+                Return jsonSplitTop(concat(s, ""), i + 2, depth, true, concat(concat(acc, c), nxt), len).
         If c is equal to encQuote ():
-            Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
-        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
+            Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c), len).
+        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c), len).
     If c is equal to encQuote ():
-        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c), len).
     If c is equal to encBraceL ():
-        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c), len).
     If c is equal to encBrkL ():
-        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth + 1, false, concat(acc, c), len).
     If c is equal to encBraceR ():
-        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c), len).
     If c is equal to encBrkR ():
-        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c)).
+        Return jsonSplitTop(s, i + 1, depth - 1, false, concat(acc, c), len).
     If c is equal to ",":
         If depth is equal to 0:
-            Return jsonSplitTop(s, i + 1, 0, false, concat(acc, chr(10))).
-        Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
-    Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
+            Return jsonSplitTop(s, i + 1, 0, false, concat(acc, chr(10)), len).
+        Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c), len).
+    Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c), len).
 
 # JSON permits insignificant whitespace between tokens; in the encoded content that
 # is encSpace/encNewline. encTrim strips it from a value's ends (whitespace INSIDE a
 # string is significant and lies between the encQuote delimiters, so it is untouched).
-## To encTrimHead (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+## To encTrimHead (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than n:
         Return i.
     Let c be item i of s.
     If c is equal to encSpace ():
-        Return encTrimHead(s, i + 1).
+        Return encTrimHead(s, i + 1, n).
     If c is equal to encNewline ():
-        Return encTrimHead(s, i + 1).
+        Return encTrimHead(s, i + 1, n).
     Return i.
 
 ## To encTrimTail (s: Text, i: Int) -> Int:
@@ -2666,14 +2666,15 @@
     Return i.
 
 ## To encTrim (s: Text) -> Text:
-    Return strSliceLoop(s, encTrimHead(s, 1), encTrimTail(s, length of s), "").
+    Let n be charLen(concat(s, "")).
+    Return strSliceLoop(s, encTrimHead(s, 1, n), encTrimTail(s, n), "").
 
 ## To jsonBuildObj (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
         Return newObjRef(concat(concat(tagObj (), acc), tagObjEnd ())).
     Let entry be item i of entries.
     Let keyRaw be encTrim(substringBefore(entry, ":")).
-    Let k be strSliceLoop(keyRaw, 2, (length of keyRaw) - 1, "").
+    Let k be strSliceLoop(keyRaw, 2, (charLen(concat(keyRaw, ""))) - 1, "").
     Let val be jsonParse(substringAfter(entry, ":")).
     Let pair be concat(concat(k, tagObjKV ()), val).
     If i is equal to 1:
@@ -2709,11 +2710,11 @@
         Return true.
     Return false.
 
-## To jsonWs (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+## To jsonWs (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than n:
         Return i.
     If jsonIsWs(item i of s):
-        Return jsonWs(s, i + 1).
+        Return jsonWs(s, i + 1, n).
     Return i.
 
 # JSON text reaches the validator in two encodings: a source string LITERAL carries the encoded delimiters
@@ -2754,28 +2755,28 @@
         Return true.
     Return false.
 
-## To jsonMatchLit (s: Text, i: Int, lit: Text) -> Int:
-    If (i + length of lit) - 1 is greater than length of s:
+## To jsonMatchLit (s: Text, i: Int, lit: Text, n: Int) -> Int:
+    If (i + length of lit) - 1 is greater than n:
         Return 0.
     If strSliceLoop(concat(s, ""), i, (i + length of lit) - 1, "") is equal to lit:
         Return i + length of lit.
     Return 0.
 
-## To jsonScanStr (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+## To jsonScanStr (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than n:
         Return 0.
     Let c be item i of s.
     If jsonIsQuote(concat(c, "")):
         Return i + 1.
     If c is equal to encBackslash ():
-        If i is equal to length of s:
+        If i is equal to n:
             Return 0.
-        Return jsonScanStr(s, i + 2).
+        Return jsonScanStr(s, i + 2, n).
     If c is equal to chr(92):
-        If i is equal to length of s:
+        If i is equal to n:
             Return 0.
-        Return jsonScanStr(s, i + 2).
-    Return jsonScanStr(s, i + 1).
+        Return jsonScanStr(s, i + 2, n).
+    Return jsonScanStr(s, i + 1, n).
 
 ## To jsonNumChar (c: Text) -> Bool:
     If digitChar(concat(c, "")):
@@ -2792,11 +2793,11 @@
         Return true.
     Return false.
 
-## To jsonNumEnd (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+## To jsonNumEnd (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than n:
         Return i.
     If jsonNumChar(item i of s):
-        Return jsonNumEnd(s, i + 1).
+        Return jsonNumEnd(s, i + 1, n).
     Return i.
 
 ## To jsonHasDigit (s: Text, i: Int, upto: Int) -> Bool:
@@ -2806,88 +2807,89 @@
         Return true.
     Return jsonHasDigit(s, i + 1, upto).
 
-## To jsonScanVal (s: Text, i0: Int) -> Int:
-    Let i be jsonWs(s, i0).
-    If i is greater than length of s:
+## To jsonScanVal (s: Text, i0: Int, n: Int) -> Int:
+    Let i be jsonWs(s, i0, n).
+    If i is greater than n:
         Return 0.
     Let c be item i of s.
     If jsonIsQuote(concat(c, "")):
-        Return jsonScanStr(s, i + 1).
+        Return jsonScanStr(s, i + 1, n).
     If jsonIsObjOpen(concat(c, "")):
-        Return jsonScanObj(s, i + 1, true).
+        Return jsonScanObj(s, i + 1, true, n).
     If jsonIsArrOpen(concat(c, "")):
-        Return jsonScanArr(s, i + 1, true).
+        Return jsonScanArr(s, i + 1, true, n).
     If c is equal to "t":
-        Return jsonMatchLit(s, i, "true").
+        Return jsonMatchLit(s, i, "true", n).
     If c is equal to "f":
-        Return jsonMatchLit(s, i, "false").
+        Return jsonMatchLit(s, i, "false", n).
     If c is equal to "n":
-        Return jsonMatchLit(s, i, "null").
+        Return jsonMatchLit(s, i, "null", n).
     If digitChar(concat(c, "")):
-        Return jsonNumEnd(s, i).
+        Return jsonNumEnd(s, i, n).
     If c is equal to "-":
-        Let ne be jsonNumEnd(s, i).
+        Let ne be jsonNumEnd(s, i, n).
         If jsonHasDigit(s, i, ne - 1):
             Return ne.
         Return 0.
     Return 0.
 
-## To jsonScanArr (s: Text, i0: Int, first: Bool) -> Int:
-    Let i be jsonWs(s, i0).
-    If i is greater than length of s:
+## To jsonScanArr (s: Text, i0: Int, first: Bool, n: Int) -> Int:
+    Let i be jsonWs(s, i0, n).
+    If i is greater than n:
         Return 0.
     If jsonIsArrClose(concat(item i of s, "")):
         Return i + 1.
     If first is equal to false:
         If item i of s is equal to ",":
-            Let v be jsonScanVal(s, i + 1).
+            Let v be jsonScanVal(s, i + 1, n).
             If v is equal to 0:
                 Return 0.
-            Return jsonScanArr(s, v, false).
+            Return jsonScanArr(s, v, false, n).
         Return 0.
-    Let v0 be jsonScanVal(s, i).
+    Let v0 be jsonScanVal(s, i, n).
     If v0 is equal to 0:
         Return 0.
-    Return jsonScanArr(s, v0, false).
+    Return jsonScanArr(s, v0, false, n).
 
-## To jsonScanObj (s: Text, i0: Int, first: Bool) -> Int:
-    Let i be jsonWs(s, i0).
-    If i is greater than length of s:
+## To jsonScanObj (s: Text, i0: Int, first: Bool, n: Int) -> Int:
+    Let i be jsonWs(s, i0, n).
+    If i is greater than n:
         Return 0.
     If jsonIsObjClose(concat(item i of s, "")):
         Return i + 1.
     If first is equal to false:
         If item i of s is equal to ",":
-            Return jsonScanPair(s, jsonWs(s, i + 1)).
+            Return jsonScanPair(s, jsonWs(s, i + 1, n), n).
         Return 0.
-    Return jsonScanPair(s, i).
+    Return jsonScanPair(s, i, n).
 
-## To jsonScanPair (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+## To jsonScanPair (s: Text, i: Int, n: Int) -> Int:
+    If i is greater than n:
         Return 0.
     If jsonIsQuote(concat(item i of s, "")):
-        Let ke be jsonScanStr(s, i + 1).
+        Let ke be jsonScanStr(s, i + 1, n).
         If ke is equal to 0:
             Return 0.
-        Let ci be jsonWs(s, ke).
-        If ci is greater than length of s:
+        Let ci be jsonWs(s, ke, n).
+        If ci is greater than n:
             Return 0.
         If item ci of s is equal to ":":
-            Let v be jsonScanVal(s, ci + 1).
+            Let v be jsonScanVal(s, ci + 1, n).
             If v is equal to 0:
                 Return 0.
-            Return jsonScanObj(s, v, false).
+            Return jsonScanObj(s, v, false, n).
         Return 0.
     Return 0.
 
 ## To jsonValid (s: Text) -> Bool:
-    Let start be jsonWs(concat(s, ""), 1).
-    If start is greater than length of s:
+    Let n be charLen(concat(s, "")).
+    Let start be jsonWs(concat(s, ""), 1, n).
+    If start is greater than n:
         Return false.
-    Let e be jsonScanVal(concat(s, ""), start).
+    Let e be jsonScanVal(concat(s, ""), start, n).
     If e is equal to 0:
         Return false.
-    If jsonWs(concat(s, ""), e) is greater than length of s:
+    If jsonWs(concat(s, ""), e, n) is greater than n:
         Return true.
     Return false.
 
@@ -2937,32 +2939,33 @@
         Return chr(92).
     Return concat(e, "").
 
-## To jsonUnescape (s: Text, i: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To jsonUnescape (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of concat(s, "").
     If jsonIsBackslash(concat(c, "")):
-        If i is less than length of concat(s, ""):
+        If i is less than len:
             Let e be item (i + 1) of concat(s, "").
             If jsonKnownEsc(concat(e, "")):
-                Return jsonUnescape(concat(s, ""), i + 2, concat(acc, jsonEscChar(concat(e, "")))).
-            Return jsonUnescape(concat(s, ""), i + 2, concat(concat(acc, c), e)).
-    Return jsonUnescape(concat(s, ""), i + 1, concat(acc, c)).
+                Return jsonUnescape(concat(s, ""), i + 2, concat(acc, jsonEscChar(concat(e, ""))), len).
+            Return jsonUnescape(concat(s, ""), i + 2, concat(concat(acc, c), e), len).
+    Return jsonUnescape(concat(s, ""), i + 1, concat(acc, c), len).
 
 ## To jsonParse (v: Text) -> Text:
     Let t be encTrim(v).
     If startsWith(t, encBraceL ()):
-        Let innerO be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
+        Let innerO be encTrim(strSliceLoop(t, 2, (charLen(concat(t, ""))) - 1, "")).
         If innerO is equal to "":
             Return newObjRef(concat(tagObj (), tagObjEnd ())).
-        Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, ""), chr(10)), 1, "").
+        Return jsonBuildObj(split(jsonSplitTop(innerO, 1, 0, false, "", charLen(concat(innerO, ""))), chr(10)), 1, "").
     If startsWith(t, encBrkL ()):
-        Let innerA be encTrim(strSliceLoop(t, 2, (length of t) - 1, "")).
+        Let innerA be encTrim(strSliceLoop(t, 2, (charLen(concat(t, ""))) - 1, "")).
         If innerA is equal to "":
             Return newArr(concat(tagArr (), tagArrEnd ())).
-        Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
+        Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, "", charLen(concat(innerA, ""))), chr(10)), 1, "").
     If startsWith(t, encQuote ()):
-        Return concat(tagStr (), jsonUnescape(strSliceLoop(t, 2, (length of t) - 1, ""), 1, "")).
+        Let sc be strSliceLoop(t, 2, (charLen(concat(t, ""))) - 1, "").
+        Return concat(tagStr (), jsonUnescape(sc, 1, "", charLen(concat(sc, "")))).
     Return t.
 
 ## To joinObjSep (entries: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
@@ -2994,10 +2997,10 @@
 
 ## To dedupObj (objval: Text) -> Text:
     Let inner be substringAfter(objval, tagObj ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let content be strSliceLoop(inner, 1, (charLen(concat(inner, ""))) - 1, "").
     If content is equal to "":
         Return objval.
-    Return concat(concat(tagObj (), dedupEmit(splitObjEntriesDepth(content, 1, 0, ""), 1, "", "")), tagObjEnd ()).
+    Return concat(concat(tagObj (), dedupEmit(splitObjEntriesDepth(content, 1, 0, "", charLen(concat(content, ""))), 1, "", "")), tagObjEnd ()).
 
 # Member/index write. objSet appends key=val then dedupes (first-position, last-value),
 # so an existing key is updated in place and a new key is appended. When objval is a heap
@@ -3011,7 +3014,7 @@
 ## To objSet (objval: Text, key: Text, newval: Text) -> Text:
     Let blob be derefObj(concat(objval, "")).
     Let inner be substringAfter(blob, tagObj ()).
-    Let content be strSliceLoop(inner, 1, (length of inner) - 1, "").
+    Let content be strSliceLoop(inner, 1, (charLen(concat(inner, ""))) - 1, "").
     Let newBlob be objSetBlob(content, concat(concat(key, tagObjKV ()), newval)).
     If isRef(concat(objval, "")):
         heapSet(refId(concat(objval, "")), concat(newBlob, "")).
@@ -3126,29 +3129,29 @@
         Return buildObj(entries, i + 1, pair).
     Return buildObj(entries, i + 1, concat(concat(acc, tagObjSep ()), pair)).
 
-## To splitObjEntries (s: Text, i: Int, depth: Int, q: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To splitObjEntries (s: Text, i: Int, depth: Int, q: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
         If q is equal to 0:
-            Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c)).
-        Return splitObjEntries(s, i + 1, depth, 0, concat(acc, c)).
+            Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c), len).
+        Return splitObjEntries(s, i + 1, depth, 0, concat(acc, c), len).
     If q is equal to 1:
-        Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth, 1, concat(acc, c), len).
     If c is equal to chr(91):
-        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c), len).
     If c is equal to chr(123):
-        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth + 1, q, concat(acc, c), len).
     If c is equal to chr(93):
-        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c), len).
     If c is equal to chr(125):
-        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c)).
+        Return splitObjEntries(s, i + 1, depth - 1, q, concat(acc, c), len).
     If c is equal to ",":
         If depth is equal to 0:
-            Return splitObjEntries(s, i + 1, 0, q, concat(acc, chr(10))).
-        Return splitObjEntries(s, i + 1, depth, q, concat(acc, c)).
-    Return splitObjEntries(s, i + 1, depth, q, concat(acc, c)).
+            Return splitObjEntries(s, i + 1, 0, q, concat(acc, chr(10)), len).
+        Return splitObjEntries(s, i + 1, depth, q, concat(acc, c), len).
+    Return splitObjEntries(s, i + 1, depth, q, concat(acc, c), len).
 
 ## To resolveObjects (expr: Text) -> Text:
     If substringBefore(expr, chr(123)) is equal to expr:
@@ -3161,7 +3164,7 @@
     Let prefix be joinUpto(pieces, 1, np - 1, chr(123), "").
     If inner is equal to "":
         Return resolveObjects(trim(concat(concat(prefix, newObjRef(concat(tagObj (), tagObjEnd ()))), rest))).
-    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, 0, ""), chr(10)), 1, "")), rest))).
+    Return resolveObjects(trim(concat(concat(prefix, buildObj(split(splitObjEntries(inner, 1, 0, 0, "", charLen(concat(inner, ""))), chr(10)), 1, "")), rest))).
 
 ## To dotSep () -> Text:
     Return concat(concat(" ", chr(46)), " ").
@@ -3190,7 +3193,7 @@
 ## To propLength (v: Text) -> Int:
     If isArrRef(v):
         Return length of arrElements(v).
-    Return length of materialize(litToStr(v)).
+    Return charLen(materialize(litToStr(v))).
 
 ## To resolveProps (expr: Text) -> Text:
     If substringBefore(expr, " . length") is equal to expr:
@@ -3488,11 +3491,12 @@
 ## To bigTok (t: Text) -> Bool:
     If startsWith(t, tagBig ()):
         Return true.
-    If length of t is less than 2:
+    Let n be charLen(concat(t, "")).
+    If n is less than 2:
         Return false.
-    If item (length of t) of t is not equal to "n":
+    If item n of t is not equal to "n":
         Return false.
-    Return isIntStr(strSliceLoop(t, 1, (length of t) - 1, "")).
+    Return isIntStr(strSliceLoop(t, 1, n - 1, "")).
 
 ## To hasBigTok (toks: Seq of Text, i: Int) -> Bool:
     If i is greater than length of toks:
@@ -3983,7 +3987,7 @@
 # substr(start, length): start may be negative (from the end), then take `length` chars, clamped to
 # the string. (Legacy but common; distinct from substring which takes start/end indices.)
 ## To strSubstr (s: Text, start: Int, len: Int) -> Text:
-    Let n be length of s.
+    Let n be charLen(concat(s, "")).
     Let st be normSliceIdx(start, n).
     If len is less than 0:
         Return tagStr ().
@@ -4729,7 +4733,7 @@
     Return item (i + 1) of els.
 
 ## To strAt (s: Text, i: Int) -> Text:
-    Let n be length of s.
+    Let n be charLen(concat(s, "")).
     If i is less than 0:
         If n + i is less than 0:
             Return "undefined".
@@ -4829,7 +4833,7 @@
     Return balancedArg(aft, 1, 0, "").
 
 ## To methodRest (aft: Text) -> Text:
-    Return strSliceLoop(aft, (length of balancedArg(aft, 1, 0, "")) + 2, length of aft, "").
+    Return strSliceLoop(aft, (charLen(balancedArg(aft, 1, 0, ""))) + 2, length of aft, "").
 
 ## To topCommaIdx (s: Text, i: Int, depth: Int, g: Text) -> Int:
     If i is greater than length of s:
@@ -4850,36 +4854,36 @@
         Return [argStr, ""].
     Return [strSliceLoop(argStr, 1, idx - 1, ""), strSliceLoop(argStr, idx + 1, length of argStr, "")].
 
-## To commaDepthSplit (s: Text, i: Int, depth: Int, inStr: Int, g: Text) -> Text:
-    If i is greater than length of s:
+## To commaDepthSplit (s: Text, i: Int, depth: Int, inStr: Int, g: Text, len: Int) -> Text:
+    If i is greater than len:
         Return g.
     Let c be item i of s.
     If c is equal to chr(34):
         If inStr is equal to 0:
-            Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c)).
-        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
+            Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c), len).
+        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c), len).
     If inStr is equal to 1:
-        Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth, 1, concat(g, c), len).
     If c is equal to "(":
-        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c), len).
     If c is equal to ")":
-        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c), len).
     If c is equal to chr(91):
-        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c), len).
     If c is equal to chr(93):
-        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c), len).
     If c is equal to chr(123):
-        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth + 1, 0, concat(g, c), len).
     If c is equal to chr(125):
-        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c)).
+        Return commaDepthSplit(s, i + 1, depth - 1, 0, concat(g, c), len).
     If c is equal to ",":
         If depth is equal to 0:
-            Return commaDepthSplit(s, i + 1, 0, 0, concat(g, chr(10))).
-        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
-    Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c)).
+            Return commaDepthSplit(s, i + 1, 0, 0, concat(g, chr(10)), len).
+        Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c), len).
+    Return commaDepthSplit(s, i + 1, depth, 0, concat(g, c), len).
 
 ## To splitArgsN (argStr: Text) -> Seq of Text:
-    Return split(commaDepthSplit(argStr, 1, 0, 0, ""), chr(10)).
+    Return split(commaDepthSplit(argStr, 1, 0, 0, "", charLen(concat(argStr, ""))), chr(10)).
 
 # A bare unary global function used as a callback (`.map(Number)`, `.filter(Boolean)`). parseInt is
 # EXCLUDED — as a callback it receives the index as its 2nd arg (radix), the famous `map(parseInt)`
@@ -4987,15 +4991,19 @@
     Return arrFindIndexLoop(arrElements(arrval), 1, fnval, concat(arrval, ""), env).
 
 ## To strSliceLoop (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
+    Let cl be charLen(concat(s, "")).
+    If endEx is greater than cl:
+        Return strSliceLoopW(concat(s, ""), i, cl, acc).
+    Return strSliceLoopW(concat(s, ""), i, endEx, acc).
+
+## To strSliceLoopW (s: Text, i: Int, endEx: Int, acc: Text) -> Text:
     If i is greater than endEx:
         Return acc.
-    If i is greater than length of s:
-        Return acc.
     Let c be item i of s.
-    Return strSliceLoop(s, i + 1, endEx, concat(acc, c)).
+    Return strSliceLoopW(s, i + 1, endEx, concat(acc, c)).
 
 ## To strSlice (s: Text, a: Int, b: Int) -> Text:
-    Let n be length of s.
+    Let n be charLen(concat(s, "")).
     Return concat(tagStr (), strSliceLoop(s, normSliceIdx(a, n) + 1, normSliceIdx(b, n), "")).
 
 ## To strRepeat (s: Text, n: Int, acc: Text) -> Text:
@@ -5005,14 +5013,14 @@
     Return strRepeat(s, n - 1, acc2).
 
 ## To strEndsWith (s: Text, sub: Text) -> Bool:
-    Let ls be length of s.
-    Let lsub be length of sub.
+    Let ls be charLen(concat(s, "")).
+    Let lsub be charLen(concat(sub, "")).
     If lsub is greater than ls:
         Return false.
     Return strSliceLoop(s, ls - lsub + 1, ls, "") is equal to sub.
 
 ## To trimHeadIdx (s: Text, i: Int) -> Int:
-    If i is greater than length of s:
+    If i is greater than charLen(concat(s, "")):
         Return i.
     Let c be item i of s.
     If c is equal to encSpace ():
@@ -5029,14 +5037,14 @@
 
 ## To strTrim (s: Text) -> Text:
     Let a be trimHeadIdx(s, 1).
-    Let b be trimTailIdx(s, length of s).
+    Let b be trimTailIdx(s, charLen(concat(s, ""))).
     Return strSliceLoop(s, a, b, "").
 
 ## To strTrimStart (s: Text) -> Text:
     Return strSliceLoop(concat(s, ""), trimHeadIdx(concat(s, ""), 1), length of s, "").
 
 ## To strTrimEnd (s: Text) -> Text:
-    Return strSliceLoop(concat(s, ""), 1, trimTailIdx(concat(s, ""), length of s), "").
+    Return strSliceLoop(concat(s, ""), 1, trimTailIdx(concat(s, ""), charLen(concat(s, ""))), "").
 
 ## To clampIdx (idx: Int, n: Int) -> Int:
     If idx is less than 0:
@@ -5048,7 +5056,7 @@
 # substring clamps each index to [0, len] (a NEGATIVE index becomes 0 — NOT from-the-end, unlike
 # slice) and swaps them if a > b, so it never hands a 0/negative to the 1-based `item` builtin.
 ## To strSubstring (s: Text, a: Int, b: Int) -> Text:
-    Let n be length of s.
+    Let n be charLen(concat(s, "")).
     Let ca be clampIdx(a, n).
     Let cb be clampIdx(b, n).
     If ca is greater than cb:
@@ -5056,25 +5064,27 @@
     Return concat(tagStr (), strSliceLoop(s, ca + 1, cb, "")).
 
 ## To strPadStart (s: Text, target: Int, pad: Text) -> Text:
-    If length of s is greater than or equal to target:
+    Let cl be charLen(concat(s, "")).
+    If cl is greater than or equal to target:
         Return concat(tagStr (), s).
     If pad is equal to "":
         Return concat(tagStr (), s).
-    Let need be target - (length of s).
+    Let need be target - cl.
     Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
     Return concat(tagStr (), concat(padding, s)).
 
 ## To strPadEnd (s: Text, target: Int, pad: Text) -> Text:
-    If length of s is greater than or equal to target:
+    Let cl be charLen(concat(s, "")).
+    If cl is greater than or equal to target:
         Return concat(tagStr (), s).
     If pad is equal to "":
         Return concat(tagStr (), s).
-    Let need be target - (length of s).
+    Let need be target - cl.
     Let padding be strSliceLoop(strRepeat(pad, need, ""), 1, need, "").
     Return concat(tagStr (), concat(s, padding)).
 
 ## To strCharCodeAt (s: Text, i: Int) -> Int:
-    If i + 1 is greater than length of s:
+    If i + 1 is greater than charLen(concat(s, "")):
         Return 0.
     Let c be item (i + 1) of s.
     If c is equal to encSpace ():
@@ -5145,25 +5155,25 @@
 ## To strReplaceAll (s: Text, a: Text, b: Text) -> Text:
     Return concat(tagStr (), strReplaceAllLoop(s, a, b, "")).
 
-## To strUpperLoop (s: Text, i: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To strUpperLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     Let o be ord(c).
     If o is greater than or equal to 97:
         If o is less than or equal to 122:
-            Return strUpperLoop(s, i + 1, concat(acc, chr(o - 32))).
-    Return strUpperLoop(s, i + 1, concat(acc, c)).
+            Return strUpperLoop(s, i + 1, concat(acc, chr(o - 32)), len).
+    Return strUpperLoop(s, i + 1, concat(acc, c), len).
 
-## To strLowerLoop (s: Text, i: Int, acc: Text) -> Text:
-    If i is greater than length of s:
+## To strLowerLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
         Return acc.
     Let c be item i of s.
     Let o be ord(c).
     If o is greater than or equal to 65:
         If o is less than or equal to 90:
-            Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32))).
-    Return strLowerLoop(s, i + 1, concat(acc, c)).
+            Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32)), len).
+    Return strLowerLoop(s, i + 1, concat(acc, c), len).
 
 ## To mpos (expr: Text, marker: Text) -> Int:
     If substringBefore(expr, marker) is equal to expr:
@@ -5281,7 +5291,7 @@
 ## To popLast (s: Text) -> Text:
     If s is equal to "":
         Return "".
-    Return strSliceLoop(s, 1, (length of s) - 1, "").
+    Return strSliceLoop(s, 1, (charLen(concat(s, ""))) - 1, "").
 
 ## To fnBraceStack (toks: Seq of Text, i: Int, state: Int, pdepth: Int, stack: Text) -> Text:
     If i is greater than length of toks:
@@ -5807,7 +5817,7 @@
         Let bef be substringBefore(expr, "JSON . parse (").
         Let aft be substringAfter(expr, "JSON . parse (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let jraw be materialize(jsEvalIn(trim(argStr), env)).
         If jsonValid(concat(jraw, "")) is equal to false:
             Return resolveMethods(trim(concat(concat(bef, throwSet(newError("SyntaxError", concat(tagStr (), "Unexpected token in JSON")))), rst)), env).
@@ -5817,7 +5827,7 @@
         Let bef be substringBefore(expr, "JSON . stringify (").
         Let aft be substringAfter(expr, "JSON . stringify (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let sargs be splitArgsN(concat(argStr, "")).
         Let valV be jsEvalIn(trim(item 1 of sargs), env).
         If length of sargs is greater than 2:
@@ -5957,7 +5967,7 @@
         Let bef be substringBefore(expr, " . call (").
         Let aft be substringAfter(expr, " . call (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let prefix be recvPrefix(concat(bef, "")).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
@@ -5974,7 +5984,7 @@
         Let bef be substringBefore(expr, " . apply (").
         Let aft be substringAfter(expr, " . apply (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let prefix be recvPrefix(concat(bef, "")).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
@@ -5993,7 +6003,7 @@
         Let bef be substringBefore(expr, " . bind (").
         Let aft be substringAfter(expr, " . bind (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let prefix be recvPrefix(concat(bef, "")).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
@@ -6009,7 +6019,7 @@
         Let bef be substringBefore(expr, " . reduce (").
         Let aft be substringAfter(expr, " . reduce (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6024,7 +6034,7 @@
         Let bef be substringBefore(expr, " . reduceRight (").
         Let aft be substringAfter(expr, " . reduceRight (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6039,7 +6049,7 @@
         Let bef be substringBefore(expr, " . flatMap (").
         Let aft be substringAfter(expr, " . flatMap (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6049,7 +6059,7 @@
         Let bef be substringBefore(expr, " . map (").
         Let aft be substringAfter(expr, " . map (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6059,7 +6069,7 @@
         Let bef be substringBefore(expr, " . filter (").
         Let aft be substringAfter(expr, " . filter (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6069,7 +6079,7 @@
         Let bef be substringBefore(expr, " . toString (").
         Let aft be substringAfter(expr, " . toString (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6078,7 +6088,7 @@
         Let bef be substringBefore(expr, " . hasOwnProperty (").
         Let aft be substringAfter(expr, " . hasOwnProperty (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6087,7 +6097,7 @@
         Let bef be substringBefore(expr, " . toFixed (").
         Let aft be substringAfter(expr, " . toFixed (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6096,7 +6106,7 @@
         Let bef be substringBefore(expr, " . toPrecision (").
         Let aft be substringAfter(expr, " . toPrecision (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6105,7 +6115,7 @@
         Let bef be substringBefore(expr, " . toExponential (").
         Let aft be substringAfter(expr, " . toExponential (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6114,7 +6124,7 @@
         Let bef be substringBefore(expr, " . toLocaleString (").
         Let aft be substringAfter(expr, " . toLocaleString (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6123,7 +6133,7 @@
         Let bef be substringBefore(expr, " . push (").
         Let aft be substringAfter(expr, " . push (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6134,7 +6144,7 @@
         Let bef be substringBefore(expr, " . forEach (").
         Let aft be substringAfter(expr, " . forEach (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6148,7 +6158,7 @@
         Let bef be substringBefore(expr, " . concat (").
         Let aft be substringAfter(expr, " . concat (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6177,7 +6187,7 @@
         Let bef be substringBefore(expr, " . sort (").
         Let aft be substringAfter(expr, " . sort (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6189,7 +6199,7 @@
         Let bef be substringBefore(expr, " . some (").
         Let aft be substringAfter(expr, " . some (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6199,7 +6209,7 @@
         Let bef be substringBefore(expr, " . every (").
         Let aft be substringAfter(expr, " . every (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6209,7 +6219,7 @@
         Let bef be substringBefore(expr, " . find (").
         Let aft be substringAfter(expr, " . find (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6227,7 +6237,7 @@
         Let bef be substringBefore(expr, " . toSorted (").
         Let aft be substringAfter(expr, " . toSorted (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6258,7 +6268,7 @@
         Let bef be substringBefore(expr, " . findLast (").
         Let aft be substringAfter(expr, " . findLast (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6268,7 +6278,7 @@
         Let bef be substringBefore(expr, " . findLastIndex (").
         Let aft be substringAfter(expr, " . findLastIndex (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -6372,7 +6382,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strUpperLoop(sval, 1, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strUpperLoop(sval, 1, "", charLen(concat(sval, ""))))), rst)), env).
     If lm is equal to " . toLowerCase (":
         Let bef be substringBefore(expr, " . toLowerCase (").
         Let aft be substringAfter(expr, " . toLowerCase (").
@@ -6380,7 +6390,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strLowerLoop(sval, 1, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), strLowerLoop(sval, 1, "", charLen(concat(sval, ""))))), rst)), env).
     If lm is equal to " . includes (":
         Let bef be substringBefore(expr, " . includes (").
         Let aft be substringAfter(expr, " . includes (").
@@ -6571,7 +6581,7 @@
         Let bef be substringBefore(expr, " . findIndex (").
         Let aft be substringAfter(expr, " . findIndex (").
         Let argStr be balancedArg(aft, 1, 0, "").
-        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
@@ -7018,36 +7028,36 @@
         Return jsEvalIn(defExpr, env).
     Return cur.
 
-## To patFieldSplit (s: Text, i: Int, depth: Int, q: Int, g: Text) -> Text:
-    If i is greater than length of s:
+## To patFieldSplit (s: Text, i: Int, depth: Int, q: Int, g: Text, len: Int) -> Text:
+    If i is greater than len:
         Return g.
     Let c be item i of s.
     If c is equal to chr(34):
         If q is equal to 0:
-            Return patFieldSplit(s, i + 1, depth, 1, concat(g, c)).
-        Return patFieldSplit(s, i + 1, depth, 0, concat(g, c)).
+            Return patFieldSplit(s, i + 1, depth, 1, concat(g, c), len).
+        Return patFieldSplit(s, i + 1, depth, 0, concat(g, c), len).
     If q is equal to 1:
-        Return patFieldSplit(s, i + 1, depth, 1, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth, 1, concat(g, c), len).
     If c is equal to chr(123):
-        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c), len).
     If c is equal to chr(91):
-        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c), len).
     If c is equal to "(":
-        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth + 1, q, concat(g, c), len).
     If c is equal to chr(125):
-        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c), len).
     If c is equal to chr(93):
-        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c), len).
     If c is equal to ")":
-        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c)).
+        Return patFieldSplit(s, i + 1, depth - 1, q, concat(g, c), len).
     If c is equal to ",":
         If depth is equal to 0:
-            Return patFieldSplit(s, i + 1, 0, q, concat(g, chr(10))).
-        Return patFieldSplit(s, i + 1, depth, q, concat(g, c)).
-    Return patFieldSplit(s, i + 1, depth, q, concat(g, c)).
+            Return patFieldSplit(s, i + 1, 0, q, concat(g, chr(10)), len).
+        Return patFieldSplit(s, i + 1, depth, q, concat(g, c), len).
+    Return patFieldSplit(s, i + 1, depth, q, concat(g, c), len).
 
 ## To patFields (inner: Text) -> Seq of Text:
-    Return split(patFieldSplit(inner, 1, 0, 0, ""), chr(10)).
+    Return split(patFieldSplit(inner, 1, 0, 0, "", charLen(inner)), chr(10)).
 
 ## To topEqIdx (s: Text, i: Int, depth: Int) -> Int:
     If i is greater than length of s:
@@ -7335,14 +7345,14 @@
 ## To stripTrailSemi (s: Text) -> Text:
     Let t be trim(s).
     If strEndsWith(concat(t, ""), ";"):
-        Return trim(strSliceLoop(concat(t, ""), 1, (length of t) - 1, "")).
+        Return trim(strSliceLoop(concat(t, ""), 1, (charLen(concat(t, ""))) - 1, "")).
     Return t.
 
 ## To execIf (stmt: Text, env: Text) -> Text:
     Let inner be substringAfter(stmt, "(").
     Let condRaw be balancedArg(concat(inner, ""), 1, 0, "").
     Let cond be trim(condRaw).
-    Let afterCond be trim(strSliceLoop(inner, (length of condRaw) + 2, length of inner, "")).
+    Let afterCond be trim(strSliceLoop(inner, (charLen(concat(condRaw, ""))) + 2, length of inner, "")).
     If startsWith(afterCond, chr(123)):
         Let thenBlock be braceBody(substringAfter(afterCond, chr(123)), 1, 0, "").
         If boolOf(jsEvalIn(cond, env)):
@@ -8184,7 +8194,7 @@
     If hasSep(s, " . sort ("):
         Let sv be trim(substringBefore(s, " . sort (")).
         Let saft be substringAfter(s, " . sort (").
-        Let srest be trim(strSliceLoop(saft, (length of balancedArg(concat(saft, ""), 1, 0, "")) + 2, length of saft, "")).
+        Let srest be trim(strSliceLoop(saft, (charLen(balancedArg(concat(saft, ""), 1, 0, ""))) + 2, length of saft, "")).
         If srest is equal to "":
             If isSimpleName(concat(sv, "")):
                 If isArrRef(jsEvalIn(concat(sv, ""), concat(env, ""))):
@@ -8192,7 +8202,7 @@
     If hasSep(s, " . fill ("):
         Let fv be trim(substringBefore(s, " . fill (")).
         Let faft be substringAfter(s, " . fill (").
-        Let frest be trim(strSliceLoop(faft, (length of balancedArg(concat(faft, ""), 1, 0, "")) + 2, length of faft, "")).
+        Let frest be trim(strSliceLoop(faft, (charLen(balancedArg(concat(faft, ""), 1, 0, ""))) + 2, length of faft, "")).
         If frest is equal to "":
             If isSimpleName(concat(fv, "")):
                 If isArrRef(jsEvalIn(concat(fv, ""), concat(env, ""))):
@@ -8200,7 +8210,7 @@
     If hasSep(s, " . reverse ("):
         Let rv be trim(substringBefore(s, " . reverse (")).
         Let raft be substringAfter(s, " . reverse (").
-        Let rrest be trim(strSliceLoop(raft, (length of balancedArg(concat(raft, ""), 1, 0, "")) + 2, length of raft, "")).
+        Let rrest be trim(strSliceLoop(raft, (charLen(balancedArg(concat(raft, ""), 1, 0, ""))) + 2, length of raft, "")).
         If rrest is equal to "":
             If isSimpleName(concat(rv, "")):
                 If isArrRef(jsEvalIn(concat(rv, ""), concat(env, ""))):
@@ -8595,8 +8605,8 @@
     Let drained be drainMicrotasks("", "").
     Return v.
 
-## To nchars (s: Text, i: Int, n: Int) -> Text:
-    If i + n is greater than length of s + 1:
+## To nchars (s: Text, i: Int, n: Int, len: Int) -> Text:
+    If i + n is greater than len + 1:
         Return "".
     If n is equal to 2:
         Return concat(item i of s, item (i + 1) of s).
@@ -8751,10 +8761,10 @@
             If i is less than len:
                 If digitChar(item (i + 1) of s):
                     Return normJsN(s, i + 1, inStr, concat(acc, c), len).
-    Let op3 be nchars(s, i, 3).
+    Let op3 be nchars(s, i, 3, len).
     If isOp3(op3):
         Return normJsN(s, i + 3, inStr, concat(acc, spaced(op3)), len).
-    Let op2 be nchars(s, i, 2).
+    Let op2 be nchars(s, i, 2, len).
     If isOp2(op2):
         Return normJsN(s, i + 2, inStr, concat(acc, spaced(op2)), len).
     If isOp1(c):
@@ -8819,15 +8829,16 @@
 # (`1e-2`), not a binary operator. The digit-before test rejects an identifier ending in `e` (`somee - 2`);
 # the decimal-mantissa test rejects a hex literal ending in `e` (`0x48e + 3`, where `e` is a hex digit).
 ## To expMarkerEnd (acc: Text) -> Bool:
-    If length of acc is less than 2:
+    Let n be charLen(concat(acc, "")).
+    If n is less than 2:
         Return false.
-    Let lc be item (length of acc) of acc.
+    Let lc be item n of acc.
     If expEChar(lc) is equal to false:
         Return false.
-    If digitChar(item ((length of acc) - 1) of acc) is equal to false:
+    If digitChar(item (n - 1) of acc) is equal to false:
         Return false.
-    Let st be trailNumStart(concat(acc, ""), length of acc).
-    Return allDecChar(strSliceLoop(concat(acc, ""), st, (length of acc) - 1, ""), 1).
+    Let st be trailNumStart(concat(acc, ""), n).
+    Return allDecChar(strSliceLoop(concat(acc, ""), st, n - 1, ""), 1).
 
 ## To expEChar (c: Text) -> Bool:
     If c is equal to "e":
@@ -8839,7 +8850,7 @@
 ## To lastCharOf (s: Text) -> Text:
     If s is equal to "":
         Return "".
-    Return item (length of s) of s.
+    Return item (charLen(s)) of s.
 
 ## To joinNonEmpty (parts: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of parts:
@@ -9106,7 +9117,7 @@
         Return concat(concat(methods, fields), cbody).
     Let afterOpen be substringAfter(cbody, chr(40)).
     Let sargs be balancedArg(concat(afterOpen, ""), 1, 0, "").
-    Let afterClose be strSliceLoop(afterOpen, (length of sargs) + 2, length of afterOpen, "").
+    Let afterClose be strSliceLoop(afterOpen, (charLen(concat(sargs, ""))) + 2, length of afterOpen, "").
     Let restBody be trim(substringAfter(concat(afterClose, ""), ";")).
     Let superCall be concat(concat(concat(concat("__super__ ", parent), " ( "), sargs), " ) ; ").
     Return concat(concat(concat(superCall, methods), fields), restBody).
@@ -9186,7 +9197,7 @@
     Let params be trim(substringBefore(substringAfter(b, chr(40)), chr(41))).
     Let afterBrace be substringAfter(b, chr(123)).
     Let mbody be braceBody(afterBrace, 1, 0, "").
-    Let rest be strSliceLoop(afterBrace, (length of mbody) + 2, length of afterBrace, "").
+    Let rest be strSliceLoop(afterBrace, (charLen(concat(mbody, ""))) + 2, length of afterBrace, "").
     If name is equal to "constructor":
         Return classWalk(cname, parent, rest, params, trim(mbody), methods, statics, fields).
     If name is equal to "static":
@@ -9229,7 +9240,7 @@
     Let parent be classParent(head).
     Let afterBrace be substringAfter(aft, chr(123)).
     Let cbody be braceBody(afterBrace, 1, 0, "").
-    Let remainder be strSliceLoop(afterBrace, (length of cbody) + 2, length of afterBrace, "").
+    Let remainder be strSliceLoop(afterBrace, (charLen(concat(cbody, ""))) + 2, length of afterBrace, "").
     Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "", "")), " ; ").
     Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
@@ -9252,7 +9263,7 @@
     Let params be trim(substringBefore(substringAfter(aft, chr(40)), chr(41))).
     Let afterBrace be substringAfter(aft, chr(123)).
     Let body be braceBody(afterBrace, 1, 0, "").
-    Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+    Let remainder be strSliceLoop(afterBrace, (charLen(concat(body, ""))) + 2, length of afterBrace, "").
     Let head be concat(concat(concat(concat("function ", name), " ( "), params), " ) ").
     Let wrapped be concat(concat(concat(head, chr(123)), concat(concat(" __GENRESET ; ", trim(body)), " ; return __GENMAKE ")), chr(125)).
     Return desugarGenerators(concat(concat(concat(bef, wrapped), " "), remainder)).
@@ -9462,9 +9473,17 @@
 # it — char-boundary-safe) and counting; O(n²), so it is computed ONCE per pass and threaded, never re-called
 # inside the loop bound.
 ## To charLen (s: Text) -> Int:
-    If concat(s, "") is equal to "":
-        Return 0.
-    Return 1 + charLen(substringAfter(concat(s, ""), item 1 of concat(s, ""))).
+    Let bytes be text_bytes(concat(s, "")).
+    Return charLenBytes(bytes, 1, length of bytes, 0).
+
+## To charLenBytes (bytes: Seq of Int, i: Int, n: Int, acc: Int) -> Int:
+    If i is greater than n:
+        Return acc.
+    Let b be item i of bytes.
+    If b is at least 128:
+        If b is at most 191:
+            Return charLenBytes(bytes, i + 1, n, acc).
+    Return charLenBytes(bytes, i + 1, n, acc + 1).
 
 ## To convertQuotes (s: Text) -> Text:
     Return convertQuotesN(concat(s, ""), 1, 0, "", charLen(concat(s, ""))).
@@ -9712,7 +9731,7 @@
     Let head be substringBefore(aft, chr(123)).
     Let afterBrace be substringAfter(aft, chr(123)).
     Let body be braceBody(afterBrace, 1, 0, "").
-    Let remainder be strSliceLoop(afterBrace, (length of body) + 2, length of afterBrace, "").
+    Let remainder be strSliceLoop(afterBrace, (charLen(concat(body, ""))) + 2, length of afterBrace, "").
     Let fixedBody be insertBodySemis(concat(body, ""), 1, 0, 0, "").
     Return concat(concat(concat(concat(concat(concat(bef, "class "), head), chr(123)), fixedBody), chr(125)), classBodySemis(concat(remainder, ""))).
 

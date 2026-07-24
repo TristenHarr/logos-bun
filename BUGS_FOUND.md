@@ -3665,3 +3665,42 @@ split). Every one is the same bug and the same `charLen`-threading fix; ~90 `len
 engine-wide. (An alternative root fix worth weighing: encode non-ASCII code points to an ASCII placeholder
 ONCE before normalize and decode ONCE at output — one encode + one decode instead of fixing ~90 walkers — at
 the cost of byte-based length/indexing until a separate code-unit pass.)
+
+**Unicode COMPLETE: the true root cause was a toolchain `item` byte-leak, not a bun bug (2026-07-24, 138th).**
+The 136th/137th chased a bun-side symptom; the ACTUAL root cause is one line in the LOGOS toolchain. In
+`logicaffeine_data/src/indexing.rs`, `LogosIndex<i64> for String::logos_get` and `LogosGetChar::logos_get_char`
+took an ASCII "fast path" of `self.as_bytes()[index-1]` where `index-1` is a CHARACTER offset — valid only
+across a pure-ASCII prefix. When a multibyte char precedes the index, the byte at that offset is a *different*
+character, and the guard `Some(&b) if b.is_ascii()` returned that wrong byte whenever it happened to be ASCII
+(only falling back to the correct `chars().nth` when the stray byte was itself non-ASCII). So `item 26 of
+'(function(){return "café"})()'` returned `"` (the byte after é's two bytes) instead of `}`. Fixed both
+functions to take the byte-offset fast path only when `bytes[..=idx]` is entirely ASCII (byte offset == char
+offset); otherwise `chars().nth(idx)`. ASCII behaviour is byte-identical — only genuinely non-ASCII indexing
+changes — so the toolchain's `jit_text_bytes` ASCII-pin invariant still holds. New RED→GREEN test
+`indexing::tests::string_char_index_after_multibyte` (logicaffeine-data 127/127 green). NOTE: this toolchain
+fix is LOCAL to the build clone; a public bun built against an unpatched upstream still needs the bun-side
+`charLen` guards, and those are what SHIP.
+
+With `item` corrected, the bun-side work became a finite `charLen`-threading sweep (the `length of Text` = BYTE
+count vs `item i of Text` = CHARACTER duality is *intentional, tested* toolchain design — `jit_text_bytes`
+locks it — so `length of` was NOT changed; each Text-walker instead threads a precomputed `charLen`). Made
+`charLen` O(n) tail-recursive via `text_bytes` (count non-continuation UTF-8 bytes) instead of the O(n²)
+`substringAfter` recursion, then swept every char-walker: `strSliceLoop` (a clamp-to-charLen wrapper so its
+100+ callers are untouched), the depth-split family (`nchars`/`patFieldSplit`/`commaDepthSplit`/
+`splitArrElemsDepth`/`splitObjEntries`×2/`jsonSplitTop`), `methodRest` + ~45 `(length of X)+N`/`-1` slice
+positions (the arg-skip bug that broke chained methods after a non-ASCII arg), the value-level methods
+(`propLength`/`charCodeStr`/`strCharCodeAt`/`strUpperLoop`/`strLowerLoop`/`strAt`/`strSlice`/`strSubstr`/
+`strSubstring`/`strEndsWith`/`strPadStart`/`strPadEnd`/`strToCharArrLoop`/`trimHeadIdx`/`trimTailIdx`/
+`lastCharOf`/`bigTok`/`expMarkerEnd`), and the whole JSON `parse` engine (validator family `jsonWs`/
+`jsonScanStr`/`jsonScanVal`/`jsonScanArr`/`jsonScanObj`/`jsonScanPair`/`jsonNumEnd`/`jsonMatchLit`/`jsonValid`
++ builder family `jsonSplitTop`/`jsonUnescape`/`encTrim(Head)`/`jsonParse` — a precomputed `n` threaded through
+each). NOW MATCHING NODE: literals, print, concat, `===`, emoji + CJK (日本語), `.length`, `[i]`, `charAt`,
+`charCodeAt`, `substring`, `substr`, `slice` (incl. negative), `indexOf`, `split` (incl. non-ASCII separator),
+`replace`, `includes`, `startsWith`, `endsWith`, `repeat`, `padStart`, `at`, `trim`, object keys/values/access
++ unicode property names, `JSON.stringify`, `JSON.parse` (non-ASCII values/keys/arrays + round-trip), spread,
+template literals. Full sweep green (262/262, seeds 1-2) — zero ASCII regression. KNOWN NON-DUALITY GAPS
+(separate features, not this bug): `toUpperCase`/`toLowerCase` only case-map ASCII (é stays é — needs the
+Unicode case-mapping table); astral `.length` is scalar count not UTF-16 code units (deliberate: the engine
+indexes by scalar, so a scalar-consistent length avoids over-indexing — full UTF-16 needs surrogate
+modelling); `JSON.parse` of a TEMPLATE-LITERAL argument fails for ASCII too (pre-existing, unrelated);
+`btoa`/base64 of non-Latin1 (throws in Node anyway).
