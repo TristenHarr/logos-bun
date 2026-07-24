@@ -2751,3 +2751,18 @@ s.pop()` stack drain, and string/object elements all match Node; push, the bare 
 splice, slice unchanged. New `shiftunshift-diff` fuzzer (900 checks/3 seeds × shift/pop/unshift, RETURN
 value + post-op array). Gotcha: a local named `shifted` is a reserved identifier surface in LOGOS (parse
 error `ExpectedIdentifier`) — renamed to `firstEl`. Full sweep green (392/392).
+
+**Number.prototype.toPrecision (2026-07-24, 68th engine fix).** `(123.456).toPrecision(4)` and friends
+returned NaN — the method was unimplemented. Added a native `js_to_precision` (in the toolchain, mirroring
+`js_to_fixed`) implementing ECMA-262 21.1.3.5: `p` significant digits, exponential notation when the
+decimal exponent is < -6 or >= p, otherwise fixed-point, with the exponent sign normalized to JS form
+(`1.2e+5`). Crucially it rounds the EXACT f64 value HALF-UP via string digits — Rust's own `format!` rounds
+half-to-EVEN, which disagrees with JS on decimal ties (`(4605000).toPrecision(3)` is `4.61e+6`, not
+`4.60e+6`; `(256.5).toPrecision(3)` is `257`, not `256`) — with carry-overflow handling (`(999).toPrecision(2)`
+→ `1.0e+3`), plus the zero and negative cases. Wired `jsToPrecision` → `env::js_to_precision` in the codegen
+native map and declared `## To native jsToPrecision`, dispatched in resolveMethods like `.toFixed(`.
+`123.456`/p4, exponential-switch (large/tiny), `Math.PI`/p6, sub-1 fractions, all the decimal ties, carry,
+zero, and negatives match Node; `.toFixed`, `.toString(radix)`, other number methods unchanged. New
+`toprecision-diff` fuzzer (4000+ checks across magnitudes/precisions incl. tie boundaries — it CAUGHT the
+half-even-vs-half-up rounding bug in the first cut, fixed with the string round-half-up). Toolchain change
+(env.rs + program.rs) committed alongside. Full sweep green (394/394).
