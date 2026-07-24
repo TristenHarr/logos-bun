@@ -2781,3 +2781,17 @@ negatives, zero, sub-1, million+decimals, `[1,2,3]`/`"hello"` fallback all match
 CAUGHT the exact-vs-shortest rounding difference). Toolchain change (env.rs + program.rs) committed
 alongside. Full sweep green (396/396). NOTE: box is en-US; a non-en-US default locale would diverge (a
 documented approximation — locale/options args are ignored).
+
+**Number.prototype.toFixed exact-f64 half-up rounding (2026-07-24, 70th engine fix).** The native
+`js_to_fixed` rounded via Rust's `format!`, which is round-half-to-EVEN — so it disagreed with JS on
+exact-f64 ties: `(2.5).toFixed(0)` was "2" not "3", `(12.5).toFixed(0)` was "12" not "13", a real
+correctness bug in a very common method. Rewrote it to round the EXACT f64 value HALF-UP via string digits
+(the same technique as `js_to_precision`): format to `digits + 25` decimals to get the exact expansion,
+round at the target position half-up, propagate the carry (`(999.99).toFixed(1)`→"1000.0"). This also fixes
+the exact-value edge `(1.005).toFixed(2)` → "1.00" (the exact f64 of 1.005 is 1.00499999…, so it rounds
+down — matching V8) and the `-0` sign (`(-0).toFixed(2)` → "0.00", `(-0.001).toFixed(2)` → "-0.00", since
+`neg = v < 0.0` is false for `-0.0`). `2.5`/`12.5`/`0.5` ties, negatives, carry, zero, and `0.1+0.2` all
+match Node; `.toPrecision`/`.toLocaleString`/`.toString(radix)` unchanged. New `tofixed-diff` fuzzer (4000+
+checks, deliberately sampling the half-integer tie boundary). Toolchain change (env.rs) committed alongside.
+Full sweep green (398/398). (Reusable doctrine: toFixed/toPrecision round the EXACT f64 half-up; Intl/
+toLocaleString rounds the SHORTEST round-trip decimal half-up — never Rust's half-to-even `format!`.)
