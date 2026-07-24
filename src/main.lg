@@ -85,6 +85,10 @@
 
 ## To native throwClear () -> Text
 
+## To native reCiSet (v: Text) -> Text
+
+## To native reCiGet () -> Text
+
 # jsint byte vocabulary. A JS value is a flat Text carrying a tag byte: a string is
 # tagStr+content, an array is tagArr..tagArrEnd with tagArrSep between elements, an
 # object is tagObj..tagObjEnd with tagObjSep between entries and tagObjKV between key
@@ -4839,7 +4843,7 @@
             Let raft be substringAfter(expr, " . test (").
             Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
             If isRegex(rrecv):
-                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env)))))), methodRest(raft))), env).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env))), materialize(objGet(concat(rrecv, ""), "__regex_flags"))))), methodRest(raft))), env).
     If substringBefore(expr, " . match (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . match (") is equal to false:
         Let mbef be substringBefore(expr, " . match (").
@@ -4849,11 +4853,11 @@
             Let msrc be decodeStr(materialize(objGet(concat(mre, ""), "__regex_src"))).
             Let mtext be decodeStr(materialize(jsEvalIn(recvExpr(concat(mbef, "")), env))).
             If reHasG(materialize(objGet(concat(mre, ""), "__regex_flags"))):
-                Let mall be reFindAll(msrc, mtext).
+                Let mall be reFindAll(msrc, mtext, materialize(objGet(concat(mre, ""), "__regex_flags"))).
                 If mall is equal to "":
                     Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), mall), tagArrEnd ()))), methodRest(maft))), env).
-            Let mfound be reFind(msrc, mtext).
+            Let mfound be reFind(msrc, mtext, materialize(objGet(concat(mre, ""), "__regex_flags"))).
             If mfound is equal to "":
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), concat(tagStr (), mfound)), tagArrEnd ()))), methodRest(maft))), env).
@@ -5730,7 +5734,7 @@
         Let sargs be splitArgsN(methodArg(aft)).
         Let sepraw be jsEvalIn(trim(item 1 of sargs), env).
         If isRegex(sepraw):
-            Return resolveMethods(trim(concat(concat(concat(prefix, " "), splitLimit(reSplit(decodeStr(materialize(objGet(concat(sepraw, ""), "__regex_src"))), decodeStr(concat(sval, ""))), sargs, env)), rst)), env).
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), splitLimit(reSplit(decodeStr(materialize(objGet(concat(sepraw, ""), "__regex_src"))), decodeStr(concat(sval, "")), materialize(objGet(concat(sepraw, ""), "__regex_flags"))), sargs, env)), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), splitLimit(strSplit(sval, materialize(sepraw)), sargs, env)), rst)), env).
     If lm is equal to " . join (":
         Let bef be substringBefore(expr, " . join (").
@@ -8625,6 +8629,32 @@
         Return (classEnd(pat, pi + 1) - pi) + 1.
     Return 1.
 
+# The opposite-case twin of an ASCII letter (a↔A), else the char unchanged — used to test a character
+# class against both cases under the `i` flag without touching the class scanner.
+## To chSwapCase (c: Text) -> Text:
+    Let o be ord(c).
+    If o is greater than 64:
+        If o is less than 91:
+            Return chr(o + 32).
+    If o is greater than 96:
+        If o is less than 123:
+            Return chr(o - 32).
+    Return c.
+
+## To chLower (c: Text) -> Text:
+    Let o be ord(c).
+    If o is greater than 64:
+        If o is less than 91:
+            Return chr(o + 32).
+    Return c.
+
+# Set the regex case-insensitive matcher flag from a pattern's flags (on iff the flags contain `i`).
+# Called by every match entry point so the flag reflects THIS operation and never leaks from a prior one.
+## To reApplyCi (flags: Text) -> Text:
+    If substringBefore(flags, "i") is not equal to flags:
+        Return reCiSet("1").
+    Return reCiSet("").
+
 ## To atomMatches (pat: Text, pi: Int, ch: Text) -> Bool:
     Let c be item pi of pat.
     If c is equal to ".":
@@ -8632,7 +8662,13 @@
     If c is equal to chr(92):
         Return escapeMatches(item (pi + 1) of pat, ch).
     If c is equal to chr(91):
+        If reCiGet() is equal to "1":
+            If reClassMatch(pat, pi + 1, ch):
+                Return true.
+            Return reClassMatch(pat, pi + 1, chSwapCase(ch)).
         Return reClassMatch(pat, pi + 1, ch).
+    If reCiGet() is equal to "1":
+        Return chLower(c) is equal to chLower(ch).
     Return c is equal to ch.
 
 ## To countAtoms (pat: Text, api: Int, text: Text, ti: Int, k: Int) -> Int:
@@ -8808,7 +8844,8 @@
         Return 0.
     Return reSearchFrom(pat, text, ti + 1).
 
-## To reTest (pat: Text, text: Text) -> Bool:
+## To reTest (pat: Text, text: Text, flags: Text) -> Bool:
+    Let ci be reApplyCi(concat(flags, "")).
     If startsWith(pat, "^"):
         Return mh(pat, 2, text, 1) is greater than 0.
     Return reSearchFrom(pat, text, 1) is greater than 0.
@@ -8836,7 +8873,8 @@
         Return mh(pat, 2, text, start).
     Return mh(pat, 1, text, start).
 
-## To reFind (pat: Text, text: Text) -> Text:
+## To reFind (pat: Text, text: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
     Let start be reSearchStart(pat, text).
     If start is equal to 0:
         Return "".
@@ -8862,7 +8900,8 @@
         Return reFindAllLoop(pat, after, nextAcc).
     Return nextAcc.
 
-## To reFindAll (pat: Text, text: Text) -> Text:
+## To reFindAll (pat: Text, text: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
     Return reFindAllLoop(pat, text, "").
 
 ## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
@@ -8908,6 +8947,7 @@
     Return replaceAll(ii, chr(10), encNewline ()).
 
 ## To reReplace (pat: Text, text: Text, repl: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
     Return concat(tagStr (), encodeStr(reReplaceLoop(pat, text, repl, reHasG(flags), ""))).
 
 # .replace(regex, fn): like reReplaceLoop, but each match's replacement is fn(match, offset) — the
@@ -8930,9 +8970,11 @@
     Return concat(acc, concat(before, concat(repl, after))).
 
 ## To reReplaceFn (pat: Text, text: Text, fnval: Text, flags: Text, env: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
     Return concat(tagStr (), encodeStr(reReplaceFnLoop(pat, text, fnval, reHasG(flags), env, ""))).
 
-## To reSplit (pat: Text, text: Text) -> Text:
+## To reSplit (pat: Text, text: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
     Return strSplit(reReplaceLoop(pat, text, chr(0), true, ""), chr(0)).
 
 # --- Map / Set (E5) ---
@@ -9441,7 +9483,7 @@ Otherwise If cmd is equal to "__js":
 Otherwise If cmd is equal to "__heap-probe":
     Show heapProbe().
 Otherwise If cmd is equal to "__regex-test":
-    Show cmpResult(reTest(item 3 of arguments, item 4 of arguments)).
+    Show cmpResult(reTest(item 3 of arguments, item 4 of arguments, "")).
 Otherwise If cmd is equal to "run":
     Let runSrc be readFile(item 3 of arguments).
     Let runExec be concat(tagStr (), item 1 of arguments).

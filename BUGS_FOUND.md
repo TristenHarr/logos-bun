@@ -3074,3 +3074,15 @@ and added a throwPending short-circuit so a throwing predicate surfaces to the e
 the 91st fix). The array third arg (`a.length`, `a[i]`), the index second arg, value-only predicates, and
 short-circuit semantics all match Node. New `predicatearg-diff` fuzzer (1500+ checks, six methods × index/
 array/value callbacks). Full sweep green (223/223).
+
+**Regex case-insensitive `i` flag (2026-07-24, 95th engine fix).** `/[a-c]/gi` matched only lowercase
+(`"abcABC".replace(/[a-c]/gi,"x")` gave "xxxABC" not "xxxxxx") — the backtracking matcher's atom/class
+comparisons were case-sensitive with no flag threaded through. Rather than thread a flag through every
+matcher function (delicate) or lowercase the pattern (breaks `\D\W\S\B`), added a thread-local case-fold
+flag: a new toolchain native pair reCiSet/reCiGet (env.rs + program.rs, committed LOCALLY), which each match
+entry point (reTest/reFind/reFindAll/reReplace/reReplaceFn/reSplit) sets from the pattern's flags via
+reApplyCi, and the two comparison points read — atomMatches folds a literal (chLower), and a character class
+is tested against both cases of the input char (chSwapCase). `i` now works across test/match/replace/split
+for literals, classes, and ranges; case-sensitive matching, `\d\w\s`, and anchors are unchanged. New
+`regexci-diff` fuzzer (1500+ checks, i vs non-i × four methods × literal/class/range). Full sweep green
+(224/224). (Capture-group `$N`/`match()[N]` remains a separate deferred matcher-redesign item.)
