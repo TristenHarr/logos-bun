@@ -1175,7 +1175,17 @@
         Return envSet(concat(localEnv, ""), "arguments", arrOf(concat(argsText, ""), callerEnv)).
     Return concat(localEnv, "").
 
+# A `f.bind(thisArg)` result is stored as a plain object carrying the original function and the bound
+# `this` (`__bfn`/`__bthis`); calling it re-dispatches through callMethod with that `this`. (Bound partial
+# arguments — `f.bind(o, a)` — are not captured yet; the common `this`-binding case is.)
+## To isBoundFn (v: Text) -> Bool:
+    If isObjRef(concat(v, "")):
+        Return objGet(concat(v, ""), "__bfn") is not equal to "undefined".
+    Return false.
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
+    If isBoundFn(concat(fnVal, "")):
+        Return callMethod(objGet(concat(fnVal, ""), "__bfn"), concat(argsText, ""), objGet(concat(fnVal, ""), "__bthis"), env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
@@ -1841,6 +1851,14 @@
                 classTagSet(refId(concat(inst, "")), instanceChain(concat(lastTok, ""), env)).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
                 Return resolveCalls(concat(concat(concat(newPrefix, " "), concat(inst, "")), rest), env).
+    If isBoundFn(concat(lastTok, "")):
+        Let resultBF be callFn(concat(lastTok, ""), inner, env).
+        Let newPrefixBF be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefixBF, " "), resultBF), rest), env).
+    If isBoundFn(envGet(concat(env, ""), concat(lastTok, ""))):
+        Let resultBV be callFn(envGet(concat(env, ""), concat(lastTok, "")), inner, env).
+        Let newPrefixBV be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefixBV, " "), resultBV), rest), env).
     If startsWith(lastTok, chr(1)):
         Let resultL be callFn(concat(lastTok, ""), inner, env).
         Let newPrefixL be joinRange(ptoks, 1, (length of ptoks) - 1, "").
@@ -2186,6 +2204,10 @@
     If startsWith(concat(k, ""), "__set_"):
         Return true.
     If startsWith(concat(k, ""), "__proto_"):
+        Return true.
+    If startsWith(concat(k, ""), "__bfn"):
+        Return true.
+    If startsWith(concat(k, ""), "__bthis"):
         Return true.
     Return false.
 
@@ -5088,7 +5110,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . call (", " . apply (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -5740,6 +5762,18 @@
         Let argArr be jsEvalIn(trim(item 2 of cargs), env).
         Let callArgs be joinCommaFrom(arrElements(concat(argArr, "")), 1, 1, "").
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), callMethod(concat(fnv, ""), concat(callArgs, ""), thisArg, env)), rst)), env).
+    If lm is equal to " . bind (":
+        Let bef be substringBefore(expr, " . bind (").
+        Let aft be substringAfter(expr, " . bind (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
+        If startsWith(concat(fnv, ""), chr(1)) is equal to false:
+            Return concat(expr, "").
+        Let thisArg be jsEvalIn(trim(item 1 of splitArgsN(concat(argStr, ""))), env).
+        Let bobj be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__bfn", concat(fnv, "")), "__bthis", concat(thisArg, "")).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), bobj), rst)), env).
     If lm is equal to " . reduce (":
         Let bef be substringBefore(expr, " . reduce (").
         Let aft be substringAfter(expr, " . reduce (").

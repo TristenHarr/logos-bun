@@ -3468,3 +3468,16 @@ methods, getters/setters, `super.method()`, and plain calls are unchanged. New `
 checks). Full sweep green (252/252). (Not addressed: `.call`/`.apply` on a NATIVE/prototype function — e.g.
 `Math.max.apply(null, arr)` or `Array.prototype.slice.call(...)` — needs native-function dispatch; `.bind`;
 and `map(fn, thisArg)`'s 2nd-arg this — separate features.)
+
+**Function.prototype.bind was unimplemented (2026-07-24, 125th engine fix).** `f.bind(o)` produced garbage.
+Now `.bind` returns a plain object carrying the original function and the bound `this` (`__bfn`/`__bthis`),
+and the call dispatch (`resolveCalls`) re-routes an invocation of such an object through `callMethod` with the
+bound `this` — reached whether the bound value is called immediately (`f.bind(o)()`) or through a variable
+(`const g = f.bind(o); g(a)`, matched via `envGet` of the callee token). `callMethod` also binds `arguments`,
+so a bound `this`-using function that reads `arguments` works. The `__bfn`/`__bthis` slots are filtered out of
+`Object.keys`. Now `this` access through a bound function, extra call arguments, immediate-vs-stored bind, and
+method binding (`obj.m.bind(obj)`) all match Node; plain calls, call/apply, and ordinary function values are
+unchanged (the routes only fire for a chr(1) function or a `__bfn`-bearing object). New `bindfn-diff` fuzzer
+(800+ checks). Full sweep green (253/253). (Follow-ups, not addressed: bound PARTIAL args `f.bind(o, a)`,
+`typeof boundFn` is "object" not "function", and passing a bound function as a `map`/`forEach` callback —
+`callFnIdx` doesn't yet detect the bound-fn object.)
