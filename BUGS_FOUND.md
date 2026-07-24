@@ -3227,3 +3227,15 @@ values are encoded; the full 236-fuzzer sweep is unchanged (no regression). New 
 (1200+ checks). Full sweep green (236/236). (Still by-VALUE, hence a separate documented gap: a closed-over
 SCALAR captures its definition-time value not the latest, a captured nested FUNCTION value can mis-nest, and
 an object METHOD closing over an outer var — all further closure-model work.)
+
+**forEach scalar write-back (2026-07-24, 109th engine fix).** A scalar mutated inside a forEach callback never
+persisted — `let s=0; a.forEach(x=>{s+=x}); s` stayed 0 (only OBJECT accumulators worked, being shared heap
+refs). The callback resolves the captured variable by name from the loop env (fnArgValRaw doesn't substitute)
+and mutates it in its own env, which is discarded. Added statement-level forEach env write-back: a bare
+`arr.forEach(cb)` statement now runs through forEachEnv, which threads the loop env across iterations;
+callFnIdxEnv3 rebuilds that env with the callback's latest value for each OUTER variable, EXCEPT the
+callback's own params (kept at their outer value, so `let t=5; a.forEach(t=>{})` leaves t=5 — no param leak).
+Scalar accumulators, counters, max-tracking, multiple scalars, index-arg, and function-expression callbacks
+all persist and match Node; object/array accumulators and map/filter are unchanged. New `foreachscalar-diff`
+fuzzer (1500+ checks). Full sweep green (237/237). (General closure scalar mutation outside a forEach —
+`const inc=()=>count++` — and map/filter/reduce scalar side-effects remain the boxing follow-up.)

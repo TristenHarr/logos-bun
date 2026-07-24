@@ -3839,6 +3839,58 @@
     Let p1 be maybePropagateThrow(concat(d1, "")).
     Return envGet(d1, "__ret").
 
+# --- forEach env write-back (scalar closures) ---
+# A forEach callback resolves a captured variable by NAME from the loop env and mutates it in its OWN env,
+# which is normally discarded — so a scalar accumulator (`let s=0; a.forEach(x=>{s+=x})`) never persists
+# (an OBJECT accumulator persists because it's a shared heap ref). callFnIdxEnv3 returns the loop env
+# REBUILT with the callback's latest values for each outer variable, EXCEPT the callback's own params
+# (which shadow inside the callback and must keep their outer value). forEachEnv threads that env through
+# the loop, and the statement-level forEach returns it, so the mutation is visible after the loop.
+## To paramNameSet (params: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of params:
+        Return acc.
+    Let nm be trim(item i of params).
+    Return paramNameSet(params, i + 1, concat(concat(acc, chr(10)), nm)).
+
+## To cbMerge (loopPairs: Seq of Text, i: Int, doneEnv: Text, paramSet: Text, seen: Text, acc: Text) -> Text:
+    If i is greater than length of loopPairs:
+        Return acc.
+    Let pair be item i of loopPairs.
+    Let name be substringBefore(concat(pair, ""), "=").
+    If name is equal to "":
+        Return cbMerge(loopPairs, i + 1, concat(doneEnv, ""), paramSet, seen, acc).
+    If split(concat(seen, ""), chr(10)) contains name:
+        Return cbMerge(loopPairs, i + 1, concat(doneEnv, ""), paramSet, seen, acc).
+    Let seen2 be concat(concat(seen, ""), concat(chr(10), name)).
+    If split(concat(paramSet, ""), chr(10)) contains name:
+        Return cbMerge(loopPairs, i + 1, concat(doneEnv, ""), paramSet, seen2, envSet(acc, concat(name, ""), replaceAll(substringAfter(concat(pair, ""), "="), chr(12), ";"))).
+    Return cbMerge(loopPairs, i + 1, concat(doneEnv, ""), paramSet, seen2, envSet(acc, concat(name, ""), envGet(concat(doneEnv, ""), concat(name, "")))).
+
+## To callFnIdxEnv3 (fnVal: Text, el: Text, idx: Text, arrv: Text, env: Text) -> Text:
+    Let params be patFields(fnParams(concat(fnVal, ""))).
+    Let body be fnBody(concat(fnVal, "")).
+    Let pset be paramNameSet(params, 1, "").
+    Let e1 be bindParamVal(trim(item 1 of params), el, env).
+    If length of params is greater than 2:
+        Let d3 be runBlockStr(body, bindParamVal(trim(item 3 of params), arrv, bindParamVal(trim(item 2 of params), idx, e1))).
+        Let p3 be maybePropagateThrow(concat(d3, "")).
+        Return cbMerge(split(concat(env, ""), ";"), 1, concat(d3, ""), pset, "", "").
+    If length of params is greater than 1:
+        Let d2 be runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)).
+        Let p2 be maybePropagateThrow(concat(d2, "")).
+        Return cbMerge(split(concat(env, ""), ";"), 1, concat(d2, ""), pset, "", "").
+    Let d1 be runBlockStr(body, e1).
+    Let p1 be maybePropagateThrow(concat(d1, "")).
+    Return cbMerge(split(concat(env, ""), ";"), 1, concat(d1, ""), pset, "", "").
+
+## To forEachEnv (els: Seq of Text, i: Int, fnval: Text, arrv: Text, env: Text) -> Text:
+    If i is greater than length of els:
+        Return concat(env, "").
+    Let newEnv be callFnIdxEnv3(concat(fnval, ""), item i of els, toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return concat(env, "").
+    Return forEachEnv(els, i + 1, fnval, arrv, newEnv).
+
 ## To arrFromMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
@@ -7301,6 +7353,12 @@
         If hasSep(lhs, chr(91)):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         Return bindAssign(s, env).
+    If hasSep(s, " . forEach ("):
+        If markerInBody(concat(s, ""), " . forEach (") is equal to false:
+            Let farr be jsEvalIn(recvExpr(substringBefore(s, " . forEach (")), env).
+            If isArrRef(concat(farr, "")):
+                Let fcb be fnArgValRaw(trim(balancedArg(substringAfter(s, " . forEach ("), 1, 0, "")), env).
+                Return forEachEnv(arrElements(concat(farr, "")), 1, concat(fcb, ""), concat(farr, ""), env).
     If hasSep(s, "("):
         Let sideEffect be jsEvalIn(concat(s, ""), env).
         Return env.
