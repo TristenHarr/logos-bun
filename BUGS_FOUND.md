@@ -3414,3 +3414,18 @@ missing values, and `undefined`/`NaN`/empty input throw SyntaxError — matching
 `jsonparsevalid-diff` fuzzer (700+ checks: valid round-trips + malformed-throws). Full sweep green (248/248).
 (Separate pre-existing, untouched: `JSON.parse('"a\\"b"')` keeps the backslash — jsonParse's string
 UNESCAPING doesn't resolve `\"`/`\n` inside a parsed string; the validator correctly accepts such input.)
+
+**JSON.parse resolves string escapes (`\"`, `\\`, `\/`, `\b`) (2026-07-24, 121st engine fix — follows the
+120th).** A parsed JSON string kept its escape sequences literally — `JSON.parse('"a\"b"')` returned `a\"b`,
+not `a"b`, and an escaped quote inside a structure (`{"q":"say \"hi\""}`) additionally broke parsing because
+the structural splitter treated the `\"` as a string close. Fixed two places: jsonParse now unescapes a
+parsed string's content, and jsonSplitTop skips an escaped char (encBackslash/`\` + next) while scanning, so
+an escaped quote no longer ends the string mid-value. Only the WHITESPACE-free, non-separator escapes are
+resolved — `\"`→`"`, `\\`→`\`, `\/`→`/`, `\b` — which covers the common quote/backslash cases (incl.
+`O"Brien`, `say "hi"`, Windows paths) at top level and inside objects/arrays, and stringify→parse round-
+trips. The whitespace escapes `\n`(chr10)/`\t`(chr9)/`\r`(chr13)/`\f`(chr12) are deliberately left intact:
+chr10 is the object/array entry separator, chr12 the env-value escape, and a trailing chr9/chr13 gets
+whitespace-trimmed out of a value — materializing them corrupts the value (a pre-existing representation
+limit that even a plain `{a:"x\ny",b:2}` literal exhibits by dropping `b`). New `jsonstringesc-diff` fuzzer
+(800+ checks over the safe escapes). Full sweep green (249/249). (Full `\n`/`\t` support needs the deeper
+value-representation work so a string value can carry the separator/whitespace bytes.)

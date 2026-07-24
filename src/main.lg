@@ -2461,8 +2461,12 @@
 ## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
-    Let c be item i of s.
+    Let c be item i of concat(s, "").
     If inStr:
+        If jsonIsBackslash(concat(c, "")):
+            If i is less than length of concat(s, ""):
+                Let nxt be item (i + 1) of concat(s, "").
+                Return jsonSplitTop(concat(s, ""), i + 2, depth, true, concat(concat(acc, c), nxt)).
         If c is equal to encQuote ():
             Return jsonSplitTop(s, i + 1, depth, false, concat(acc, c)).
         Return jsonSplitTop(s, i + 1, depth, true, concat(acc, c)).
@@ -2731,6 +2735,64 @@
         Return true.
     Return false.
 
+# Resolve JSON string escapes in a parsed string's content: `\n`/`\t`/`\r`/`\b`/`\f`/`\/`/`\"`/`\\` become
+# their literal characters. The escape lead is encBackslash (chr30) for a source literal or a raw chr(92)
+# for JSON.stringify output; the escaped quote arrives as encQuote (the dispatch maps chr34→encQuote). An
+# unknown escape (notably `\uXXXX`, which needs the UTF-16 codepoint work) is left intact rather than mangled.
+## To jsonIsBackslash (c: Text) -> Bool:
+    If c is equal to encBackslash ():
+        Return true.
+    If c is equal to chr(92):
+        Return true.
+    Return false.
+
+# Only WHITESPACE-free, non-separator escapes are resolved: `\"`, `\\`, `\/`, `\b`. The whitespace escapes
+# `\n`(chr10)/`\t`(chr9)/`\r`(chr13)/`\f`(chr12) are left intact — chr10 is the object/array entry separator
+# and chr12 the env-value escape (they corrupt those representations, as even a plain `{a:"x\ny",b:2}`
+# literal shows by dropping `b`), while a trailing chr9/chr13 gets whitespace-trimmed out of a value. Those
+# need the value-representation work; the common escaped quote / backslash / slash are handled here.
+## To jsonKnownEsc (e: Text) -> Bool:
+    If e is equal to "/":
+        Return true.
+    If e is equal to "b":
+        Return true.
+    If jsonIsQuote(concat(e, "")):
+        Return true.
+    If jsonIsBackslash(concat(e, "")):
+        Return true.
+    Return false.
+
+## To jsonEscChar (e: Text) -> Text:
+    If e is equal to "n":
+        Return chr(10).
+    If e is equal to "t":
+        Return chr(9).
+    If e is equal to "r":
+        Return chr(13).
+    If e is equal to "b":
+        Return chr(8).
+    If e is equal to "f":
+        Return chr(12).
+    If e is equal to "/":
+        Return "/".
+    If jsonIsQuote(concat(e, "")):
+        Return chr(34).
+    If jsonIsBackslash(concat(e, "")):
+        Return chr(92).
+    Return concat(e, "").
+
+## To jsonUnescape (s: Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of s:
+        Return acc.
+    Let c be item i of concat(s, "").
+    If jsonIsBackslash(concat(c, "")):
+        If i is less than length of concat(s, ""):
+            Let e be item (i + 1) of concat(s, "").
+            If jsonKnownEsc(concat(e, "")):
+                Return jsonUnescape(concat(s, ""), i + 2, concat(acc, jsonEscChar(concat(e, "")))).
+            Return jsonUnescape(concat(s, ""), i + 2, concat(concat(acc, c), e)).
+    Return jsonUnescape(concat(s, ""), i + 1, concat(acc, c)).
+
 ## To jsonParse (v: Text) -> Text:
     Let t be encTrim(v).
     If startsWith(t, encBraceL ()):
@@ -2744,7 +2806,7 @@
             Return newArr(concat(tagArr (), tagArrEnd ())).
         Return jsonBuildArr(split(jsonSplitTop(innerA, 1, 0, false, ""), chr(10)), 1, "").
     If startsWith(t, encQuote ()):
-        Return concat(tagStr (), strSliceLoop(t, 2, (length of t) - 1, "")).
+        Return concat(tagStr (), jsonUnescape(strSliceLoop(t, 2, (length of t) - 1, ""), 1, "")).
     Return t.
 
 ## To joinObjSep (entries: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
