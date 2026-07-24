@@ -8764,6 +8764,56 @@
         Return 0.
     Return mhStar(pat, npi, text, ti, k - 1).
 
+# --- `{n}` / `{n,}` / `{n,m}` bounded quantifier ---
+# A `{` after an atom is a counted quantifier only when it encloses a numeric spec (else it is a literal
+# `{`). mhBrace is mhStar bounded below by the minimum count: greedily match the rest after k atoms, k from
+# min(max, available) down to n; below n the match fails.
+## To braceEnd (pat: Text, i: Int) -> Int:
+    If i is greater than length of pat:
+        Return i.
+    If item i of pat is equal to chr(125):
+        Return i.
+    Return braceEnd(concat(pat, ""), i + 1).
+
+## To braceSpecValid (spec: Text) -> Bool:
+    If length of spec is less than 1:
+        Return false.
+    Return digitChar(item 1 of spec).
+
+## To isBraceQuant (pat: Text, aend: Int) -> Bool:
+    If aend is greater than length of pat:
+        Return false.
+    If item aend of pat is not equal to chr(123):
+        Return false.
+    Let bend be braceEnd(concat(pat, ""), aend + 1).
+    If bend is greater than length of pat:
+        Return false.
+    Return braceSpecValid(strSliceLoop(concat(pat, ""), aend + 1, bend - 1, "")).
+
+## To braceMin (spec: Text) -> Int:
+    Return parseInt(substringBefore(concat(spec, ""), ",")).
+
+## To braceMax (spec: Text) -> Int:
+    If substringBefore(concat(spec, ""), ",") is equal to spec:
+        Return parseInt(concat(spec, "")).
+    Let aftr be substringAfter(concat(spec, ""), ",").
+    If trim(concat(aftr, "")) is equal to "":
+        Return 1000000.
+    Return parseInt(concat(aftr, "")).
+
+## To reMinInt (a: Int, b: Int) -> Int:
+    If a is less than b:
+        Return a.
+    Return b.
+
+## To mhBrace (pat: Text, npi: Int, text: Text, ti: Int, k: Int, minN: Int) -> Int:
+    If k is less than minN:
+        Return 0.
+    Let r be mh(concat(pat, ""), npi, concat(text, ""), ti + k).
+    If r is greater than 0:
+        Return r.
+    Return mhBrace(concat(pat, ""), npi, concat(text, ""), ti, k - 1, minN).
+
 # The derivative pattern `(body)*rest` — expands a `(B)+`/`(B)*` group: one body instance matched by
 # grpTryAlts is followed by this, which re-enters mh's `*` handling for the remaining repetitions (so the
 # whole `(B)*` is greedy). A body that can match the empty string is the one shape this can spin on
@@ -8841,6 +8891,11 @@
                     If rq2 is greater than 0:
                         Return rq2.
             Return mh(pat, aend + 1, text, ti).
+        If item aend of pat is equal to chr(123):
+            If isBraceQuant(pat, aend):
+                Let bend be braceEnd(pat, aend + 1).
+                Let spec be strSliceLoop(pat, aend + 1, bend - 1, "").
+                Return mhBrace(pat, bend + 1, text, ti, reMinInt(braceMax(concat(spec, "")), countAtoms(pat, pi, text, ti, 0)), braceMin(concat(spec, ""))).
     If ti is greater than length of text:
         Return 0.
     If atomMatches(pat, pi, item ti of text):

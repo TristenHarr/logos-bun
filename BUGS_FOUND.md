@@ -3109,3 +3109,13 @@ had no dispatch. Wired it to the same reMatchArrayInner that backs non-global `.
 returns `[full, ...groups]` (with capture groups) or null. `exec()[0]`/`[N]`/`.length` and the null case
 all match Node, and it honors the `i` flag. New `regexexec-diff` fuzzer (1500+ checks). Full sweep green
 (226/226).
+
+**Regex `{n}` / `{n,}` / `{n,m}` bounded quantifier (2026-07-24, 98th engine fix).** The counted quantifier
+was entirely missing — `\d{4}` matched nothing (`"2024".match(/\d{2}/g)` was empty, `/\d{4}/.test("2024")`
+false). Added mhBrace (mhStar bounded below by the minimum count: greedily match the rest after k atoms, k
+from min(max, available) down to n, failing below n) and a `{` branch in mh that treats `{` as a counted
+quantifier only when it encloses a numeric spec (`{n}`, `{n,}`, `{n,m}`) — an ordinary `{` (or escaped
+`\{`) stays literal. `{n}` exact, `{n,}` open, and `{n,m}` ranged all work across test/match/replace/exec,
+with capture groups (`/(\d{3})-(\d{4})/`) and the global flag; a literal `x\{2\}` is unaffected. New
+`bracequant-diff` fuzzer (1500+ checks, exact/open/ranged × atoms/classes × test/match/replace). Full sweep
+green (227/227).
