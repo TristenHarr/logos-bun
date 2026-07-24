@@ -3136,3 +3136,11 @@ Consumable by `[...m.matchAll(re)]` spread and `for…of`; capture groups (`m[1]
 (`m[0]`), `.length`, no-match (empty), and the `i` flag all match Node. New `matchall-diff` fuzzer (1500+
 checks). Full sweep green (229/229). — 100th engine fix; the regex cluster (groups, exec, `{n,m}`, `i`,
 replace-fn groups, matchAll) is now broadly conformant.
+
+**String.split(regex) with capture groups (2026-07-24, 101st engine fix).** `"a1b2c".split(/(\d)/)` gave
+["a","b","c"] instead of ["a","1","b","2","c"] — reSplit replaced each match with a separator and split,
+dropping the captured text. Rewrote it as reSplitCapLoop, which emits each piece followed by that match's
+captured groups (via capExtract, laid out as chr(0)-separated fields by capChr0Loop) before the separator;
+a group-less split degrades to the plain piece-per-match behavior. Capturing separators (`(\d)`, `(-)`,
+`(\d+)`, multi-group), non-capturing `(?:…)`, plain classes, and the `i` flag all match Node. New
+`splitcaptures-diff` fuzzer (1500+ checks). Full sweep green (230/230).

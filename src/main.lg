@@ -9199,9 +9199,38 @@
     Let ci be reApplyCi(concat(flags, "")).
     Return concat(tagStr (), encodeStr(reReplaceFnLoop(pat, text, fnval, reHasG(flags), env, ""))).
 
+# `String.split(regex)` with capture groups interleaves the captured text between the split pieces:
+# `"a1b2c".split(/(\d)/)` → ["a","1","b","2","c"]. Each captured group is appended (decoded) after the piece
+# preceding its match. capChr0Loop lays the groups out as chr(0)-separated fields; reSplitCapLoop emits
+# `piece <caps> chr(0)` per match then the trailing piece, and reSplit splits the whole on chr(0). With no
+# capture groups this degrades to the plain piece-per-match split.
+## To capChr0Loop (groups: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of groups:
+        Return acc.
+    Let g be substringAfter(item i of groups, tagStr ()).
+    Return capChr0Loop(groups, i + 1, concat(concat(acc, chr(0)), g)).
+
+## To capToChr0 (groupsInner: Text) -> Text:
+    If groupsInner is equal to "":
+        Return "".
+    Return capChr0Loop(split(groupsInner, tagArrSep ()), 1, "").
+
+## To reSplitCapLoop (pat: Text, text: Text, acc: Text) -> Text:
+    Let start be reSearchStart(concat(pat, ""), concat(text, "")).
+    If start is equal to 0:
+        Return concat(acc, concat(text, "")).
+    Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
+    Let before be strSliceLoop(concat(text, ""), 1, start - 1, "").
+    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
+    Let caps be capToChr0(capExtract(concat(pat, ""), concat(text, ""), start)).
+    Let seg be concat(concat(concat(acc, before), caps), chr(0)).
+    If endp is greater than start:
+        Return reSplitCapLoop(concat(pat, ""), after, seg).
+    Return concat(seg, concat(after, "")).
+
 ## To reSplit (pat: Text, text: Text, flags: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
-    Return strSplit(reReplaceLoop(pat, text, chr(0), true, ""), chr(0)).
+    Return strSplit(reSplitCapLoop(pat, text, ""), chr(0)).
 
 # --- Map / Set (E5) ---
 # A Map is a heap object with parallel __map_keys / __map_vals arrays (insertion order preserved,
