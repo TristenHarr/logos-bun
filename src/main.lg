@@ -1639,8 +1639,8 @@
     If name is equal to "parseFloat":
         Return jsParseFloat(decodeStr(materialize(av))).
     If name is equal to "Number":
-        If radixLit(decodeStr(materialize(av))):
-            Return jsNumberText(decodeStr(materialize(av))).
+        If radixLit(trim(decodeStr(materialize(av)))):
+            Return jsNumberText(trim(decodeStr(materialize(av)))).
         Return jsToNumberOf(av).
     If name is equal to "isNaN":
         Return cmpResult(jsToNumberOf(av) is equal to "NaN").
@@ -2643,6 +2643,18 @@
             Return false.
         Return allDigits(substringAfter(t, "-"), 1).
     Return allDigits(t, 1).
+
+# Number.isSafeInteger: an integer whose magnitude is <= 2^53 - 1 (9007199254740991) — beyond that, f64
+# can't represent every integer, so `isIntStr` alone (which `2^53` satisfies) is not enough.
+## To isSafeIntStr (v: Text) -> Bool:
+    If isIntStr(concat(v, "")) is equal to false:
+        Return false.
+    Let iv be safeInt(concat(v, "")).
+    If iv is greater than 9007199254740991:
+        Return false.
+    If iv is less than (0 - 9007199254740991):
+        Return false.
+    Return true.
 
 ## To isArithOp (t: Text) -> Bool:
     Let ops be ["+", "-", "*", "%", "/", "**", "(", ")"].
@@ -4741,7 +4753,7 @@
         Let bef be substringBefore(expr, "Number . isSafeInteger (").
         Let aft be substringAfter(expr, "Number . isSafeInteger (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, cmpResult(isIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(isSafeIntStr(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     If substringBefore(expr, "Number . parseInt (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Number . parseInt (") is equal to false:
         Let bef be substringBefore(expr, "Number . parseInt (").

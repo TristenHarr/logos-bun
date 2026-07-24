@@ -2824,3 +2824,14 @@ with `expDigitsOf` (arg value, or -1 when omitted). `(3.14159).toExponential(2)`
 is a receiver ≥ ~1e18 (`(6.022e23).toExponential(3)`) which is already NaN before the call (the deferred
 large-number-representation limitation, not a toExponential bug). Toolchain change (env.rs + program.rs)
 committed alongside. Full sweep green (402/402).
+
+**Number.isSafeInteger bound + Number() radix whitespace (2026-07-24, 73rd engine fix).** Two small
+number-parsing fixes (main.lg only, no toolchain). (1) `Number.isSafeInteger` was just `isIntStr`, so
+`Number.isSafeInteger(2**53)` (9007199254740992) wrongly returned true — added `isSafeIntStr` bounding the
+magnitude to 2^53-1 (9007199254740991), so `2**53` and beyond (and their negatives) are false while
+`2**53-1`, `5`, `-100` stay true and `5.5` is false. (2) `Number("  0x1F  ")` — a radix literal (hex/binary/
+octal) with surrounding whitespace — returned NaN because the `Number()` coercion checked `radixLit` on the
+un-trimmed decoded string (which no longer starts with `0x`); now it trims first, so `"  0x1F  "`→31,
+`" 0b101 "`→5, `" 0o17 "`→15, matching the no-whitespace forms. `Number.isInteger`, decimal `Number("  10  ")`,
+plain hex `Number("0xff")`, and every existing numeric path unchanged. New `safeint-diff` fuzzer (1200+
+checks over the ±2^53 boundary and whitespace-padded radix/decimal strings). Full sweep green (404/404).
