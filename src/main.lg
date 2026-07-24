@@ -5617,6 +5617,33 @@
             Return i.
     Return topInstanceofIdx(toks, i + 1, depth, concat(g, c)).
 
+# Bool OR (LOGOS has no infix `or` on the two instanceof paths).
+## To instHit (a: Bool, b: Bool) -> Bool:
+    If a:
+        Return true.
+    Return b.
+
+# `instanceof` for the built-in constructors that carry no class-ancestry tag: an array is an `Array` (and
+# an `Object`); any object/instance is an `Object`; an Error object (a heap object carrying both `name` and
+# `message`, per newError) is an `Error`, and an instance of the specific constructor whose name matches its
+# own `name` (`new TypeError() instanceof TypeError`/`Error`/`Object`, but not `RangeError`).
+## To errInstanceMatch (inst: Text, cname: Text) -> Bool:
+    If isArrRef(inst):
+        If cname is equal to "Array":
+            Return true.
+        Return cname is equal to "Object".
+    If isObjRef(inst) is equal to false:
+        Return false.
+    If cname is equal to "Object":
+        Return true.
+    If objGet(concat(inst, ""), "message") is equal to "undefined":
+        Return false.
+    If objGet(concat(inst, ""), "name") is equal to "undefined":
+        Return false.
+    If cname is equal to "Error":
+        Return true.
+    Return materialize(objGet(concat(inst, ""), "name")) is equal to cname.
+
 ## To resolveInstanceof (expr: Text, env: Text) -> Text:
     Let toks be split(expr, " ").
     Let idx be topInstanceofIdx(toks, 1, 0, "").
@@ -5627,7 +5654,8 @@
     Let restR be joinRange(toks, idx + 2, length of toks, "").
     Let inst be jsEvalIn(lhs, concat(env, "")).
     Let isInst be split(classTagGet(refId(concat(inst, ""))), ",") contains cname.
-    Return resolveInstanceof(trim(concat(concat(cmpResult(isInst), " "), restR)), env).
+    Let hit be instHit(isInst, errInstanceMatch(concat(inst, ""), concat(cname, ""))).
+    Return resolveInstanceof(trim(concat(concat(cmpResult(hit), " "), restR)), env).
 
 # Resolve a static-field READ `ClassName . field` → its value, using the `__static_<Class>_<field>`
 # binding the class desugar records. Runs before `substitute` (with env), like the static-CALL path.

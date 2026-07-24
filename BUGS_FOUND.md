@@ -2883,3 +2883,16 @@ raw receiver (to see the array ref) instead of materializing it first. Number/st
 duplicates, missing, and first-element cases all match Node; string `.lastIndexOf` (substring, missing) and
 `.indexOf` (array + string) unchanged. New `arrlastindexof-diff` fuzzer (1800+ checks over array + string
 receivers). Full sweep green (412/412).
+
+**instanceof for built-in constructors (Array/Object/Error hierarchy) (2026-07-24, 78th engine fix).**
+`resolveInstanceof` only consulted the class-ancestry tag, which the built-in constructors don't set — so
+`[1,2] instanceof Array`, `({}) instanceof Object`, and `(new TypeError()) instanceof Error/TypeError` were
+all wrongly false (ubiquitous in error handling / type checks). Added `errInstanceMatch` (built-in-instance
+matcher), OR'd with the ancestry-chain result: an array is an `Array` and an `Object`; any object/instance
+is an `Object`; an Error object (heap object with both `name` and `message`, per newError) is an `Error` and
+an instance of the constructor whose name equals its own `name` — `new TypeError() instanceof TypeError`/
+`Error`/`Object` true, `instanceof RangeError` false. `[1,2] instanceof Array/Object`, `{} instanceof
+Object`, `new Error/TypeError/RangeError/SyntaxError` against each error type + Object, `Map`/`Set` instanceof
+Object, and `[1,2] instanceof Error`/`"str" instanceof Object` (false) all match Node; user-class instanceof
+(subclass ancestry chain) and unrelated-class checks unchanged. New `instanceof-diff` fuzzer (1200+ checks
+over value×constructor pairs). Full sweep green (414/414).
