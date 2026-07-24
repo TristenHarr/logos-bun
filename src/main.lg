@@ -1175,17 +1175,31 @@
         Return envSet(concat(localEnv, ""), "arguments", arrOf(concat(argsText, ""), callerEnv)).
     Return concat(localEnv, "").
 
-# A `f.bind(thisArg)` result is stored as a plain object carrying the original function and the bound
-# `this` (`__bfn`/`__bthis`); calling it re-dispatches through callMethod with that `this`. (Bound partial
-# arguments — `f.bind(o, a)` — are not captured yet; the common `this`-binding case is.)
+# A `f.bind(thisArg, a, b)` result is stored as a plain object carrying the original function, the bound
+# `this` (`__bfn`/`__bthis`), and any bound leading arguments as a raw comma-joined expression (`__bargs`,
+# kept as expressions rather than evaluated values so an in-string comma stays quote-protected the same way
+# `.call`/`.apply` args are). Calling it re-dispatches through callMethod with that `this`, the bound args
+# PREPENDED to the call's own args — so `add.bind(null, 5)` then `g(3)` runs `add(5, 3)`.
 ## To isBoundFn (v: Text) -> Bool:
     If isObjRef(concat(v, "")):
         Return objGet(concat(v, ""), "__bfn") is not equal to "undefined".
     Return false.
 
+# Prepend a bound function's captured leading args (`__bargs`) to a call's own args. Absent (never bound
+# any) reads back as "" or "undefined"; either edge collapses to just the call args, and an argument-less
+# call collapses to just the bound args.
+## To combineBoundArgs (bargs: Text, callArgs: Text) -> Text:
+    If bargs is equal to "":
+        Return concat(callArgs, "").
+    If bargs is equal to "undefined":
+        Return concat(callArgs, "").
+    If trim(concat(callArgs, "")) is equal to "":
+        Return concat(bargs, "").
+    Return concat(concat(concat(bargs, ""), " , "), concat(callArgs, "")).
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     If isBoundFn(concat(fnVal, "")):
-        Return callMethod(objGet(concat(fnVal, ""), "__bfn"), concat(argsText, ""), objGet(concat(fnVal, ""), "__bthis"), env).
+        Return callMethod(objGet(concat(fnVal, ""), "__bfn"), combineBoundArgs(objGet(concat(fnVal, ""), "__bargs"), concat(argsText, "")), objGet(concat(fnVal, ""), "__bthis"), env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
@@ -2208,6 +2222,8 @@
     If startsWith(concat(k, ""), "__bfn"):
         Return true.
     If startsWith(concat(k, ""), "__bthis"):
+        Return true.
+    If startsWith(concat(k, ""), "__bargs"):
         Return true.
     Return false.
 
@@ -5771,9 +5787,13 @@
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
             Return concat(expr, "").
-        Let thisArg be jsEvalIn(trim(item 1 of splitArgsN(concat(argStr, ""))), env).
-        Let bobj be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__bfn", concat(fnv, "")), "__bthis", concat(thisArg, "")).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), bobj), rst)), env).
+        Let cargs be splitArgsN(concat(argStr, "")).
+        Let thisArg be jsEvalIn(trim(item 1 of cargs), env).
+        Let bargs be joinCommaFrom(cargs, 2, 2, "").
+        Let base be objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__bfn", concat(fnv, "")), "__bthis", concat(thisArg, "")).
+        If bargs is not equal to "":
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), objSet(base, "__bargs", concat(bargs, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), base), rst)), env).
     If lm is equal to " . reduce (":
         Let bef be substringBefore(expr, " . reduce (").
         Let aft be substringAfter(expr, " . reduce (").

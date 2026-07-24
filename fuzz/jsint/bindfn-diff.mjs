@@ -1,11 +1,13 @@
 // fuzz/jsint/bindfn — Function.prototype.bind. `f.bind(o)` was unimplemented. Now it returns a plain
-// object carrying the original function and the bound `this` (`__bfn`/`__bthis`), and the call dispatch
-// re-routes an invocation of that object through callMethod with the bound `this` — reached whether the
-// bound value is called immediately (`f.bind(o)()`) or through a variable (`const g=f.bind(o); g(a)`), and
+// object carrying the original function, the bound `this` (`__bfn`/`__bthis`), and any bound leading
+// arguments (`__bargs`), and the call dispatch re-routes an invocation of that object through callMethod
+// with the bound `this` and the bound args PREPENDED to the call's own args — reached whether the bound
+// value is called immediately (`f.bind(o)()`) or through a variable (`const g=f.bind(o,5); g(3)`), and
 // callMethod also binds `arguments`, so a bound `this`-using function works. Exercises `this` access,
+// bound PARTIAL args (`add.bind(null,5)`), partial + `this`, string partials, reuse across calls,
 // arguments after bind, immediate vs stored bind, and method binding (`obj.m.bind(obj)`); plain calls and
-// call/apply are re-checked as regressions. (Bound PARTIAL args and passing a bound fn as a map callback are
-// separate follow-ups and avoided here.) Diffed vs Node.
+// call/apply are re-checked as regressions. (Passing a bound fn as a map callback is a separate follow-up
+// and avoided here.) Diffed vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -20,13 +22,17 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 200), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const t = ri(50), a = ri(50), b = ri(50), k = ri(7);
+    const t = ri(50), a = ri(50), b = ri(50), k = ri(11);
     if (k === 0) return `(function(){const o={x:${t}};function f(){return this.x};return f.bind(o)()})()`;
     if (k === 1) return `(function(){const o={n:${t}};function f(p){return this.n+p};const g=f.bind(o);return g(${a})})()`;
     if (k === 2) return `(function(){const o={n:${t}};function f(p,q){return this.n+p+q};const g=f.bind(o);return g(${a},${b})})()`;
     if (k === 3) return `(function(){const obj={x:${t},getX(){return this.x}};const g=obj.getX.bind(obj);return g()})()`;
     if (k === 4) return `(function(){function f(){let s=0;for(let i=0;i<arguments.length;i++)s+=arguments[i];return s};const g=f.bind(null);return g(${a},${b})})()`;
-    if (k === 5) return `(function(){function add(a,b){return a+b}return add(${a},${b})})()`;   // regression: plain
+    if (k === 5) return `(function(){function add(a,b){return a+b}const g=add.bind(null,${a});return g(${b})})()`;              // partial: 1 bound
+    if (k === 6) return `(function(){function add(a,b,c){return a+b+c}const g=add.bind(null,${a},${b});return g(${t})})()`;    // partial: 2 bound
+    if (k === 7) return `(function(){const o={n:${t}};function f(p,q){return this.n+p+q};const g=f.bind(o,${a});return g(${b})})()`; // partial + this
+    if (k === 8) return `(function(){function m(a,b){return a*b}const g=m.bind(null,${a});return g(${b})+","+g(${t})})()`;     // reuse across calls
+    if (k === 9) return `(function(){function add(a,b){return a+b}return add(${a},${b})})()`;   // regression: plain
     return `(function(){function f(){return this.v};return f.call({v:${t}})})()`;               // regression: call
   };
   let checked = 0;

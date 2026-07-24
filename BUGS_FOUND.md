@@ -3481,3 +3481,13 @@ unchanged (the routes only fire for a chr(1) function or a `__bfn`-bearing objec
 (800+ checks). Full sweep green (253/253). (Follow-ups, not addressed: bound PARTIAL args `f.bind(o, a)`,
 `typeof boundFn` is "object" not "function", and passing a bound function as a `map`/`forEach` callback —
 `callFnIdx` doesn't yet detect the bound-fn object.)
+
+**Bound PARTIAL arguments now captured (2026-07-24, follow-up completing the 125th fix).** `add.bind(null, 5)`
+then `g(3)` now runs `add(5, 3)` → 8 (previously the leading args were dropped). `.bind` stores the bound
+leading args as a raw comma-joined expression in a `__bargs` slot — kept as expressions rather than evaluated
+values so an in-string comma stays quote-protected exactly the way `.call`/`.apply` args are (the arg splitter
+guards on the raw `"` quote, not the internal string tag). At call time `combineBoundArgs` PREPENDS `__bargs`
+to the call's own args before dispatch, so bound args + call args + a bound `this` all compose, the bound value
+is reusable across calls, and `__bargs` is filtered out of `Object.keys` alongside `__bfn`/`__bthis`. Extended
+the `bindfn-diff` fuzzer with partial-application shapes (1 bound, 2 bound, partial+`this`, reuse). Full sweep
+green (253/253). (Remaining bind follow-ups: `typeof boundFn`, and a bound fn as a map/forEach callback.)
