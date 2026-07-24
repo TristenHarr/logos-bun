@@ -2810,3 +2810,17 @@ difference (`Math.fround(-720.743)` → both `-720.7429809570312` and `…313` r
 prints `…313`, V8 `…312`) — a pre-existing `js_num_fmt`/dtoa parity limitation that would need an
 ECMA-compliant dtoa to close (deferred). Toolchain change (env.rs) committed alongside. Full sweep green
 (400/400).
+
+**Number.prototype.toExponential (2026-07-24, 72nd engine fix).** Unimplemented (→ NaN). Added a native
+`js_to_exponential`: exponential notation with exactly `fractionDigits` digits after the point (n+1
+significant digits), the EXACT f64 rounded HALF-UP (reusing `js_round_sig`), exponent in JS form (`e+0`).
+The fixed digit count makes it dtoa-safe (unlike the shortest form, which would hit the Rust-vs-V8
+number-to-string gap); the no-argument form uses the shortest exponential (best-effort). Declared `## To
+native jsToExponential`, wired `jsToExponential` → `env::js_to_exponential`, dispatched in resolveMethods
+with `expDigitsOf` (arg value, or -1 when omitted). `(3.14159).toExponential(2)`→"3.14e+0",
+`(12345).toExponential(2)`→"1.23e+4", `(0.001234).toExponential(2)`→"1.23e-3", `(999.9).toExponential(1)`→
+"1.0e+3" (carry), zero, negatives, `(5).toExponential(0)`→"5e+0" all match Node; `.toFixed`/`.toPrecision`/
+`.toLocaleString` unchanged. New `toexp-diff` fuzzer (2400+ checks across magnitudes/digit-counts). Only gap
+is a receiver ≥ ~1e18 (`(6.022e23).toExponential(3)`) which is already NaN before the call (the deferred
+large-number-representation limitation, not a toExponential bug). Toolchain change (env.rs + program.rs)
+committed alongside. Full sweep green (402/402).
