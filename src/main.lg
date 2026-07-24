@@ -9131,15 +9131,29 @@
 # .replace(regex, fn): like reReplaceLoop, but each match's replacement is fn(match, offset) — the
 # callback is invoked per match (via callFnIdx, match bound to param 1, offset to param 2) and its
 # returned string (decoded) spliced in. First match only, or all under the g flag.
+# The argument list a `.replace(re, fn)` callback receives: (match, p1, …, pN, offset, string) — the whole
+# match, then each capture group, then the offset and subject. Built as a Seq so bindParams binds whatever
+# the callback declares positionally (offset always lands after the groups, per spec).
+## To replaceFnArgs (matchVal: Text, groupsInner: Text, offset: Text, fullStr: Text) -> Seq of Text:
+    If groupsInner is equal to "":
+        Return split(concat(concat(concat(concat(matchVal, tagArrSep ()), offset), tagArrSep ()), fullStr), tagArrSep ()).
+    Return split(concat(concat(concat(concat(concat(concat(matchVal, tagArrSep ()), groupsInner), tagArrSep ()), offset), tagArrSep ()), fullStr), tagArrSep ()).
+
+## To callReplaceFn (fnval: Text, matchVal: Text, groupsInner: Text, offset: Text, fullStr: Text, env: Text) -> Text:
+    Let args be replaceFnArgs(concat(matchVal, ""), concat(groupsInner, ""), concat(offset, ""), concat(fullStr, "")).
+    Let doneEnv be runBlockStr(fnBody(concat(fnval, "")), bindParams(patFields(fnParams(concat(fnval, ""))), args, 1, env, env)).
+    Let propagated be maybePropagateThrow(concat(doneEnv, "")).
+    Return retVal(doneEnv).
+
 ## To reReplaceFnLoop (pat: Text, text: Text, fnval: Text, global: Bool, env: Text, acc: Text) -> Text:
     Let start be reSearchStart(pat, text).
     If start is equal to 0:
         Return concat(acc, text).
     Let endp be reMatchEnd(pat, text, start).
     Let before be strSliceLoop(text, 1, start - 1, "").
-    Let matched be strSliceLoop(text, start, endp - 1, "").
-    Let after be strSliceLoop(text, endp, length of text, "").
-    Let repl be decodeStr(materialize(callFnIdx(concat(fnval, ""), concat(tagStr (), matched), toText(start - 1), concat(env, "")))).
+    Let matched be strSliceLoop(concat(text, ""), start, endp - 1, "").
+    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
+    Let repl be decodeStr(materialize(callReplaceFn(concat(fnval, ""), concat(tagStr (), matched), capExtract(concat(pat, ""), concat(text, ""), start), toText(start - 1), concat(tagStr (), concat(text, "")), concat(env, "")))).
     If global is equal to false:
         Return concat(acc, concat(before, concat(repl, after))).
     If endp is greater than start:

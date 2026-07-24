@@ -3119,3 +3119,12 @@ quantifier only when it encloses a numeric spec (`{n}`, `{n,}`, `{n,m}`) — an 
 with capture groups (`/(\d{3})-(\d{4})/`) and the global flag; a literal `x\{2\}` is unaffected. New
 `bracequant-diff` fuzzer (1500+ checks, exact/open/ranged × atoms/classes × test/match/replace). Full sweep
 green (227/227).
+
+**.replace(re, fn) callback capture groups (2026-07-24, 99th engine fix).** A replace callback receives
+`(match, p1, …, pN, offset, string)`, but reReplaceFnLoop passed only `(match, offset)` via callFnIdx, so a
+callback using its group params saw undefined — `"John Smith".replace(/(\w+) (\w+)/,(m,f,l)=>l+", "+f)`
+couldn't reorder. Added callReplaceFn, which builds `[match, ...groups, offset, string]` (groups from
+capExtract) as a Seq and binds whatever the callback declares positionally (so the offset always lands after
+the groups, per spec), propagating a thrown callback. Callbacks that read/transform/reorder capture groups —
+per match and globally — now match Node; group-less callbacks are unchanged. New `replacefngroups-diff`
+fuzzer (1500+ checks). Full sweep green (228/228).
