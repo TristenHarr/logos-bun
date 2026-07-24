@@ -3704,3 +3704,12 @@ Unicode case-mapping table); astral `.length` is scalar count not UTF-16 code un
 indexes by scalar, so a scalar-consistent length avoids over-indexing — full UTF-16 needs surrogate
 modelling); `JSON.parse` of a TEMPLATE-LITERAL argument fails for ASCII too (pre-existing, unrelated);
 `btoa`/base64 of non-Latin1 (throws in Node anyway).
+
+**139th — Latin-1 case mapping (2026-07-24).** Closed the most visible non-duality gap from the 138th:
+`toUpperCase`/`toLowerCase` now case-map the Latin-1 Supplement letters, not just ASCII. In
+`strUpperLoop`/`strLowerLoop`, the accented lowercase range U+00E0–00FE (minus ÷ U+00F7) maps to uppercase by
+−32 and U+00C0–00DE (minus × U+00D7) maps to lowercase by +32, with ÿ→Ÿ (U+00FF→U+0178) special-cased. So
+`café`→`CAFÉ`, `über`→`ÜBER`, `naïve`→`NAÏVE`, `ñoño`→`ÑOÑO`, `ÇÃO`→`ção` all match Node; the math signs ×/÷
+(non-letters in the same block) are correctly left unchanged. ASCII path untouched. Full sweep green
+(262/262, seeds 1-2). Remaining case-mapping gap is only the non-Latin-1 scripts (Greek/Cyrillic/…), which
+need the full Unicode case-folding table — a much larger data set, deferred.

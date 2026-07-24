@@ -5163,6 +5163,12 @@
     If o is greater than or equal to 97:
         If o is less than or equal to 122:
             Return strUpperLoop(s, i + 1, concat(acc, chr(o - 32)), len).
+    If o is equal to 255:
+        Return strUpperLoop(s, i + 1, concat(acc, chr(376)), len).
+    If o is greater than or equal to 224:
+        If o is less than or equal to 254:
+            If o is not equal to 247:
+                Return strUpperLoop(s, i + 1, concat(acc, chr(o - 32)), len).
     Return strUpperLoop(s, i + 1, concat(acc, c), len).
 
 ## To strLowerLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
@@ -5173,6 +5179,10 @@
     If o is greater than or equal to 65:
         If o is less than or equal to 90:
             Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32)), len).
+    If o is greater than or equal to 192:
+        If o is less than or equal to 222:
+            If o is not equal to 215:
+                Return strLowerLoop(s, i + 1, concat(acc, chr(o + 32)), len).
     Return strLowerLoop(s, i + 1, concat(acc, c), len).
 
 ## To mpos (expr: Text, marker: Text) -> Int:
