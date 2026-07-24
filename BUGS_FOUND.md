@@ -3575,3 +3575,15 @@ token that desyncs the token-position-based chain resolver (`recvExpr`) back int
 trailing `.join(...)` re-crashed until the spaces were normalized. New `protocall-diff` fuzzer (1200+ checks, 6
 seeds). Full sweep green (258/258, seeds 1-2). (`Math.max.apply(null, [...])` — a native FUNCTION, not a
 prototype method — is a separate native-fn-`.apply` gap, still returns NaN, not a crash.)
+
+**A native Math function borrowed via `.apply`/`.call` returned NaN (2026-07-24, 132nd engine fix).**
+`Math.max.apply(null, [1,5,3])` (the classic pre-spread "max of an array" idiom) and `Math.max.call(null, 1,
+5, 3)` returned NaN — the receiver `Math.max` is not a heap function value, so the generic `.call`/`.apply`
+handler bailed (returned the expression unchanged). The handlers now, when the receiver is a `Math.` member,
+rewrite the borrow to a direct call: `.apply` spreads the array argument, `.call` drops the thisArg and
+forwards the rest, and ordinary `Math.<fn>(...)` dispatch runs — with the assembled spacing collapsed so no
+empty token desyncs the resolver (the same lesson as the prototype-borrow fix). `Math.max`/`Math.min`/
+`Math.pow` via `.apply` (literal array and a variable) and via `.call` all match Node; plain `Math.<fn>(...)`
+and user-function `.apply`/`.call` are unchanged (the branch fires only for a `Math.` receiver). New
+`mathapply-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (259/259, seeds 1-2). (Borrowing native
+functions from other namespaces via `.apply` is scoped to `Math.` here; other native fns remain a follow-up.)

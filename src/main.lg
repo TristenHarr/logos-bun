@@ -5358,6 +5358,14 @@
     Let raw be concat(concat(recvpart, callpart), rst).
     Return trim(replaceAll(replaceAll(concat(raw, ""), "  ", " "), "  ", " ")).
 
+# `Math.max.call(null, a, b)` / `Math.max.apply(null, [a, b])` borrow a NATIVE function reference (not a
+# heap function value), so they must be rewritten to a direct call `Math.max(a, b)` — spacing collapsed like
+# protoJoin so no empty token desyncs the resolver.
+## To nativeCallJoin (prefix: Text, recvE: Text, args: Text, rst: Text) -> Text:
+    Let callpart be concat(concat(concat(concat(recvE, " ( "), args), " ) "), rst).
+    Let raw be concat(concat(prefix, " "), callpart).
+    Return trim(replaceAll(replaceAll(concat(raw, ""), "  ", " "), "  ", " ")).
+
 # The borrowed `this` for a rewritten prototype-method call — an empty (`.call()` with no args) receiver
 # becomes `undefined`, so the rewrite never emits an empty `( )` receiver.
 ## To protoThisArg (t: Text) -> Text:
@@ -5938,6 +5946,10 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
+            If startsWith(recvExpr(concat(bef, "")), "Math . "):
+                Let cargsN be splitArgsN(concat(argStr, "")).
+                Let callArgsN be joinCommaFrom(cargsN, 2, 2, "").
+                Return resolveMethods(nativeCallJoin(concat(prefix, ""), recvExpr(concat(bef, "")), concat(callArgsN, ""), concat(rst, "")), env).
             Return concat(expr, "").
         Let cargs be splitArgsN(concat(argStr, "")).
         Let thisArg be jsEvalIn(trim(item 1 of cargs), env).
@@ -5951,6 +5963,11 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
+            If startsWith(recvExpr(concat(bef, "")), "Math . "):
+                Let cargsNA be splitArgsN(concat(argStr, "")).
+                Let argArrNA be jsEvalIn(trim(item 2 of cargsNA), env).
+                Let callArgsNA be joinCommaFrom(arrElements(concat(argArrNA, "")), 1, 1, "").
+                Return resolveMethods(nativeCallJoin(concat(prefix, ""), recvExpr(concat(bef, "")), concat(callArgsNA, ""), concat(rst, "")), env).
             Return concat(expr, "").
         Let cargs be splitArgsN(concat(argStr, "")).
         Let thisArg be jsEvalIn(trim(item 1 of cargs), env).
