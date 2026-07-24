@@ -3259,3 +3259,25 @@ nested function body (the outer call handler owns it). sort/fill/reverse were al
 RPN evaluation, shift/unshift/splice-in-callback, and nested-forEach grid builds all match Node; bare
 `arr.push(x)`/`arr.pop()` and push-return-value are unchanged. New `callbackmutate-diff` fuzzer (1200+ checks:
 nested mutating args, RPN, stack/queue drains). Full sweep green (239/239).
+
+**In-callback `++`/`--`/compound-assign + Map/Set forEach scalar write-back (2026-07-24, 111th engine fix).**
+Two related callback-mutation gaps. (A) `arr.forEach(x=>{n++})` / `arr.forEach(x=>{o.c+=x})` left `n`/`o.c`
+unchanged (returned 0): `memberCompoundRewrite` — the statement-level rewriter that turns `o.c++`→`o.c = o.c
++ 1` — scanned the WHOLE statement with plain `hasSep(s, "++")`, so it found the `++` INSIDE the callback
+body and, because the outer `arr.forEach` contains `" . "`, `isMemberTarget` falsely accepted the mangled
+LHS → it spliced a bogus top-level `=` across the entire call (`[1].forEach(function(x){ n }) = [1].forEach
+(function(x){ n }) + 1`), which `hasTopSep(mcr, " = ")` then mis-executed as an assignment (→0), never
+running the real forEach. Fixed by guarding every branch of `memberCompoundRewrite` with `markerInBody` (the
+operator must sit at the statement's TOP LEVEL, not inside a nested function/callback body) — the same guard
+the forEach/push/pop handlers use. `incDecEnv`/`needsIncDec` were already depth-aware (via `chr(123)` brace
+tracking) so only `memberCompoundRewrite` needed it. Now `n++`/`n--`/`o.c++`/`o.c+=x`/conditional `c++`
+inside forEach/map callbacks all persist and match Node; top-level `o.c++`/`a[i]++`/`o.n+=5`/nested
+`o.a.b++` are unchanged. (B) `map.forEach(v=>{s+=v})` / `set.forEach(v=>{t+=v})` scalar accumulators stayed
+0 — Map/Set forEach threaded no env write-back (only object accumulators worked, as shared heap refs), unlike
+the 109th's array `forEachEnv`. Added `mapForEachEnv`/`setForEachEnv` (via `callFnIdxEnv3`, whose (el, idx,
+arrv) param order matches Map's cb(value, key, map) and Set's cb(value, value, set)) and routed the
+statement-level `m.forEach(cb)` / `s.forEach(cb)` to them. Map/Set scalar accumulate/count/max now persist;
+object accumulators + key iteration unchanged. New `callbackcompound-diff` fuzzer (1200+ checks: in-callback
+inc/dec/compound over arrays + Map/Set accumulation). Full sweep green (240/240). (The GENERAL scalar closure
+outside a forEach — `function f(){n++}; f()` — still returns the stale value: that's the deep closure/env-by-
+reference keystone requiring heap-boxed scalars, unchanged by this fix.)

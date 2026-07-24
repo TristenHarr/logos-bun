@@ -6958,55 +6958,76 @@
         Return false.
     Return hasSimpleIncDec(split(concat(s, ""), " "), 1, 0).
 
+# Each branch is guarded by markerInBody: a compound operator that sits inside a nested function/callback
+# body (`arr.forEach(x=>{o.c++})`) is NOT this statement's own operator — rewriting it would splice a
+# bogus top-level `=` across the whole call (the outer `arr.forEach` looks like a member target), so we
+# leave the statement alone and let the callback handler run the body. Only a TOP-LEVEL member compound
+# (`o.c++`, `a[i] += 1`) is rewritten here.
 ## To memberCompoundRewrite (s: Text) -> Text:
     If hasSep(s, "++"):
-        If isMemberTarget(trim(concat(substringBefore(s, "++"), substringAfter(s, "++")))):
-            Return concat(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " = "), concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1")).
+        If markerInBody(concat(s, ""), "++") is equal to false:
+            If isMemberTarget(trim(concat(substringBefore(s, "++"), substringAfter(s, "++")))):
+                Return concat(concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " = "), concat(trim(concat(substringBefore(s, "++"), substringAfter(s, "++"))), " + 1")).
     If hasSep(s, "--"):
-        If isMemberTarget(trim(concat(substringBefore(s, "--"), substringAfter(s, "--")))):
-            Return concat(concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " = "), concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " - 1")).
+        If markerInBody(concat(s, ""), "--") is equal to false:
+            If isMemberTarget(trim(concat(substringBefore(s, "--"), substringAfter(s, "--")))):
+                Return concat(concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " = "), concat(trim(concat(substringBefore(s, "--"), substringAfter(s, "--"))), " - 1")).
     If hasSep(s, " += "):
-        If isMemberTarget(trim(substringBefore(s, " += "))):
-            Return concat(concat(trim(substringBefore(s, " += ")), " = "), concat(concat(trim(substringBefore(s, " += ")), " + "), trim(substringAfter(s, " += ")))).
+        If markerInBody(concat(s, ""), " += ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " += "))):
+                Return concat(concat(trim(substringBefore(s, " += ")), " = "), concat(concat(trim(substringBefore(s, " += ")), " + "), trim(substringAfter(s, " += ")))).
     If hasSep(s, " -= "):
-        If isMemberTarget(trim(substringBefore(s, " -= "))):
-            Return concat(concat(trim(substringBefore(s, " -= ")), " = "), concat(concat(trim(substringBefore(s, " -= ")), " - "), trim(substringAfter(s, " -= ")))).
+        If markerInBody(concat(s, ""), " -= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " -= "))):
+                Return concat(concat(trim(substringBefore(s, " -= ")), " = "), concat(concat(trim(substringBefore(s, " -= ")), " - "), trim(substringAfter(s, " -= ")))).
     If hasSep(s, " **= "):
-        If isMemberTarget(trim(substringBefore(s, " **= "))):
-            Return concat(concat(trim(substringBefore(s, " **= ")), " = "), concat(concat(trim(substringBefore(s, " **= ")), " ** "), trim(substringAfter(s, " **= ")))).
+        If markerInBody(concat(s, ""), " **= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " **= "))):
+                Return concat(concat(trim(substringBefore(s, " **= ")), " = "), concat(concat(trim(substringBefore(s, " **= ")), " ** "), trim(substringAfter(s, " **= ")))).
     If hasSep(s, " *= "):
-        If isMemberTarget(trim(substringBefore(s, " *= "))):
-            Return concat(concat(trim(substringBefore(s, " *= ")), " = "), concat(concat(trim(substringBefore(s, " *= ")), " * "), trim(substringAfter(s, " *= ")))).
+        If markerInBody(concat(s, ""), " *= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " *= "))):
+                Return concat(concat(trim(substringBefore(s, " *= ")), " = "), concat(concat(trim(substringBefore(s, " *= ")), " * "), trim(substringAfter(s, " *= ")))).
     If hasSep(s, " /= "):
-        If isMemberTarget(trim(substringBefore(s, " /= "))):
-            Return concat(concat(trim(substringBefore(s, " /= ")), " = "), concat(concat(trim(substringBefore(s, " /= ")), " / "), trim(substringAfter(s, " /= ")))).
+        If markerInBody(concat(s, ""), " /= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " /= "))):
+                Return concat(concat(trim(substringBefore(s, " /= ")), " = "), concat(concat(trim(substringBefore(s, " /= ")), " / "), trim(substringAfter(s, " /= ")))).
     If hasSep(s, " %= "):
-        If isMemberTarget(trim(substringBefore(s, " %= "))):
-            Return concat(concat(trim(substringBefore(s, " %= ")), " = "), concat(concat(trim(substringBefore(s, " %= ")), " % "), trim(substringAfter(s, " %= ")))).
+        If markerInBody(concat(s, ""), " %= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " %= "))):
+                Return concat(concat(trim(substringBefore(s, " %= ")), " = "), concat(concat(trim(substringBefore(s, " %= ")), " % "), trim(substringAfter(s, " %= ")))).
     If hasSep(s, " &= "):
-        If isMemberTarget(trim(substringBefore(s, " &= "))):
-            Return concat(concat(trim(substringBefore(s, " &= ")), " = "), concat(concat(trim(substringBefore(s, " &= ")), " & "), trim(substringAfter(s, " &= ")))).
+        If markerInBody(concat(s, ""), " &= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " &= "))):
+                Return concat(concat(trim(substringBefore(s, " &= ")), " = "), concat(concat(trim(substringBefore(s, " &= ")), " & "), trim(substringAfter(s, " &= ")))).
     If hasSep(s, " |= "):
-        If isMemberTarget(trim(substringBefore(s, " |= "))):
-            Return concat(concat(trim(substringBefore(s, " |= ")), " = "), concat(concat(trim(substringBefore(s, " |= ")), " | "), trim(substringAfter(s, " |= ")))).
+        If markerInBody(concat(s, ""), " |= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " |= "))):
+                Return concat(concat(trim(substringBefore(s, " |= ")), " = "), concat(concat(trim(substringBefore(s, " |= ")), " | "), trim(substringAfter(s, " |= ")))).
     If hasSep(s, " ^= "):
-        If isMemberTarget(trim(substringBefore(s, " ^= "))):
-            Return concat(concat(trim(substringBefore(s, " ^= ")), " = "), concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), trim(substringAfter(s, " ^= ")))).
+        If markerInBody(concat(s, ""), " ^= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " ^= "))):
+                Return concat(concat(trim(substringBefore(s, " ^= ")), " = "), concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), trim(substringAfter(s, " ^= ")))).
     If hasSep(s, " <<= "):
-        If isMemberTarget(trim(substringBefore(s, " <<= "))):
-            Return concat(concat(trim(substringBefore(s, " <<= ")), " = "), concat(concat(trim(substringBefore(s, " <<= ")), " << "), trim(substringAfter(s, " <<= ")))).
+        If markerInBody(concat(s, ""), " <<= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " <<= "))):
+                Return concat(concat(trim(substringBefore(s, " <<= ")), " = "), concat(concat(trim(substringBefore(s, " <<= ")), " << "), trim(substringAfter(s, " <<= ")))).
     If hasSep(s, " >>= "):
-        If isMemberTarget(trim(substringBefore(s, " >>= "))):
-            Return concat(concat(trim(substringBefore(s, " >>= ")), " = "), concat(concat(trim(substringBefore(s, " >>= ")), " >> "), trim(substringAfter(s, " >>= ")))).
+        If markerInBody(concat(s, ""), " >>= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " >>= "))):
+                Return concat(concat(trim(substringBefore(s, " >>= ")), " = "), concat(concat(trim(substringBefore(s, " >>= ")), " >> "), trim(substringAfter(s, " >>= ")))).
     If hasSep(s, " ||= "):
-        If isMemberTarget(trim(substringBefore(s, " ||= "))):
-            Return concat(concat(trim(substringBefore(s, " ||= ")), " = "), concat(concat(trim(substringBefore(s, " ||= ")), " || "), trim(substringAfter(s, " ||= ")))).
+        If markerInBody(concat(s, ""), " ||= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " ||= "))):
+                Return concat(concat(trim(substringBefore(s, " ||= ")), " = "), concat(concat(trim(substringBefore(s, " ||= ")), " || "), trim(substringAfter(s, " ||= ")))).
     If hasSep(s, " &&= "):
-        If isMemberTarget(trim(substringBefore(s, " &&= "))):
-            Return concat(concat(trim(substringBefore(s, " &&= ")), " = "), concat(concat(trim(substringBefore(s, " &&= ")), " && "), trim(substringAfter(s, " &&= ")))).
+        If markerInBody(concat(s, ""), " &&= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " &&= "))):
+                Return concat(concat(trim(substringBefore(s, " &&= ")), " = "), concat(concat(trim(substringBefore(s, " &&= ")), " && "), trim(substringAfter(s, " &&= ")))).
     If hasSep(s, " ??= "):
-        If isMemberTarget(trim(substringBefore(s, " ??= "))):
-            Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
+        If markerInBody(concat(s, ""), " ??= ") is equal to false:
+            If isMemberTarget(trim(substringBefore(s, " ??= "))):
+                Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
     Return "".
 
 ## To objSetPath (objval: Text, segs: Seq of Text, i: Int, v: Text) -> Text:
@@ -7363,6 +7384,12 @@
             If isArrRef(concat(farr, "")):
                 Let fcb be fnArgValRaw(trim(balancedArg(substringAfter(s, " . forEach ("), 1, 0, "")), env).
                 Return forEachEnv(arrElements(concat(farr, "")), 1, concat(fcb, ""), concat(farr, ""), env).
+            If isMap(concat(farr, "")):
+                Let mcb be fnArgValRaw(trim(balancedArg(substringAfter(s, " . forEach ("), 1, 0, "")), env).
+                Return mapForEachEnv(concat(farr, ""), concat(mcb, ""), env).
+            If isSet(concat(farr, "")):
+                Let scb be fnArgValRaw(trim(balancedArg(substringAfter(s, " . forEach ("), 1, 0, "")), env).
+                Return setForEachEnv(concat(farr, ""), concat(scb, ""), env).
     If hasSep(s, "("):
         Let sideEffect be jsEvalIn(concat(s, ""), env).
         Return env.
@@ -9520,6 +9547,35 @@
 
 ## To setForEach (s: Text, fnval: Text, env: Text) -> Text:
     Return setForEachLoop(arrElements(objGet(concat(s, ""), "__set_vals")), 1, fnval, env).
+
+# Statement-level Map/Set forEach with scalar write-back — the callFnIdxEnv3 env rebuild threaded across
+# entries (mirrors forEachEnv for arrays), so `m.forEach(v=>{s+=v})` persists a scalar accumulator. The
+# callback binds (value, key, map) for a Map and (value, value, set) for a Set, matching callFnIdxEnv3's
+# (el, idx, arrv) param order.
+## To mapForEachEnvLoop (keys: Seq of Text, vals: Seq of Text, i: Int, fnval: Text, mapref: Text, env: Text) -> Text:
+    If i is greater than length of keys:
+        Return concat(env, "").
+    Let vv be item i of vals.
+    Let kk be item i of keys.
+    Let newEnv be callFnIdxEnv3(concat(fnval, ""), vv, kk, concat(mapref, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return concat(env, "").
+    Return mapForEachEnvLoop(keys, vals, i + 1, fnval, concat(mapref, ""), newEnv).
+
+## To mapForEachEnv (m: Text, fnval: Text, env: Text) -> Text:
+    Return mapForEachEnvLoop(arrElements(objGet(concat(m, ""), "__map_keys")), arrElements(objGet(concat(m, ""), "__map_vals")), 1, fnval, concat(m, ""), concat(env, "")).
+
+## To setForEachEnvLoop (vals: Seq of Text, i: Int, fnval: Text, setref: Text, env: Text) -> Text:
+    If i is greater than length of vals:
+        Return concat(env, "").
+    Let vv be item i of vals.
+    Let newEnv be callFnIdxEnv3(concat(fnval, ""), vv, vv, concat(setref, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return concat(env, "").
+    Return setForEachEnvLoop(vals, i + 1, fnval, concat(setref, ""), newEnv).
+
+## To setForEachEnv (s: Text, fnval: Text, env: Text) -> Text:
+    Return setForEachEnvLoop(arrElements(objGet(concat(s, ""), "__set_vals")), 1, fnval, concat(s, ""), concat(env, "")).
 
 # A Set: __set_vals holds its distinct values.
 # `new Set(iterable)` accepts a string too (iterating its characters), not only an array — route the
