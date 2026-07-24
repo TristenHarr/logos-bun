@@ -7712,6 +7712,9 @@
     If i is greater than 1:
         If item (i - 1) of btoks is equal to ".":
             Return recvStart(btoks, i - 2).
+    If i is greater than 1:
+        If item (i - 1) of btoks is equal to "new":
+            Return i - 1.
     Return i.
 
 ## To recvExpr (bef: Text) -> Text:

@@ -3010,3 +3010,14 @@ SameValueZero where NaN DOES match — so it now has a dedicated arrIncludesLoop
 `lastIndexOf`, and `indexOf(x, fromIndex)` exclude NaN; `includes` finds it; string includes and non-NaN
 searches unchanged. New `indexofnan-diff` fuzzer (1800+ checks, NaN-laced arrays × all three methods +
 string includes). Full sweep green (217/217).
+
+**Unparenthesized `new X(args).method()` (2026-07-24, 89th engine fix).** `new Error("boom").toString()`
+returned empty while `(new Error("boom")).toString()` and `let e = new Error(); e.toString()` both worked.
+For a method call, recvStart scans back from the `)` to find the receiver's start but stopped at the
+constructor NAME, one token short of the leading `new` — so the receiver was the plain call `Error("boom")`
+(not a constructed error object), and the method saw nothing. (The property-access path — `new Error().name`
+— goes through resolveCtor/resolveObjDot, which already handled `new`, which is why `.name` worked but
+`.toString()` didn't.) recvStart now includes a preceding `new` token. `new X(args).method()` now works for
+Error/TypeError, Date, Map, Set, Array, and user classes, plus chains (`new Error("a").message.toUpperCase()`)
+and inside callbacks. New `newmethodcall-diff` fuzzer (1200+ checks across six constructors). Full sweep
+green (218/218).
