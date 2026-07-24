@@ -3350,3 +3350,21 @@ it. Scalar chains, member/bracket chains (`o.x=o.y=v`, `arr[i]=arr[j]=v`), and l
 `chainassign-diff` fuzzer (800+ checks). Full sweep green (244/244). (The general assignment-in-expression-
 position case — a nested `let y=(x=5)` or arrow-expr `k=>s+=k` — is still open; only the top-level chain
 forms are threaded here.)
+
+**`super.method()` from a child method + engine-internal-key filtering in Object.keys (2026-07-24, 117th
+engine fix).** `super.method(...)` in a non-constructor method returned NaN — only `super(...)` in a
+constructor was wired (`__super__`). Now classWalk stores each class's own methods under
+`this.__msuper_<C>_<m>` (in addition to `this.<m>`), which survives a subclass overriding `this.<m>`, and
+rewrites `super . M (` in a child's method bodies to `this . __msuper_<parent>_M (` (the parent is known at
+desugar time; `this`-binding falls out because it's an ordinary method call on the instance). `super.M()`
+now works with arguments, through multi-level chains (`C→B→A`), alongside `this`, and with polymorphic
+dispatch (a parent method calling `this.overridden()` reaches the child's override). Those `__msuper_`
+records — and the existing `__get_`/`__set_` accessor records and `__proto_` legacy-prototype members —
+would otherwise leak through `Object.keys`/`values`/`entries`, so added an internal-key filter
+(`objEntrySeqPublic`): keys with those reserved engine prefixes are dropped, while a real user `__foo` key
+and ordinary object methods are preserved. This also fixes a pre-existing `__get_` leak (`Object.keys` of a
+getter class now matches Node). New `supermethod-diff` fuzzer (800+ checks). Full sweep green (245/245).
+(Known pre-existing, still open — deeper model issue: a class instance's own METHODS still appear in
+`Object.keys` — `class C{m(){}}`→`["m",…]` vs Node `[…]` — because our model stores methods as own props
+rather than on a prototype; distinguishing them from legitimate plain-object methods needs instance marking
+or a prototype model. `super.method` is unaffected by this — it uses the filtered `__msuper_` records.)

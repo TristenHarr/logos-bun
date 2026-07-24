@@ -2151,6 +2151,38 @@
         Return [] of Text.
     Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
 
+# Engine-internal property keys — a class desugar stores getters/setters/super-method records and legacy
+# prototype members as ordinary object props with these prefixes, but they must never surface through
+# Object.keys/values/entries (or for-in) as if they were user data. A real user key never collides (it
+# would have to be literally `__get_x`/`__msuper_C_m`).
+## To isInternalKey (k: Text) -> Bool:
+    If startsWith(concat(k, ""), "__msuper_"):
+        Return true.
+    If startsWith(concat(k, ""), "__get_"):
+        Return true.
+    If startsWith(concat(k, ""), "__set_"):
+        Return true.
+    If startsWith(concat(k, ""), "__proto_"):
+        Return true.
+    Return false.
+
+## To dropInternalEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be concat(item i of entries, "").
+    If isInternalKey(substringBefore(entry, tagObjKV ())):
+        Return dropInternalEntries(entries, i + 1, acc).
+    If acc is equal to "":
+        Return dropInternalEntries(entries, i + 1, entry).
+    Return dropInternalEntries(entries, i + 1, concat(concat(acc, chr(10)), entry)).
+
+# objEntrySeq with engine-internal keys removed — the public enumerable own properties for Object.keys/etc.
+## To objEntrySeqPublic (objVal: Text) -> Seq of Text:
+    Let filtered be dropInternalEntries(objEntrySeq(objVal), 1, "").
+    If filtered is equal to "":
+        Return [] of Text.
+    Return split(filtered, chr(10)).
+
 # String-tagged index elements "0".."n-1" (Object.keys returns STRING keys, unlike arr.keys()'s numbers).
 ## To numStrIdxLoop (n: Int, i: Int, acc: Text) -> Text:
     If i is greater than or equal to n:
@@ -2183,7 +2215,7 @@
         Return newArr(concat(concat(tagArr (), numStrIdxLoop(length of arrElements(concat(objVal, "")), 0, "")), tagArrEnd ())).
     If startsWith(concat(objVal, ""), tagStr ()):
         Return newArr(concat(concat(tagArr (), numStrIdxLoop(length of objArrLikeEls(concat(objVal, "")), 0, "")), tagArrEnd ())).
-    Return newArr(concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), objKeysLoop(objEntrySeqPublic(objVal), 1, "")), tagArrEnd ())).
 
 # Object.defineProperty(o,k,desc): a data descriptor's `value` is written onto o (our objects don't
 # track writable/enumerable/configurable, so only `value` is honoured — the common case). Object.
@@ -2231,14 +2263,14 @@
         Return newArr(concat(concat(tagArr (), joinChr6(els, 1, length of els, "")), tagArrEnd ())).
     If startsWith(concat(objVal, ""), tagStr ()):
         Return strToCharArr(materialize(concat(objVal, ""))).
-    Return newArr(concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), objValuesLoop(objEntrySeqPublic(objVal), 1, "")), tagArrEnd ())).
 
 ## To objEntries (objVal: Text) -> Text:
     If isArrRef(concat(objVal, "")):
         Return newArr(concat(concat(tagArr (), objArrEntriesLoop(arrElements(concat(objVal, "")), 1, "")), tagArrEnd ())).
     If startsWith(concat(objVal, ""), tagStr ()):
         Return newArr(concat(concat(tagArr (), objArrEntriesLoop(objArrLikeEls(concat(objVal, "")), 1, "")), tagArrEnd ())).
-    Return newArr(concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), objEntriesLoop(objEntrySeqPublic(objVal), 1, "")), tagArrEnd ())).
 
 ## To fromEntriesLoop (pairs: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of pairs:
@@ -8321,9 +8353,13 @@
             Let stHead be concat(concat(concat("this . __set_", nthTok(concat(b, ""), 2)), concat(" = function ( ", params)), " ) ").
             Let stAssign be concat(concat(concat(concat(stHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
             Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics, fields).
+    Let superBody be replaceAll(trim(mbody), "super . ", concat(concat("this . __msuper_", parent), "_")).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
-    Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", trim(mbody))), " "), chr(125)), " ; ").
-    Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, assign), statics, fields).
+    Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", superBody)), " "), chr(125)), " ; ").
+    Let msKey be concat(concat(concat("__msuper_", cname), "_"), name).
+    Let msHead be concat(concat(concat(concat("this . ", msKey), " = function ( "), params), " ) ").
+    Let msAssign be concat(concat(concat(concat(concat(msHead, chr(123)), concat(" ", superBody)), " "), chr(125)), " ; ").
+    Return classWalk(cname, parent, rest, cparams, cbody, concat(concat(methods, assign), msAssign), statics, fields).
 
 ## To desugarClass (expr: Text) -> Text:
     If substringBefore(expr, "class ") is equal to expr:
