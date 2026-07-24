@@ -3429,3 +3429,15 @@ whitespace-trimmed out of a value — materializing them corrupts the value (a p
 limit that even a plain `{a:"x\ny",b:2}` literal exhibits by dropping `b`). New `jsonstringesc-diff` fuzzer
 (800+ checks over the safe escapes). Full sweep green (249/249). (Full `\n`/`\t` support needs the deeper
 value-representation work so a string value can carry the separator/whitespace bytes.)
+
+**charCodeAt/codePointAt over a newline returned 31 not 10 (2026-07-24, 122nd engine fix).** A string value
+stores its newline internally as `encNewline`(chr31) — so it doesn't act as a statement separator — but
+`charCodeAt`/`codePointAt` read that raw internal byte, so `"x\ny".charCodeAt(1)` returned 31 instead of 10
+(breaking the common `.charCodeAt(i) === 10` newline scan). Fixed by decoding the receiver (`decodeStr`,
+which maps `encNewline`→chr10 and is a no-op on already-raw bytes like space/tab) before the character read.
+Now the newline char code is 10, the `for … charCodeAt(i)===10` count is correct, and plain ASCII / space /
+tab char codes are unchanged. New `charcodenewline-diff` fuzzer (800+ checks). Full sweep green (250/250).
+(This is the safe, number-returning slice of the broader `encNewline` value-representation issue — the
+inline expression leak `o.a.length + o.b` when `o.a` holds a newline, and multi-line string values inside
+objects, still need the core-evaluator representation work; a non-ASCII char code like `"café".charCodeAt(0)`
+is the separate unicode-UTF-16 keystone, unaffected here.)

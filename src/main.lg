@@ -6171,7 +6171,7 @@
         Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
-        Let sval be materialize(jsEvalIn(recv, env)).
+        Let sval be decodeStr(materialize(jsEvalIn(recv, env))).
         Let cc be charCodeStr(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cc), rst)), env).
     If lm is equal to " . codePointAt (":
@@ -6180,7 +6180,7 @@
         Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
-        Let sval be materialize(jsEvalIn(recv, env)).
+        Let sval be decodeStr(materialize(jsEvalIn(recv, env))).
         Let cc be codePointStr(sval, safeInt(materialize(jsEvalIn(trim(methodArg(aft)), env)))).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), cc), rst)), env).
     If lm is equal to " . substr (":
