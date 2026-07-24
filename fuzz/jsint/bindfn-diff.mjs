@@ -5,9 +5,10 @@
 // value is called immediately (`f.bind(o)()`) or through a variable (`const g=f.bind(o,5); g(3)`), and
 // callMethod also binds `arguments`, so a bound `this`-using function works. Exercises `this` access,
 // bound PARTIAL args (`add.bind(null,5)`), partial + `this`, string partials, reuse across calls,
-// arguments after bind, immediate vs stored bind, and method binding (`obj.m.bind(obj)`); plain calls and
-// call/apply are re-checked as regressions. (Passing a bound fn as a map callback is a separate follow-up
-// and avoided here.) Diffed vs Node.
+// arguments after bind, immediate vs stored bind, method binding (`obj.m.bind(obj)`), and passing a bound
+// function as a map/forEach/filter CALLBACK (`[1,2,3].map(f.bind(o))` — the bound `this` and any partial
+// args ride through the callback dispatch); plain calls and call/apply are re-checked as regressions.
+// Diffed vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -22,7 +23,8 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 200), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const t = ri(50), a = ri(50), b = ri(50), k = ri(11);
+    const t = ri(50), a = ri(50), b = ri(50), k = ri(15);
+    if (k === 13) return `(function(){function f(x){return x+${t}};const g=f.bind(null);return typeof g})()`;  // typeof bound fn = "function"
     if (k === 0) return `(function(){const o={x:${t}};function f(){return this.x};return f.bind(o)()})()`;
     if (k === 1) return `(function(){const o={n:${t}};function f(p){return this.n+p};const g=f.bind(o);return g(${a})})()`;
     if (k === 2) return `(function(){const o={n:${t}};function f(p,q){return this.n+p+q};const g=f.bind(o);return g(${a},${b})})()`;
@@ -32,7 +34,10 @@ if (OURS) {
     if (k === 6) return `(function(){function add(a,b,c){return a+b+c}const g=add.bind(null,${a},${b});return g(${t})})()`;    // partial: 2 bound
     if (k === 7) return `(function(){const o={n:${t}};function f(p,q){return this.n+p+q};const g=f.bind(o,${a});return g(${b})})()`; // partial + this
     if (k === 8) return `(function(){function m(a,b){return a*b}const g=m.bind(null,${a});return g(${b})+","+g(${t})})()`;     // reuse across calls
-    if (k === 9) return `(function(){function add(a,b){return a+b}return add(${a},${b})})()`;   // regression: plain
+    if (k === 9) return `(function(){const o={m:${1 + (t % 5)}};function f(x){return x*this.m};const g=f.bind(o);return [${a},${b}].map(g).join(",")})()`;   // bound map callback
+    if (k === 10) return `(function(){const o={t:${t}};function f(x){return x>this.t};const g=f.bind(o);return [${a},${b},${t}].filter(g).length})()`;       // bound filter callback
+    if (k === 11) return `(function(){const o={base:${t}};function f(x,i){return this.base+x+i};const g=f.bind(o);return [${a},${b}].map(g).join(",")})()`;  // bound callback w/ index
+    if (k === 12) return `(function(){function add(a,b){return a+b}return add(${a},${b})})()`;   // regression: plain
     return `(function(){function f(){return this.v};return f.call({v:${t}})})()`;               // regression: call
   };
   let checked = 0;

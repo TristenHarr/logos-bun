@@ -3491,3 +3491,17 @@ to the call's own args before dispatch, so bound args + call args + a bound `thi
 is reusable across calls, and `__bargs` is filtered out of `Object.keys` alongside `__bfn`/`__bthis`. Extended
 the `bindfn-diff` fuzzer with partial-application shapes (1 bound, 2 bound, partial+`this`, reuse). Full sweep
 green (253/253). (Remaining bind follow-ups: `typeof boundFn`, and a bound fn as a map/forEach callback.)
+
+**Bound function as an array/collection callback + `typeof` — `.bind` now complete (2026-07-24, final follow-up
+to the 125th fix).** `[1,2,3].map(f.bind(o))` returned `,,` because the callback dispatch (`callFnIdx`/
+`callFnIdx3`, feeding map/filter/forEach/some/every/find/reduce and Map/Set forEach) treated the `__bfn` object
+as a raw function and read garbage params. Both now detect a bound callback and route through a new
+`callBoundIdx`: it binds `this` to `__bthis` and binds the element/index DIRECTLY via `bindParamVal` (never
+comma-joined into an argsText, so a string element containing a comma stays a single argument — the comma-safe
+path a bound `this`-only callback needs); a callback that also carries `__bargs` falls back to `callMethod` with
+the args prepended. Separately, `typeof` a bound function now reports `"function"` (it was `"object"` — the
+bound value is a heap object, so `typeOfVal` gained an `isBoundFn` check ahead of the ref checks). Extended
+`bindfn-diff` with bound-callback shapes (map, filter, index-aware) and a `typeof` shape. Full sweep green
+(253/253, seeds 1-2). `Function.prototype.bind` is now feature-complete for the engine: `this`-binding, partial
+application, use as a callback, and correct `typeof`. (Only double-bind `f.bind(a).bind(b)` — re-binding an
+already-bound function, where the second `this` is ignored but args accumulate — remains, a rare edge.)

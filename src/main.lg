@@ -3617,8 +3617,9 @@
         Return concat(tagStr (), jsDateField(ms, "iso")).
     Return "NaN".
 
-# The `typeof` of an already-evaluated value (functions are opaque chr(1) closures; typeof null is
-# "object"; a heap Symbol reports "symbol", every other ref "object").
+# The `typeof` of an already-evaluated value (functions are opaque chr(1) closures; a bound function is a
+# heap object but still reports "function"; typeof null is "object"; a heap Symbol reports "symbol", every
+# other ref "object").
 ## To typeOfVal (v: Text) -> Text:
     If startsWith(v, chr(1)):
         Return concat(tagStr (), "function").
@@ -3626,6 +3627,8 @@
         Return concat(tagStr (), "bigint").
     If startsWith(v, tagStr ()):
         Return concat(tagStr (), "string").
+    If isBoundFn(v):
+        Return concat(tagStr (), "function").
     If isArrRef(v):
         Return concat(tagStr (), "object").
     If isSymbol(v):
@@ -4222,7 +4225,39 @@
         Return destructureArr(pname, val, acc).
     Return envSet(acc, pname, val).
 
+# A BOUND function (`f.bind(o)`) passed as an array/collection callback (`[1,2,3].map(f.bind(o))`). The
+# callback value is the `__bfn`/`__bthis` object, not a raw function, so it must dispatch through the
+# underlying function with `this` bound. The element/index are bound DIRECTLY via bindParamVal (never
+# comma-joined into an argsText), so a string element containing a comma stays one argument. A bound
+# callback that ALSO carries partial args (`__bargs`, vanishingly rare for a callback) falls back to
+# callMethod with the args prepended — comma-safe only for comma-free elements, a documented edge.
+## To callBoundIdx (fnVal: Text, el: Text, idx: Text, arrv: Text, env: Text) -> Text:
+    Let inner be objGet(concat(fnVal, ""), "__bfn").
+    Let bthis be objGet(concat(fnVal, ""), "__bthis").
+    Let bargs be objGet(concat(fnVal, ""), "__bargs").
+    If bargs is not equal to "undefined":
+        Return callMethod(concat(inner, ""), combineBoundArgs(bargs, el), bthis, env).
+    Let paramStr be fnParams(concat(inner, "")).
+    Let body be fnBody(concat(inner, "")).
+    Let params be patFields(paramStr).
+    Let baseEnv be envSet(env, "this", concat(bthis, "")).
+    Let e1 be bindParamVal(trim(item 1 of params), el, baseEnv).
+    If length of params is greater than 2:
+        Let e2 be bindParamVal(trim(item 2 of params), idx, e1).
+        Let d3 be runBlockStr(body, bindParamVal(trim(item 3 of params), arrv, e2)).
+        Let p3 be maybePropagateThrow(concat(d3, "")).
+        Return envGet(d3, "__ret").
+    If length of params is greater than 1:
+        Let d2 be runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)).
+        Let p2 be maybePropagateThrow(concat(d2, "")).
+        Return envGet(d2, "__ret").
+    Let d1 be runBlockStr(body, e1).
+    Let p1 be maybePropagateThrow(concat(d1, "")).
+    Return envGet(d1, "__ret").
+
 ## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
+    If isBoundFn(concat(fnVal, "")):
+        Return callBoundIdx(concat(fnVal, ""), el, idx, "undefined", env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
@@ -4239,6 +4274,8 @@
 # `(value, index, array)` callback signature), bound only when the callback declares a third
 # parameter — a 1- or 2-arg callback is untouched.
 ## To callFnIdx3 (fnVal: Text, el: Text, idx: Text, arrv: Text, env: Text) -> Text:
+    If isBoundFn(concat(fnVal, "")):
+        Return callBoundIdx(concat(fnVal, ""), el, idx, concat(arrv, ""), env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
