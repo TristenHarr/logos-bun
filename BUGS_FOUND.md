@@ -3200,3 +3200,15 @@ Node, mutation persisted; scalar `++x`, bare `o.n++`/`++o.n` statements, and loo
 `memberincret-diff` fuzzer (1500+ checks). Full sweep green (234/234). (Class-method `++this.n` — entangled
 with how class methods capture `this` — and member inc/dec in assignment position `let x = o.n++` remain
 separate documented gaps; explicit `this.n = this.n + 1` works everywhere.)
+
+**Regex `\b`/`\B` word boundaries + global-loop position threading (2026-07-24, 107th engine fix).** `\b`/`\B`
+were treated as literal `b`/`B`, so `"The quick".replace(/\b\w/g, c=>c.toUpperCase())` (title-case) uppercased
+every letter. Added `\b`/`\B` as zero-width assertions in mh (atWordBoundary — a boundary sits between a
+word and non-word char, string edges non-word). A first attempt was wrong in GLOBAL contexts: the loops
+sliced off each match and recursed on the remainder, so a `\b` at a mid-word slice point saw a false
+string-start boundary. Refactored the four global-regex loops (reReplaceLoop, reFindAllLoop, reMatchAllLoop,
+reReplaceFnLoop) to keep the FULL text and thread an absolute position instead — so assertions see their
+real neighbours — and to advance one char on a zero-width match (so `/\B/g` → "t.e.s.t" instead of looping
+or stopping). `\b`/`\B` now work in test/match/matchAll/string-replace/callback-replace, including the
+title-case idiom and `\bword\b`; all existing global replace/match/matchAll is unchanged. New
+`wordboundary-diff` fuzzer (1500+ checks across five surfaces). Full sweep green (236/236).

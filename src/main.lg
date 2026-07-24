@@ -8878,6 +8878,19 @@
         Return 0.
     Return mhStar(pat, npi, text, ti, k - 1).
 
+# `\b` / `\B` word-boundary assertions (zero-width): a boundary sits between a word char and a non-word
+# char (string edges count as non-word). Correct in every context now that the global loops keep the FULL
+# text and thread an absolute position (so a `\b` at a mid-word slice point sees its true neighbours).
+## To reWordAt (text: Text, i: Int) -> Bool:
+    If i is less than 1:
+        Return false.
+    If i is greater than length of text:
+        Return false.
+    Return reWord(item i of text).
+
+## To atWordBoundary (text: Text, ti: Int) -> Bool:
+    Return reWordAt(concat(text, ""), ti - 1) is not equal to reWordAt(concat(text, ""), ti).
+
 # --- `{n}` / `{n,}` / `{n,m}` bounded quantifier ---
 # A `{` after an atom is a counted quantifier only when it encloses a numeric spec (else it is a literal
 # `{`). mhBrace is mhStar bounded below by the minimum count: greedily match the rest after k atoms, k from
@@ -8991,6 +9004,15 @@
             If ti is greater than length of text:
                 Return ti.
             Return 0.
+    If item pi of pat is equal to chr(92):
+        If item (pi + 1) of pat is equal to "b":
+            If atWordBoundary(text, ti):
+                Return mh(pat, pi + 2, text, ti).
+            Return 0.
+        If item (pi + 1) of pat is equal to "B":
+            If atWordBoundary(text, ti):
+                Return 0.
+            Return mh(pat, pi + 2, text, ti).
     Let alen be atomLen(pat, pi).
     Let aend be pi + alen.
     If aend is less than (length of pat + 1):
@@ -9063,21 +9085,19 @@
         Return piece.
     Return concat(concat(acc, tagArrSep ()), piece).
 
-## To reFindAllLoop (pat: Text, text: Text, acc: Text) -> Text:
-    Let start be reSearchStart(pat, text).
+## To reFindAllLoop (pat: Text, text: Text, pos: Int, acc: Text) -> Text:
+    Let start be reSearchFrom(concat(pat, ""), concat(text, ""), pos).
     If start is equal to 0:
         Return acc.
-    Let endp be reMatchEnd(pat, text, start).
-    Let matched be concat(tagStr (), encodeStr(strSliceLoop(text, start, endp - 1, ""))).
-    Let after be strSliceLoop(text, endp, length of text, "").
-    Let nextAcc be appendArrPiece(acc, matched).
+    Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
+    Let nextAcc be appendArrPiece(acc, concat(tagStr (), encodeStr(strSliceLoop(concat(text, ""), start, endp - 1, "")))).
     If endp is greater than start:
-        Return reFindAllLoop(pat, after, nextAcc).
-    Return nextAcc.
+        Return reFindAllLoop(concat(pat, ""), concat(text, ""), endp, nextAcc).
+    Return reFindAllLoop(concat(pat, ""), concat(text, ""), start + 1, nextAcc).
 
 ## To reFindAll (pat: Text, text: Text, flags: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
-    Return reFindAllLoop(pat, text, "").
+    Return reFindAllLoop(pat, text, 1, "").
 
 # --- Capture-group extraction ---
 # The matcher (mh) dissolves group boundaries via the pattern-derivative method, so captures can't be read
@@ -9179,22 +9199,21 @@
         Return concat(full, "").
     Return concat(concat(full, tagArrSep ()), groups).
 
-## To reMatchAllLoop (pat: Text, text: Text, acc: Text) -> Text:
-    Let start be reSearchStart(concat(pat, ""), concat(text, "")).
+## To reMatchAllLoop (pat: Text, text: Text, pos: Int, acc: Text) -> Text:
+    Let start be reSearchFrom(concat(pat, ""), concat(text, ""), pos).
     If start is equal to 0:
         Return acc.
     Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
     Let full be concat(tagStr (), encodeStr(strSliceLoop(concat(text, ""), start, endp - 1, ""))).
     Let matchArr be newArr(concat(concat(tagArr (), capJoinFull(full, capEncodeInner(capExtract(concat(pat, ""), concat(text, ""), start)))), tagArrEnd ())).
-    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
     Let nextAcc be appendArrPiece(acc, matchArr).
     If endp is greater than start:
-        Return reMatchAllLoop(concat(pat, ""), after, nextAcc).
-    Return nextAcc.
+        Return reMatchAllLoop(concat(pat, ""), concat(text, ""), endp, nextAcc).
+    Return reMatchAllLoop(concat(pat, ""), concat(text, ""), start + 1, nextAcc).
 
 ## To reMatchAll (pat: Text, text: Text, flags: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
-    Return newArr(concat(concat(tagArr (), reMatchAllLoop(pat, text, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), reMatchAllLoop(pat, text, 1, "")), tagArrEnd ())).
 
 ## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
     If length of rargs is less than 2:
@@ -9210,21 +9229,23 @@
 # regex engine and .replace/.split all decode first). Non-global replaces the first match; global
 # walks left-to-right. A zero-width match (endp <= start) would loop forever, so global stops after
 # one substitution there. reSplit reuses this: replace every match with chr(0), then strSplit on it.
-## To reReplaceLoop (pat: Text, text: Text, repl: Text, global: Bool, acc: Text) -> Text:
-    Let start be reSearchStart(pat, text).
+# Threads an absolute `pos` through the FULL text (rather than slicing off each match and recursing on the
+# remainder) so a `\b`/`\B`/`$` assertion at a match point sees its true neighbouring characters. A
+# zero-width match advances one char (emitting it) so a global replace of an empty match never loops.
+## To reReplaceLoop (pat: Text, text: Text, pos: Int, repl: Text, global: Bool, acc: Text) -> Text:
+    Let start be reSearchFrom(concat(pat, ""), concat(text, ""), pos).
     If start is equal to 0:
-        Return concat(acc, text).
-    Let endp be reMatchEnd(pat, text, start).
-    Let before be strSliceLoop(concat(text, ""), 1, start - 1, "").
-    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
+        Return concat(acc, strSliceLoop(concat(text, ""), pos, length of text, "")).
+    Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
+    Let before be strSliceLoop(concat(text, ""), pos, start - 1, "").
     Let matched be strSliceLoop(concat(text, ""), start, endp - 1, "").
     Let rep be applyBackrefs(concat(repl, ""), concat(matched, ""), capExtract(concat(pat, ""), concat(text, ""), start)).
     If global is equal to false:
-        Return concat(acc, concat(before, concat(rep, after))).
+        Return concat(acc, concat(before, concat(rep, strSliceLoop(concat(text, ""), endp, length of text, "")))).
     If endp is greater than start:
-        Let nextAcc be concat(acc, concat(before, concat(rep, ""))).
-        Return reReplaceLoop(pat, after, repl, true, nextAcc).
-    Return concat(acc, concat(before, concat(rep, after))).
+        Return reReplaceLoop(concat(pat, ""), concat(text, ""), endp, repl, true, concat(acc, concat(before, rep))).
+    Let chAt be strSliceLoop(concat(text, ""), start, start, "").
+    Return reReplaceLoop(concat(pat, ""), concat(text, ""), start + 1, repl, true, concat(acc, concat(concat(before, rep), chAt))).
 
 # Inverse of decodeStr: re-encode a raw string's structural characters back into the byte vocabulary,
 # so a value produced from DECODED text (regex replace/split results) is a well-formed jsint string.
@@ -9277,7 +9298,7 @@
 
 ## To reReplace (pat: Text, text: Text, repl: Text, flags: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
-    Return concat(tagStr (), encodeStr(reReplaceLoop(pat, text, repl, reHasG(flags), ""))).
+    Return concat(tagStr (), encodeStr(reReplaceLoop(pat, text, 1, repl, reHasG(flags), ""))).
 
 # .replace(regex, fn): like reReplaceLoop, but each match's replacement is fn(match, offset) — the
 # callback is invoked per match (via callFnIdx, match bound to param 1, offset to param 2) and its
@@ -9296,25 +9317,24 @@
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return retVal(doneEnv).
 
-## To reReplaceFnLoop (pat: Text, text: Text, fnval: Text, global: Bool, env: Text, acc: Text) -> Text:
-    Let start be reSearchStart(pat, text).
+## To reReplaceFnLoop (pat: Text, text: Text, pos: Int, fnval: Text, global: Bool, env: Text, acc: Text) -> Text:
+    Let start be reSearchFrom(concat(pat, ""), concat(text, ""), pos).
     If start is equal to 0:
-        Return concat(acc, text).
-    Let endp be reMatchEnd(pat, text, start).
-    Let before be strSliceLoop(text, 1, start - 1, "").
+        Return concat(acc, strSliceLoop(concat(text, ""), pos, length of text, "")).
+    Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
+    Let before be strSliceLoop(concat(text, ""), pos, start - 1, "").
     Let matched be strSliceLoop(concat(text, ""), start, endp - 1, "").
-    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
     Let repl be decodeStr(materialize(callReplaceFn(concat(fnval, ""), concat(tagStr (), matched), capExtract(concat(pat, ""), concat(text, ""), start), toText(start - 1), concat(tagStr (), concat(text, "")), concat(env, "")))).
     If global is equal to false:
-        Return concat(acc, concat(before, concat(repl, after))).
+        Return concat(acc, concat(before, concat(repl, strSliceLoop(concat(text, ""), endp, length of text, "")))).
     If endp is greater than start:
-        Let nextAcc be concat(acc, concat(before, repl)).
-        Return reReplaceFnLoop(pat, after, fnval, true, env, nextAcc).
-    Return concat(acc, concat(before, concat(repl, after))).
+        Return reReplaceFnLoop(concat(pat, ""), concat(text, ""), endp, fnval, true, env, concat(acc, concat(before, repl))).
+    Let chAt be strSliceLoop(concat(text, ""), start, start, "").
+    Return reReplaceFnLoop(concat(pat, ""), concat(text, ""), start + 1, fnval, true, env, concat(acc, concat(concat(before, repl), chAt))).
 
 ## To reReplaceFn (pat: Text, text: Text, fnval: Text, flags: Text, env: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
-    Return concat(tagStr (), encodeStr(reReplaceFnLoop(pat, text, fnval, reHasG(flags), env, ""))).
+    Return concat(tagStr (), encodeStr(reReplaceFnLoop(pat, text, 1, fnval, reHasG(flags), env, ""))).
 
 # `String.split(regex)` with capture groups interleaves the captured text between the split pieces:
 # `"a1b2c".split(/(\d)/)` → ["a","1","b","2","c"]. Each captured group is appended (decoded) after the piece
