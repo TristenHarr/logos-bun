@@ -3155,3 +3155,15 @@ it. `^X+|X+$` trim, standalone `^`/`$`, `^…$` full-match tests, and `^`/`$` re
 plain matching is unchanged. New `anchoralt-diff` fuzzer (1500+ checks). Full sweep green (231/231). (The
 zero-width both-ends case `/^|$/g` — emitting a match at start AND end — remains a documented zero-width
 edge.)
+
+**Regex escape classes inside `[...]` + match-result encoding (2026-07-24, 103rd engine fix).** `[\w]`,
+`[\d]`, `[\s]` (and negations, and mixes like `[\w.]`) didn't work — classContains treated `\` as a literal,
+so `[\w]` never matched a word char (`"user@x.com".match(/^[\w.]+@[\w.]+$/)` was invalid). Added escape
+handling in classContains (`\w`/`\d`/`\s` via escapeMatches) and `\X`-skipping in classEnd. That exposed a
+pre-existing bug: `.match`/`.exec`/`.matchAll` result elements stored DECODED text, so a match containing a
+space (or other structural char) broke `.length`/indexing on the element (`"a  b".match(/ +/)[0].length` gave
+"  0"). Fixed by re-encoding each result element (full match + capture groups) via capEncodeInner at the
+match-array builders (reMatchArrayInner, reMatchAllLoop, reFindAllLoop) — capExtract stays decoded for
+replace/split, which re-encode downstream. `[\w.]` email validation, `[\s]+`/`[^\w]+` with spaces, and
+`.length`/index on space-containing matches all match Node. New `classescape-diff` fuzzer (1500+ checks).
+Full sweep green (232/232).

@@ -8604,6 +8604,8 @@
 ## To classEnd (pat: Text, i: Int) -> Int:
     If i is greater than length of pat:
         Return i.
+    If item i of pat is equal to chr(92):
+        Return classEnd(pat, i + 2).
     If item i of pat is equal to chr(93):
         Return i.
     Return classEnd(pat, i + 1).
@@ -8611,6 +8613,10 @@
 ## To classContains (pat: Text, i: Int, endPos: Int, ch: Text) -> Bool:
     If i is greater than (endPos - 1):
         Return false.
+    If item i of pat is equal to chr(92):
+        If escapeMatches(item (i + 1) of pat, ch):
+            Return true.
+        Return classContains(pat, i + 2, endPos, ch).
     If (i + 2) is less than endPos:
         If item (i + 1) of pat is equal to "-":
             If ord(ch) is greater than (ord(item i of pat) - 1):
@@ -8963,7 +8969,7 @@
     If start is equal to 0:
         Return acc.
     Let endp be reMatchEnd(pat, text, start).
-    Let matched be concat(tagStr (), strSliceLoop(text, start, endp - 1, "")).
+    Let matched be concat(tagStr (), encodeStr(strSliceLoop(text, start, endp - 1, ""))).
     Let after be strSliceLoop(text, endp, length of text, "").
     Let nextAcc be appendArrPiece(acc, matched).
     If endp is greater than start:
@@ -9036,6 +9042,22 @@
 ## To capExtract (pat: Text, text: Text, matchStart: Int) -> Text:
     Return capWalk(pat, 1, text, matchStart, "").
 
+# capExtract keeps group text DECODED (replace/split consume it raw), but a `.match`/`.exec`/`.matchAll`
+# result is an array of string VALUES, so each element must be re-encoded to a well-formed jsint string —
+# otherwise a match containing a space or other structural char breaks `.length`/indexing on the element.
+## To capEncodeLoop (groups: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of groups:
+        Return acc.
+    Let enc be concat(tagStr (), encodeStr(substringAfter(item i of groups, tagStr ()))).
+    If acc is equal to "":
+        Return capEncodeLoop(groups, i + 1, enc).
+    Return capEncodeLoop(groups, i + 1, concat(concat(acc, tagArrSep ()), enc)).
+
+## To capEncodeInner (groupsInner: Text) -> Text:
+    If groupsInner is equal to "":
+        Return "".
+    Return capEncodeLoop(split(groupsInner, tagArrSep ()), 1, "").
+
 # The array-inner for a non-global `.match`/`.exec`: the full match followed by each capture group's text
 # (tagStr elements joined by tagArrSep), or "" when the pattern doesn't match. capExtract runs after the
 # match start is known, so the cursor it walks from is the real match position.
@@ -9044,8 +9066,8 @@
     Let start be reSearchStart(pat, text).
     If start is equal to 0:
         Return "".
-    Let full be concat(tagStr (), strSliceLoop(text, start, reMatchEnd(pat, text, start) - 1, "")).
-    Let groups be capExtract(pat, text, start).
+    Let full be concat(tagStr (), encodeStr(strSliceLoop(text, start, reMatchEnd(pat, text, start) - 1, ""))).
+    Let groups be capEncodeInner(capExtract(pat, text, start)).
     If groups is equal to "":
         Return full.
     Return concat(concat(full, tagArrSep ()), groups).
@@ -9063,8 +9085,8 @@
     If start is equal to 0:
         Return acc.
     Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
-    Let full be concat(tagStr (), strSliceLoop(concat(text, ""), start, endp - 1, "")).
-    Let matchArr be newArr(concat(concat(tagArr (), capJoinFull(full, capExtract(concat(pat, ""), concat(text, ""), start))), tagArrEnd ())).
+    Let full be concat(tagStr (), encodeStr(strSliceLoop(concat(text, ""), start, endp - 1, ""))).
+    Let matchArr be newArr(concat(concat(tagArr (), capJoinFull(full, capEncodeInner(capExtract(concat(pat, ""), concat(text, ""), start)))), tagArrEnd ())).
     Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
     Let nextAcc be appendArrPiece(acc, matchArr).
     If endp is greater than start:
