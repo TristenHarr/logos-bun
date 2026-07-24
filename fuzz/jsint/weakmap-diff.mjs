@@ -21,7 +21,7 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
     const v1 = ri(100), v2 = ri(100);
-    const k = ri(8);
+    const k = ri(9);
     if (k === 0) return `(function(){const wm=new WeakMap();const a={},b={};wm.set(a,${v1});wm.set(b,${v2});return wm.get(a)+"/"+wm.get(b)})()`;
     if (k === 1) return `(function(){const wm=new WeakMap();const a={};wm.set(a,${v1});return wm.has(a)+"/"+wm.get(a)})()`;
     if (k === 2) return `(function(){const ws=new WeakSet();const a={},b={};ws.add(a);ws.add(b);return ws.has(a)+"/"+ws.has(b)+"/"+ws.has({})})()`;
@@ -29,6 +29,8 @@ if (OURS) {
     if (k === 4) return `(function(){const m=new Map();const a={},b={};m.set(a,${v1});m.set(b,${v2});return m.get(a)+"/"+m.get(b)+"/"+m.size})()`;
     if (k === 5) return `(function(){const s=new Set();const a={},b={};s.add(a);s.add(b);s.add(a);return s.size})()`;
     if (k === 6) return `(function(){const cache=new WeakMap();function f(o){if(cache.has(o))return cache.get(o);const r=o.n*${1 + ri(5)};cache.set(o,r);return r}const o={n:${v1}};return f(o)+"/"+f(o)})()`;
+    // primitive-key TYPE distinction: number N and string "N" are distinct Map keys (SameValueZero, no coercion)
+    if (k === 7) return `(function(){const m=new Map();m.set(${v1},"num");m.set("${v1}","str");return m.get(${v1})+"/"+m.get("${v1}")+"/"+m.size})()`;
     // primitive-key Map regression (must stay correct)
     return `(function(){const m=new Map();m.set("k${v1}",${v1});m.set("k${v2}",${v2});return m.get("k${v1}")+"/"+m.size})()`;
   };

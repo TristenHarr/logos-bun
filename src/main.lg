@@ -9502,8 +9502,9 @@
         Return mapKeyIdx(keys, i + 1, k).
     If isRef(concat(k, "")):
         Return mapKeyIdx(keys, i + 1, k).
-    If materialize(sk) is equal to materialize(concat(k, "")):
-        Return i.
+    If startsWith(sk, tagStr ()) is equal to startsWith(concat(k, ""), tagStr ()):
+        If materialize(sk) is equal to materialize(concat(k, "")):
+            Return i.
     Return mapKeyIdx(keys, i + 1, k).
 
 ## To mapSet (m: Text, k: Text, v: Text) -> Text:

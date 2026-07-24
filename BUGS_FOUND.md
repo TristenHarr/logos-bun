@@ -3306,7 +3306,17 @@ refs) now compare by REFERENCE identity (the raw ref string carries a unique id 
 different keys), while primitive keys still compare by value (materialize). Now WeakMap/WeakSet get/set/has/
 delete/add, WeakMap-as-memo-cache, and Map/Set with distinct object keys all match Node; primitive-key Maps/
 Sets (string/number keys, NaN, dedup, forEach, size) are unchanged. New `weakmap-diff` fuzzer (800+ checks).
-Full sweep green (242/242). (Known pre-existing edge, unchanged: a Map keyed by both `1` and `"1"` still
-merges them — primitive keys compare by materialized value, so number-vs-string type isn't distinguished;
-rare, and WeakMap/WeakSet iteration semantics — they're intentionally non-iterable in spec — are not
-enforced since they reuse Map/Set storage.)
+Full sweep green (242/242). (WeakMap/WeakSet iteration semantics — they're intentionally non-iterable in
+spec — are not enforced since they reuse Map/Set storage.)
+
+**Map/Set primitive-key type distinction (2026-07-24, 114th engine fix — close-out on the 113th's
+mapKeyIdx).** A Map keyed by both a number and the same-looking string — `m.set(1,"a"); m.set("1","b")` —
+merged them into one key (both `get`→"b", size 1). JS Map uses SameValueZero with NO coercion, so `1` and
+`"1"` (and `true`/`"true"`, `null`/`"null"`, …) are distinct keys. mapKeyIdx's primitive path compared
+`materialize()`d values, and a number and a string with the same digits materialize identically. Fixed by
+gating the value comparison on matching string-ness (`startsWith(k, tagStr())` equal on both) — a string key
+and a non-string key never match even with equal materialized text. Now `1`≠`"1"`, `true`≠`"true"` as Map/
+Set keys and sizes are correct; equal-type keys (string==string, number==number, NaN==NaN) and object-
+identity keys are unchanged. Extended `weakmap-diff` fuzzer with the number-vs-string case. Full sweep green
+(242/242). (A BigInt `1n` vs number `1` edge remains — both non-string, so still merges — but BigInt Map
+keys are vanishingly rare.)
