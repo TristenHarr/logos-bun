@@ -3021,3 +3021,16 @@ constructor NAME, one token short of the leading `new` — so the receiver was t
 Error/TypeError, Date, Map, Set, Array, and user classes, plus chains (`new Error("a").message.toUpperCase()`)
 and inside callbacks. New `newmethodcall-diff` fuzzer (1200+ checks across six constructors). Full sweep
 green (218/218).
+
+**Bare-statement throw + engine TypeError fidelity (2026-07-24, 90th engine fix).** A bare expression
+statement `null.x;` (member access on null/undefined, no call) never threw — execStmt only evaluated a bare
+statement when it contained `(` (a call), so a bare member/index access fell through unevaluated and the
+caught `e` degraded to NaN. (`return z.x`, `(null).x`, and calls all worked, which is why this hid.)
+execStmt now also evaluates bare member (` . `) and index (`[`) statements for their side effects, so the
+engine's TypeError fires and try/catch sees a real Error object — `e.name` (TypeError), `e.constructor.name`,
+`e instanceof TypeError`/`Error`, `typeof e` (object), and `e.toString()` all correct. The message now
+carries V8's exact text — `Cannot read properties of null (reading 'x')` — built plain then run through
+encodeStr so its parens stay inert on re-resolution AND it behaves as a normal string (`e.message.length`
+= 44, `.slice`, `.includes` all work). New `barethrow-diff` fuzzer (1200+ checks, null/undefined × props ×
+name/message/instanceof/typeof/constructor/toString/length). Full sweep green (219/219). (A throw from
+inside a map callback still doesn't propagate — a separate pre-existing gap, not from this change.)

@@ -2636,7 +2636,8 @@
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
     If isNullish(recv):
-        Let te be throwSet(newError("TypeError", concat(tagStr (), concat("Cannot read properties of ", recv)))).
+        Let msg be concat(concat(concat(concat("Cannot read properties of ", recv), " (reading '"), item 1 of tailToks), "')").
+        Let te be throwSet(newError("TypeError", concat(tagStr (), encodeStr(msg)))).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
         Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks))).
@@ -7119,6 +7120,12 @@
         Return bindAssign(s, env).
     If hasSep(s, "("):
         Let sideEffect be jsEvalIn(concat(s, ""), env).
+        Return env.
+    If hasSep(s, " . "):
+        Let dotEffect be jsEvalIn(concat(s, ""), env).
+        Return env.
+    If hasSep(s, chr(91)):
+        Let brkEffect be jsEvalIn(concat(s, ""), env).
         Return env.
     Return env.
 
