@@ -2909,3 +2909,16 @@ fuzzer (1800+ checks over mixed-symbol strings). Toolchain change (env.rs + prog
 Full sweep green (416/416). KNOWN pre-existing limitation (documented, not this fix): a decoded (or any)
 string VALUE containing a semicolon truncates on output — `return "a;b"` yields "a" though `"a;b".length`
 is 3 — so `decodeURIComponent("%3B")` hits it; the `;` is excluded from the fuzzer pool. (Fixed next.)
+
+**Semicolon in a string value (2026-07-24, 80th engine fix).** The environment is a `;`-separated
+`name=val` list and `envSet` stored the raw value, so a `;` inside a string VALUE collided with the
+pair-separator and truncated the value on readback: `return "a;b"` yielded "a" (though `"a;b".length` was
+correctly 3), and `decodeURIComponent("%3B")`, `"color:red;font:bold"`, any string with a semicolon were
+cut off. Fixed by escaping the value's semicolons to `chr(12)` (a byte otherwise unused in the codebase) in
+`envSet` and restoring them in `envScan` — the two chokepoints for the env format. A value with no
+semicolon round-trips unchanged, so no existing behavior is affected (the whole 416-fuzzer suite stays
+green). `return "a;b"`, a `;`-containing variable / object field / array element, `"a;b;c".split(";")`,
+concatenation, `.length`, and `decodeURIComponent("%3B")` all match Node; every semicolon-free program (the
+entire suite) unchanged. New `semistr-diff` fuzzer (1800+ checks over semicolon-sprinkled strings across
+return/var/field/split/length/join). Full sweep green (418/418). This also completes the 79th fix's
+decodeURIComponent (`%3B` now decodes correctly).

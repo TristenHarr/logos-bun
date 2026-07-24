@@ -1011,7 +1011,7 @@
         Return "".
     Let pair be item i of pairs.
     If substringBefore(pair, "=") is equal to name:
-        Return substringAfter(pair, "=").
+        Return replaceAll(substringAfter(pair, "="), chr(12), ";").
     Return envScan(pairs, i + 1, name).
 
 ## To envGet (env: Text, name: Text) -> Text:
@@ -5927,8 +5927,11 @@
 ## To evalResolved (expr: Text) -> Text:
     Return jsEvalTernary(resolveTypeof(resolveProps(resolveAccess(resolveObjects(expr))))).
 
+# A value containing a `;` would collide with the env's `;` pair-separator and truncate on readback, so
+# the value's semicolons are escaped to chr(12) here and restored in envScan. A value without a `;`
+# round-trips unchanged, so existing behavior is untouched.
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
-    Return concat(concat(concat(concat(name, "="), val), ";"), env).
+    Return concat(concat(concat(concat(name, "="), replaceAll(concat(val, ""), ";", chr(12))), ";"), env).
 
 ## To encFn (s: Text) -> Text:
     Let x1 be replaceAll(s, " ", chr(16)).
