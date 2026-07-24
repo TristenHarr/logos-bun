@@ -2,7 +2,9 @@
 // {…}`, a named callback `arr.map(function sq(x){…})`, a returned named fn `return function inner(x)
 // {…}`. funcValueOf always keyed off the first `(`, so the name was always transparent to it — the bug
 // was purely the guards recognizing only anonymous `function (`; isFnLiteral now lets the name past.
-// Anonymous exprs, arrows, and plain declarations are re-checked as regressions. Diffed vs Node.
+// Anonymous exprs, arrows, and plain declarations are re-checked as regressions. The last two shapes
+// exercise SELF-RECURSION through the expression's own name (`let f = function g(n){ … g(n-1) … }`) —
+// bindOne now binds the self-name so the body can call itself. Diffed vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync, writeFileSync, mkdtempSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -23,12 +25,14 @@ if (OURS) {
   const nm = () => "gh" + ri(999);
   const program = () => {
     const a = 1 + ri(20), b = 1 + ri(20);
-    const k = ri(6);
+    const k = ri(8);
     if (k === 0) return `const f=function ${nm()}(x){return x*${a};};console.log(f(${b}));`;
     if (k === 1) return `let h=function ${nm()}(p,q){return p+q+${a};};console.log(h(${a},${b}));`;
     if (k === 2) return `console.log([${a},${b},${a + b}].map(function ${nm()}(x){return x*x;}).join(","));`;
     if (k === 3) return `function outer(){return function ${nm()}(x){return x+${a};};}console.log(outer()(${b}));`;
     if (k === 4) return `const f=function(x){return x-${a};};console.log(f(${b}));`;    // anon regression
+    if (k === 5) { const g = nm(); return `let f=function ${g}(n){return n<=1?1:n*${g}(n-1);};console.log(f(${1 + ri(7)}));`; } // self-recursion: factorial
+    if (k === 6) { const g = nm(); return `const f=function ${g}(n){return n<2?n:${g}(n-1)+${g}(n-2);};console.log(f(${1 + ri(9)}));`; } // self-recursion: fib
     return `function foo(x){return x+${a};}console.log(foo(${b}));`;                    // decl regression
   };
   let checked = 0;

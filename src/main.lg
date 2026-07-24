@@ -6115,6 +6115,17 @@
             Return true.
     Return false.
 
+# The self-name of a named function EXPRESSION `function g ( … )` — the name it may call itself by
+# inside its own body. Anonymous `function ( … )` and non-functions have no self-name (""). Binding
+# it alongside the assignment target lets a named function expression recurse (`let f = function g(n)
+# { … g(n-1) … }`); an anonymous expression already recurses via its outer binding.
+## To fnExprSelfName (s: Text) -> Text:
+    If startsWith(concat(s, ""), "function (") is equal to true:
+        Return "".
+    If startsWith(concat(s, ""), "function ") is equal to false:
+        Return "".
+    Return trim(substringBefore(substringAfter(concat(s, ""), "function "), "(")).
+
 ## To funcValueOf (text: Text) -> Text:
     Let afterOpen be substringAfter(text, "(").
     Let param be trim(substringBefore(concat(afterOpen, ""), ")")).
@@ -6286,7 +6297,12 @@
     Let name be trim(substringBefore(assign, " = ")).
     Let rhs be trim(substringAfter(assign, " = ")).
     If isFnLiteral(rhs):
-        Return envSet(env, name, funcValueOf(substitute(rhs, env))).
+        Let fv be funcValueOf(substitute(rhs, env)).
+        Let e2 be envSet(env, name, fv).
+        Let selfName be fnExprSelfName(concat(rhs, "")).
+        If selfName is equal to "":
+            Return e2.
+        Return envSet(e2, selfName, fv).
     Return envSet(env, name, jsEvalIn(rhs, env)).
 
 ## To bindDeclList (decls: Seq of Text, i: Int, env: Text) -> Text:

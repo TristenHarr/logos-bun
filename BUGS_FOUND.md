@@ -2979,3 +2979,17 @@ so aliases observe it, and hooked into assignDot only when the receiver is an ar
 keeps its ordinary `length` property. Truncate, extend-with-holes (`a.length=4` → "1,2,,"), empty, alias
 sharing, extend-then-push, and extend-then-index (`a[4]===undefined`) all match Node. New `setlength-diff`
 fuzzer (1800+ checks, above/below/at length × join/length/alias/push/index). Full sweep green (215/215).
+
+**Named function expression self-recursion (2026-07-24, 86th engine fix).** `let f = function g(n){ return
+n<=1?1:n*g(n-1) }; f(5)` gave NaN — funcValueOf discarded a named expression's own name, so `g` inside the
+body was unbound. (A function DECLARATION and an anonymous expression assigned to a name both already
+recursed, because the callable name lived in the env.) bindOne now, when the RHS is a named function
+literal, binds the expression's self-name (fnExprSelfName) to the same value alongside the assignment
+target, so the body resolves its own name and recursion works — factorial, fib, list-sum, countdown all
+match Node. Anonymous expressions, arrows, declarations, and named callbacks unchanged. Known minor
+deviation: the self-name is also visible in the enclosing scope (spec scopes it to the function body only)
+— rare `typeof g`-from-outside; the recursion result programs rely on is exact, and spec-exact scoping
+would require threading the name through the encoded function-value format and all call sites. Extended
+the existing `namedfnexpr-diff` fuzzer with two self-recursion shapes (factorial + fib). Full sweep green
+(215/215). (Fixed a `self` reserved-word codegen crash first — a LOGOS local named `self` emits invalid
+`let r#self`; renamed to selfName.)
