@@ -3383,3 +3383,16 @@ plain-value body stays a plain `return` (unchanged), so `map`/`filter`/`reduce` 
 `Object.keys(a).forEach(k=>s+=a[k])` all match Node. New `arrowassign-diff` fuzzer (800+ checks). Full sweep
 green (246/246). (A `map(x=>s+=x)` still won't persist the OUTER s — map has no env write-back — but its
 returned running-sum values are now correct; the general nested `let y=(x=5)` remains the deeper case.)
+
+**Custom Error subclasses — `class X extends Error { super(m) }` (2026-07-24, 119th engine fix).** A class
+extending a built-in error left `.message` undefined: `class E extends Error{constructor(m){super(m)}}` →
+`new E("x").message` was undefined (and the implicit-ctor form `class E extends Error{}` too). The
+`__super__` handler ran `callMethod(env["Error"], …)`, but `Error` is a builtin with no env binding, so the
+super() call was a silent no-op. Fixed: when `__super__`'s parent is a built-in error type (Error/TypeError/
+RangeError/SyntaxError/ReferenceError/EvalError/URIError), it now sets `this.name` = the type and
+`this.message` = the first super() argument (evaluated) via the same `assignTarget` path `this.f = v` uses —
+so a same-constructor `this.name = "..."` override afterwards still wins (runs after super), and the message
+can be any expression (`super(f+" invalid")`). Custom error classes now carry their message through
+`new`/`throw`/`catch`, `.name` defaults to the base type, extra own fields coexist, and `instanceof` still
+holds; user-class `super(...)` (non-error parent) is unchanged. New `errorsubclass-diff` fuzzer (800+
+checks). Full sweep green (247/247).

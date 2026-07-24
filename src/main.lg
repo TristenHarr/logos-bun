@@ -3223,6 +3223,25 @@
 ## To newError (ename: Text, msgVal: Text) -> Text:
     Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "message", msgVal), "name", concat(tagStr (), ename)).
 
+# The built-in Error constructors — a `class X extends Error/TypeError/…` reaches one of these via super(),
+# which our super desugar can't run as a user constructor (they have no `.lg` body), so it's special-cased.
+## To isErrorType (name: Text) -> Bool:
+    If name is equal to "Error":
+        Return true.
+    If name is equal to "TypeError":
+        Return true.
+    If name is equal to "RangeError":
+        Return true.
+    If name is equal to "SyntaxError":
+        Return true.
+    If name is equal to "ReferenceError":
+        Return true.
+    If name is equal to "EvalError":
+        Return true.
+    If name is equal to "URIError":
+        Return true.
+    Return false.
+
 ## To buildErrorCall (bef: Text, aft: Text, ename: Text, env: Text) -> Text:
     If trim(methodArg(aft)) is equal to "":
         Return concat(concat(bef, newError(ename, concat(tagStr (), ""))), methodRest(aft)).
@@ -7310,6 +7329,12 @@
         Let srest be substringAfter(s, "__super__ ").
         Let pname be item 1 of split(srest, " ").
         Let sargs be balancedArg(substringAfter(srest, chr(40)), 1, 0, "").
+        If isErrorType(concat(pname, "")):
+            Let en be assignTarget("this . name", concat(tagStr (), pname), env).
+            Let firstArg be trim(item 1 of splitArgsN(concat(sargs, ""))).
+            If firstArg is equal to "":
+                Return en.
+            Return assignTarget("this . message", jsEvalIn(concat(firstArg, ""), en), en).
         Let ran be callMethod(envGet(concat(env, ""), concat(pname, "")), sargs, envGet(concat(env, ""), "this"), env).
         Return env.
     If startsWith(s, "console . log ("):
