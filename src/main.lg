@@ -1986,7 +1986,7 @@
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), "undefined"), rest))).
     If isArrRef(lastTok):
-        Let elem be arrGet(lastTok, parseInt(evalIndex(inner))).
+        Let elem be arrGet(lastTok, parseInt(materialize(evalIndex(inner)))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
     If isObjRef(lastTok):
@@ -2151,7 +2151,38 @@
         Return [] of Text.
     Return split(splitObjEntriesDepth(content, 1, 0, ""), chr(10)).
 
+# String-tagged index elements "0".."n-1" (Object.keys returns STRING keys, unlike arr.keys()'s numbers).
+## To numStrIdxLoop (n: Int, i: Int, acc: Text) -> Text:
+    If i is greater than or equal to n:
+        Return acc.
+    Let idx be concat(tagStr (), toText(i)).
+    If acc is equal to "":
+        Return numStrIdxLoop(n, i + 1, idx).
+    Return numStrIdxLoop(n, i + 1, concat(concat(acc, tagArrSep ()), idx)).
+
+# [stringIndex, element] pairs for Object.entries on an array/string (string index, unlike arr.entries()).
+## To objArrEntriesLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let pair be newArr(concat(concat(tagArr (), concat(concat(concat(tagStr (), toText(i - 1)), tagArrSep ()), item i of els)), tagArrEnd ())).
+    If i is equal to 1:
+        Return objArrEntriesLoop(els, i + 1, pair).
+    Return objArrEntriesLoop(els, i + 1, concat(concat(acc, tagArrSep ()), pair)).
+
+# The element Seq of an array-like value: an array's elements, or a string's characters.
+## To objArrLikeEls (v: Text) -> Seq of Text:
+    If startsWith(concat(v, ""), tagStr ()):
+        Return arrElements(strToCharArr(materialize(concat(v, "")))).
+    Return arrElements(concat(v, "")).
+
+# Object.keys/values/entries treat an array or string as an index-keyed collection (`Object.keys([10,20])`
+# → ["0","1"], `Object.values("ab")` → ["a","b"]); a plain object uses its own enumerable keys. Arrays are
+# dense here (no hole tracking), so a sparse `[1,,3]` yields all three indices rather than skipping the hole.
 ## To objKeys (objVal: Text) -> Text:
+    If isArrRef(concat(objVal, "")):
+        Return newArr(concat(concat(tagArr (), numStrIdxLoop(length of arrElements(concat(objVal, "")), 0, "")), tagArrEnd ())).
+    If startsWith(concat(objVal, ""), tagStr ()):
+        Return newArr(concat(concat(tagArr (), numStrIdxLoop(length of objArrLikeEls(concat(objVal, "")), 0, "")), tagArrEnd ())).
     Return newArr(concat(concat(tagArr (), objKeysLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 # Object.defineProperty(o,k,desc): a data descriptor's `value` is written onto o (our objects don't
@@ -2195,9 +2226,18 @@
     Return objSet(concat(d2, ""), "configurable", "true").
 
 ## To objValues (objVal: Text) -> Text:
+    If isArrRef(concat(objVal, "")):
+        Let els be arrElements(concat(objVal, "")).
+        Return newArr(concat(concat(tagArr (), joinChr6(els, 1, length of els, "")), tagArrEnd ())).
+    If startsWith(concat(objVal, ""), tagStr ()):
+        Return strToCharArr(materialize(concat(objVal, ""))).
     Return newArr(concat(concat(tagArr (), objValuesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 ## To objEntries (objVal: Text) -> Text:
+    If isArrRef(concat(objVal, "")):
+        Return newArr(concat(concat(tagArr (), objArrEntriesLoop(arrElements(concat(objVal, "")), 1, "")), tagArrEnd ())).
+    If startsWith(concat(objVal, ""), tagStr ()):
+        Return newArr(concat(concat(tagArr (), objArrEntriesLoop(objArrLikeEls(concat(objVal, "")), 1, "")), tagArrEnd ())).
     Return newArr(concat(concat(tagArr (), objEntriesLoop(objEntrySeq(objVal), 1, "")), tagArrEnd ())).
 
 ## To fromEntriesLoop (pairs: Seq of Text, i: Int, acc: Text) -> Text:

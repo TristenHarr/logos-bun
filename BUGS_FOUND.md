@@ -3320,3 +3320,18 @@ Set keys and sizes are correct; equal-type keys (string==string, number==number,
 identity keys are unchanged. Extended `weakmap-diff` fuzzer with the number-vs-string case. Full sweep green
 (242/242). (A BigInt `1n` vs number `1` edge remains — both non-string, so still merges — but BigInt Map
 keys are vanishingly rare.)
+
+**Object.keys/values/entries on arrays & strings + string-numeric array indexing (2026-07-24, 115th engine
+fix).** Two composing gaps. (A) `Object.keys([10,20,30])` / `Object.values(...)` / `Object.entries(...)` (and
+on strings) returned [] — they routed through objEntrySeq, which is empty for a non-object. Now an array or
+string is treated as an index-keyed collection: keys → STRING indices `["0","1","2"]` (per spec, unlike
+`arr.keys()`'s numbers — verified `Object.keys(a)[0]==="0"`), values → the elements/chars, entries →
+`[stringIndex, element]` pairs; plain objects are unchanged. (Arrays are dense here — a sparse `[1,,3]` yields
+all three indices rather than skipping the hole, since holes aren't tracked.) (B) That exposed a companion
+bug: `a["0"]` / `a[k]` (a string-numeric index) returned undefined, because the array bracket path fed the
+tagStr-tagged index straight to parseInt without materializing it (the object-property path already
+materialized). Fixed to `parseInt(materialize(...))`, so `a["0"]===a[0]` and `Object.keys(a).forEach(k=>…a[k]…)`
+work; numeric indexing is unchanged. New `objkeysarray-diff` fuzzer (800+ checks). Full sweep green (243/243).
+(Separate pre-existing gap, not addressed: an arrow with an EXPRESSION body that is an assignment side-effect
+— `forEach(k=>s+=k)` — doesn't write back, because compound/plain assignment in expression position doesn't
+mutate the env; the block-body form `forEach(k=>{s+=k})` works.)
