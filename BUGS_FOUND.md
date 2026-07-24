@@ -3441,3 +3441,16 @@ tab char codes are unchanged. New `charcodenewline-diff` fuzzer (800+ checks). F
 inline expression leak `o.a.length + o.b` when `o.a` holds a newline, and multi-line string values inside
 objects, still need the core-evaluator representation work; a non-ASCII char code like `"café".charCodeAt(0)`
 is the separate unicode-UTF-16 keystone, unaffected here.)
+
+**The legacy `arguments` object was unbound (2026-07-24, 123rd engine fix).** Inside a regular function
+`arguments` didn't exist — `typeof arguments` was "number" and `arguments.length` returned garbage. Now
+callFn binds `arguments` to an array of the call's argument values, so `arguments.length`, `arguments[i]`,
+the classic `for (i<arguments.length)` loop, spread `[...arguments]`, and `Array.from(arguments)` all work,
+including mixing named params with `arguments`. Guarded: `arguments` is bound ONLY when the function body
+references it, so ordinary functions pay nothing — and because callFn already receives evaluated argument
+values (not the raw expressions), building the array re-runs no side effects, so even an arguments-using
+function called with a side-effecting argument runs it exactly once (verified: `au(g())` runs `g` once, like
+Node). Plain calls, rest params, defaults, destructuring params, and arrows are unchanged. New
+`argumentsobj-diff` fuzzer (800+ checks). Full sweep green (251/251). (Separate, not addressed: `arguments`
+is a real array here rather than a distinct arguments-exotic object, and `Array.prototype.slice.call
+(arguments)` needs `.call()` on a prototype method — a different feature.)

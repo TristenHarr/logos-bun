@@ -1165,11 +1165,22 @@
         Return "undefined".
     Return r.
 
+# Bind the legacy `arguments` array-like — ONLY when the body actually references `arguments`, so the
+# common case pays nothing and no ordinary call re-evaluates its args. A body that does use it gets
+# `arguments` = an array of the call's argument values (arrOf evaluates each), covering .length / [i] /
+# spread / Array.from; the args are re-evaluated to build it, so a side-effecting argument to an
+# arguments-using function runs twice (a narrow, documented edge — modern code uses `...rest`).
+## To argsBind (body: Text, argsText: Text, localEnv: Text, callerEnv: Text) -> Text:
+    If hasSep(concat(body, ""), "arguments"):
+        Return envSet(concat(localEnv, ""), "arguments", arrOf(concat(argsText, ""), callerEnv)).
+    Return concat(localEnv, "").
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, env).
-    Let doneEnv be runBlockStr(body, localEnv).
+    Let withArgs be argsBind(concat(body, ""), concat(argsText, ""), concat(localEnv, ""), env).
+    Let doneEnv be runBlockStr(body, withArgs).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
     Return retVal(doneEnv).
 
