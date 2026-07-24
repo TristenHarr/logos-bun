@@ -4854,6 +4854,15 @@
                 If einner is equal to "":
                     Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), "null"), methodRest(eaft))), env).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), newArr(concat(concat(tagArr (), einner), tagArrEnd ()))), methodRest(eaft))), env).
+    If substringBefore(expr, " . matchAll (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . matchAll (") is equal to false:
+        Let mabef be substringBefore(expr, " . matchAll (").
+        Let maaft be substringAfter(expr, " . matchAll (").
+        Let mare be jsEvalIn(trim(methodArg(maaft)), env).
+        If isRegex(mare):
+            Let masrc be decodeStr(materialize(objGet(concat(mare, ""), "__regex_src"))).
+            Let matext be decodeStr(materialize(jsEvalIn(recvExpr(concat(mabef, "")), env))).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mabef, "")), " "), reMatchAll(masrc, matext, materialize(objGet(concat(mare, ""), "__regex_flags")))), methodRest(maaft))), env).
     If substringBefore(expr, " . match (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . match (") is equal to false:
         Let mbef be substringBefore(expr, " . match (").
@@ -9044,6 +9053,31 @@
     If groups is equal to "":
         Return full.
     Return concat(concat(full, tagArrSep ()), groups).
+
+# `.matchAll` (and its `[...m.matchAll(re)]` spread / for-of): an array whose elements are each a match
+# array `[full, ...groups]` — one per successive match, walking left-to-right past each (a zero-width match
+# stops the walk, as elsewhere). capJoinFull glues the full match to its capture groups for one match.
+## To capJoinFull (full: Text, groups: Text) -> Text:
+    If groups is equal to "":
+        Return concat(full, "").
+    Return concat(concat(full, tagArrSep ()), groups).
+
+## To reMatchAllLoop (pat: Text, text: Text, acc: Text) -> Text:
+    Let start be reSearchStart(concat(pat, ""), concat(text, "")).
+    If start is equal to 0:
+        Return acc.
+    Let endp be reMatchEnd(concat(pat, ""), concat(text, ""), start).
+    Let full be concat(tagStr (), strSliceLoop(concat(text, ""), start, endp - 1, "")).
+    Let matchArr be newArr(concat(concat(tagArr (), capJoinFull(full, capExtract(concat(pat, ""), concat(text, ""), start))), tagArrEnd ())).
+    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
+    Let nextAcc be appendArrPiece(acc, matchArr).
+    If endp is greater than start:
+        Return reMatchAllLoop(concat(pat, ""), after, nextAcc).
+    Return nextAcc.
+
+## To reMatchAll (pat: Text, text: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
+    Return newArr(concat(concat(tagArr (), reMatchAllLoop(pat, text, "")), tagArrEnd ())).
 
 ## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
     If length of rargs is less than 2:

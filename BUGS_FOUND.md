@@ -3128,3 +3128,11 @@ capExtract) as a Seq and binds whatever the callback declares positionally (so t
 the groups, per spec), propagating a thrown callback. Callbacks that read/transform/reorder capture groups —
 per match and globally — now match Node; group-less callbacks are unchanged. New `replacefngroups-diff`
 fuzzer (1500+ checks). Full sweep green (228/228).
+
+**String.prototype.matchAll (2026-07-24, 100th engine fix).** `[..."a1b2".matchAll(/(\d)/g)]` was empty —
+matchAll had no dispatch. Added it, building an array whose elements are each a match array `[full,
+...groups]` (via capExtract), one per successive global match (a zero-width match stops the walk).
+Consumable by `[...m.matchAll(re)]` spread and `for…of`; capture groups (`m[1]`/`m[2]`), the full match
+(`m[0]`), `.length`, no-match (empty), and the `i` flag all match Node. New `matchall-diff` fuzzer (1500+
+checks). Full sweep green (229/229). — 100th engine fix; the regex cluster (groups, exec, `{n,m}`, `i`,
+replace-fn groups, matchAll) is now broadly conformant.
