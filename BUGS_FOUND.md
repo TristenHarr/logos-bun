@@ -3396,3 +3396,21 @@ can be any expression (`super(f+" invalid")`). Custom error classes now carry th
 `new`/`throw`/`catch`, `.name` defaults to the base type, extra own fields coexist, and `instanceof` still
 holds; user-class `super(...)` (non-error parent) is unchanged. New `errorsubclass-diff` fuzzer (800+
 checks). Full sweep green (247/247).
+
+**JSON.parse now throws SyntaxError on malformed input (2026-07-24, 120th engine fix).** `JSON.parse` was
+lenient — `JSON.parse("{bad}")` / `"[1,2,"` / `"undefined"` silently returned a partial/garbage value
+instead of throwing, so `try { JSON.parse(untrusted) } catch {…}` never caught anything. Added a validator
+(`jsonValid`) that scans the raw text and requires exactly one well-formed value spanning the whole input
+(after trimming whitespace); on failure the dispatch throws a `SyntaxError`. A subtlety that first produced
+false positives: the materialized JSON text carries ENCODED delimiters (`encBraceL`/`encBraceR`/`encBrkL`/
+`encBrkR`/`encQuote`) and encoded whitespace (`encSpace`/`encNewline`), not raw `{`/`"`/space — the scanners
+and whitespace-skipper were corrected to accept BOTH — the encoded forms a source string literal carries AND
+the RAW `{`/`"`/`[` that `JSON.stringify`'s runtime output uses, so `JSON.parse(JSON.stringify(x))` round-
+trips. Numbers are scanned leniently (a digit-requiring run), which
+is deliberately safe: it never REJECTS valid JSON (no false positive on working input), it only lets a few
+exotic malformed numbers through. Now objects/arrays/strings/numbers/booleans/null, nested, and whitespace-
+padded/spaced JSON all still parse, while unquoted keys, trailing/double commas, unterminated structures,
+missing values, and `undefined`/`NaN`/empty input throw SyntaxError — matching Node. New
+`jsonparsevalid-diff` fuzzer (700+ checks: valid round-trips + malformed-throws). Full sweep green (248/248).
+(Separate pre-existing, untouched: `JSON.parse('"a\\"b"')` keeps the backslash — jsonParse's string
+UNESCAPING doesn't resolve `\"`/`\n` inside a parsed string; the validator correctly accepts such input.)

@@ -2528,6 +2528,209 @@
         Return jsonBuildArr(elems, i + 1, val).
     Return jsonBuildArr(elems, i + 1, concat(concat(acc, tagArrSep ()), val)).
 
+# A strict-enough JSON validator over the RAW text (real quotes), so JSON.parse can throw SyntaxError on
+# malformed input instead of silently returning a partial/garbage value. Each scanner returns the index
+# just past a well-formed construct, or 0 for invalid; jsonValid requires one value spanning the whole
+# input (after trimming whitespace). Numbers are scanned leniently (a run of digit/sign/./e requiring at
+# least one digit) — this never REJECTS valid JSON (no false positive on working input), it only lets a
+# few exotic malformed numbers through, which is safe.
+## To jsonIsWs (c: Text) -> Bool:
+    If c is equal to encSpace ():
+        Return true.
+    If c is equal to encNewline ():
+        Return true.
+    If c is equal to " ":
+        Return true.
+    If ord(c) is equal to 9:
+        Return true.
+    If ord(c) is equal to 10:
+        Return true.
+    If ord(c) is equal to 13:
+        Return true.
+    Return false.
+
+## To jsonWs (s: Text, i: Int) -> Int:
+    If i is greater than length of s:
+        Return i.
+    If jsonIsWs(item i of s):
+        Return jsonWs(s, i + 1).
+    Return i.
+
+# JSON text reaches the validator in two encodings: a source string LITERAL carries the encoded delimiters
+# (encBraceL/encQuote/…), while JSON.stringify's runtime output carries the RAW characters ({/"/…). The
+# validator accepts either so `JSON.parse(JSON.stringify(x))` round-trips.
+## To jsonIsQuote (c: Text) -> Bool:
+    If c is equal to encQuote ():
+        Return true.
+    If c is equal to chr(34):
+        Return true.
+    Return false.
+
+## To jsonIsObjOpen (c: Text) -> Bool:
+    If c is equal to encBraceL ():
+        Return true.
+    If c is equal to chr(123):
+        Return true.
+    Return false.
+
+## To jsonIsObjClose (c: Text) -> Bool:
+    If c is equal to encBraceR ():
+        Return true.
+    If c is equal to chr(125):
+        Return true.
+    Return false.
+
+## To jsonIsArrOpen (c: Text) -> Bool:
+    If c is equal to encBrkL ():
+        Return true.
+    If c is equal to chr(91):
+        Return true.
+    Return false.
+
+## To jsonIsArrClose (c: Text) -> Bool:
+    If c is equal to encBrkR ():
+        Return true.
+    If c is equal to chr(93):
+        Return true.
+    Return false.
+
+## To jsonMatchLit (s: Text, i: Int, lit: Text) -> Int:
+    If (i + length of lit) - 1 is greater than length of s:
+        Return 0.
+    If strSliceLoop(concat(s, ""), i, (i + length of lit) - 1, "") is equal to lit:
+        Return i + length of lit.
+    Return 0.
+
+## To jsonScanStr (s: Text, i: Int) -> Int:
+    If i is greater than length of s:
+        Return 0.
+    Let c be item i of s.
+    If jsonIsQuote(concat(c, "")):
+        Return i + 1.
+    If c is equal to encBackslash ():
+        If i is equal to length of s:
+            Return 0.
+        Return jsonScanStr(s, i + 2).
+    If c is equal to chr(92):
+        If i is equal to length of s:
+            Return 0.
+        Return jsonScanStr(s, i + 2).
+    Return jsonScanStr(s, i + 1).
+
+## To jsonNumChar (c: Text) -> Bool:
+    If digitChar(concat(c, "")):
+        Return true.
+    If c is equal to ".":
+        Return true.
+    If c is equal to "-":
+        Return true.
+    If c is equal to "+":
+        Return true.
+    If c is equal to "e":
+        Return true.
+    If c is equal to "E":
+        Return true.
+    Return false.
+
+## To jsonNumEnd (s: Text, i: Int) -> Int:
+    If i is greater than length of s:
+        Return i.
+    If jsonNumChar(item i of s):
+        Return jsonNumEnd(s, i + 1).
+    Return i.
+
+## To jsonHasDigit (s: Text, i: Int, upto: Int) -> Bool:
+    If i is greater than upto:
+        Return false.
+    If digitChar(item i of s):
+        Return true.
+    Return jsonHasDigit(s, i + 1, upto).
+
+## To jsonScanVal (s: Text, i0: Int) -> Int:
+    Let i be jsonWs(s, i0).
+    If i is greater than length of s:
+        Return 0.
+    Let c be item i of s.
+    If jsonIsQuote(concat(c, "")):
+        Return jsonScanStr(s, i + 1).
+    If jsonIsObjOpen(concat(c, "")):
+        Return jsonScanObj(s, i + 1, true).
+    If jsonIsArrOpen(concat(c, "")):
+        Return jsonScanArr(s, i + 1, true).
+    If c is equal to "t":
+        Return jsonMatchLit(s, i, "true").
+    If c is equal to "f":
+        Return jsonMatchLit(s, i, "false").
+    If c is equal to "n":
+        Return jsonMatchLit(s, i, "null").
+    If digitChar(concat(c, "")):
+        Return jsonNumEnd(s, i).
+    If c is equal to "-":
+        Let ne be jsonNumEnd(s, i).
+        If jsonHasDigit(s, i, ne - 1):
+            Return ne.
+        Return 0.
+    Return 0.
+
+## To jsonScanArr (s: Text, i0: Int, first: Bool) -> Int:
+    Let i be jsonWs(s, i0).
+    If i is greater than length of s:
+        Return 0.
+    If jsonIsArrClose(concat(item i of s, "")):
+        Return i + 1.
+    If first is equal to false:
+        If item i of s is equal to ",":
+            Let v be jsonScanVal(s, i + 1).
+            If v is equal to 0:
+                Return 0.
+            Return jsonScanArr(s, v, false).
+        Return 0.
+    Let v0 be jsonScanVal(s, i).
+    If v0 is equal to 0:
+        Return 0.
+    Return jsonScanArr(s, v0, false).
+
+## To jsonScanObj (s: Text, i0: Int, first: Bool) -> Int:
+    Let i be jsonWs(s, i0).
+    If i is greater than length of s:
+        Return 0.
+    If jsonIsObjClose(concat(item i of s, "")):
+        Return i + 1.
+    If first is equal to false:
+        If item i of s is equal to ",":
+            Return jsonScanPair(s, jsonWs(s, i + 1)).
+        Return 0.
+    Return jsonScanPair(s, i).
+
+## To jsonScanPair (s: Text, i: Int) -> Int:
+    If i is greater than length of s:
+        Return 0.
+    If jsonIsQuote(concat(item i of s, "")):
+        Let ke be jsonScanStr(s, i + 1).
+        If ke is equal to 0:
+            Return 0.
+        Let ci be jsonWs(s, ke).
+        If ci is greater than length of s:
+            Return 0.
+        If item ci of s is equal to ":":
+            Let v be jsonScanVal(s, ci + 1).
+            If v is equal to 0:
+                Return 0.
+            Return jsonScanObj(s, v, false).
+        Return 0.
+    Return 0.
+
+## To jsonValid (s: Text) -> Bool:
+    Let start be jsonWs(concat(s, ""), 1).
+    If start is greater than length of s:
+        Return false.
+    Let e be jsonScanVal(concat(s, ""), start).
+    If e is equal to 0:
+        Return false.
+    If jsonWs(concat(s, ""), e) is greater than length of s:
+        Return true.
+    Return false.
+
 ## To jsonParse (v: Text) -> Text:
     Let t be encTrim(v).
     If startsWith(t, encBraceL ()):
@@ -5280,7 +5483,10 @@
         Let aft be substringAfter(expr, "JSON . parse (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(materialize(jsEvalIn(trim(argStr), env)), chr(34), encQuote ()))), rst)), env).
+        Let jraw be materialize(jsEvalIn(trim(argStr), env)).
+        If jsonValid(concat(jraw, "")) is equal to false:
+            Return resolveMethods(trim(concat(concat(bef, throwSet(newError("SyntaxError", concat(tagStr (), "Unexpected token in JSON")))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(concat(jraw, ""), chr(34), encQuote ()))), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
       If markerInBody(concat(expr, ""), "JSON . stringify (") is equal to false:
         Let bef be substringBefore(expr, "JSON . stringify (").
