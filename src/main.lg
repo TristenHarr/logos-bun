@@ -2539,6 +2539,19 @@
         Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrGrowSet(concat(arrval, ""), curLen, idx, newval)), tagArrEnd ())).
     Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrSetLoop(arrElements(concat(arrval, "")), 1, idx, newval, "")), tagArrEnd ())).
 
+# Assigning to `arr.length`: n below the current length truncates to the first n elements, n above it
+# extends with `undefined` holes, n ≤ 0 empties. Written through the handle so every alias observes it.
+## To arrSetLength (arrval: Text, n: Int) -> Text:
+    Let els be arrElements(concat(arrval, "")).
+    Let cur be length of els.
+    If n is less than 1:
+        Return mutArr(concat(arrval, ""), concat(tagArr (), tagArrEnd ())).
+    If n is less than cur:
+        Return mutArr(concat(arrval, ""), concat(concat(tagArr (), joinChr6(els, 1, n, "")), tagArrEnd ())).
+    If n is greater than cur:
+        Return mutArr(concat(arrval, ""), concat(concat(tagArr (), arrAppendN(joinArrEls(els, 1, ""), n - cur, "undefined")), tagArrEnd ())).
+    Return concat(arrval, "").
+
 ## To objKeyOf (keyPart: Text) -> Text:
     If startsWith(keyPart, chr(91)):
         Return materialize(evalResolved(trim(substringBefore(substringAfter(keyPart, chr(91)), chr(93))))).
@@ -6840,6 +6853,9 @@
     Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, di - 1, "")).
     Let name be trim(joinRange(split(concat(target, ""), " "), di + 1, ntok, "")).
     Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    If name is equal to "length":
+        If isArrRef(concat(recv, "")):
+            Return assignWriteback(concat(containerExpr, ""), arrSetLength(concat(recv, ""), safeInt(materialize(concat(value, "")))), env).
     Let setter be objGet(concat(recv, ""), concat("__set_", name)).
     If startsWith(setter, chr(1)):
         Let ran be callSetter(setter, recv, value, env).

@@ -2970,3 +2970,12 @@ space/newline. A number indent is min(10,n) spaces (0 → compact); a string ind
 Compact stringify, undefined-skipping, and nested structures all match Node byte-for-byte. New
 `stringifyindent-diff` fuzzer (1200+ checks, nested structures × 0/2/4/tab/null indents, full-output
 compare). Full sweep green (214/214).
+
+**Array `.length` assignment (2026-07-24, 85th engine fix).** `a.length = 1` did not truncate — assignDot
+treated `length` as an ordinary object property and objSet it onto the array handle, corrupting the array
+(`[1,2,3]; a.length=1; a.join("")` gave "" instead of "1"). Added arrSetLength (n below current truncates
+to the first n elements, n above extends with `undefined` holes, n≤0 empties), written through the handle
+so aliases observe it, and hooked into assignDot only when the receiver is an array ref — a plain object
+keeps its ordinary `length` property. Truncate, extend-with-holes (`a.length=4` → "1,2,,"), empty, alias
+sharing, extend-then-push, and extend-then-index (`a[4]===undefined`) all match Node. New `setlength-diff`
+fuzzer (1800+ checks, above/below/at length × join/length/alias/push/index). Full sweep green (215/215).
