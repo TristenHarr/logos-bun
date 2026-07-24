@@ -1591,6 +1591,12 @@
     Let t be trim(s).
     If t is equal to "":
         Return "0".
+    If t is equal to "Infinity":
+        Return "Infinity".
+    If t is equal to "+Infinity":
+        Return "Infinity".
+    If t is equal to "-Infinity":
+        Return "-Infinity".
     If hasHexPrefix(t):
         Return parseIntResolved(dropPrefix2(t), 16).
     If hasBinPrefix(t):
@@ -3478,6 +3484,12 @@
     Let x be trim(decodeStr(concat(s, ""))).
     If x is equal to "":
         Return "0".
+    If x is equal to "Infinity":
+        Return "Infinity".
+    If x is equal to "+Infinity":
+        Return "Infinity".
+    If x is equal to "-Infinity":
+        Return "-Infinity".
     If radixLit(concat(x, "")):
         Return jsNumberText(concat(x, "")).
     If sciTok(concat(x, "")):
