@@ -2872,3 +2872,14 @@ init all match Node; `map`/`filter`/`forEach` index (already correct), and all o
 New `reduceidx-diff` fuzzer (1800+ checks, both directions × index/plain × init/no-init). Full sweep green
 (410/410). (The related `forEach((x,i)=>s+=…)` on an outer SCALAR is the separate closure-scalar-writeback
 gap — heap accumulators like `r.push(x*i)` work; scalar `s +=` doesn't propagate — deferred.)
+
+**Array.prototype.lastIndexOf (2026-07-24, 77th engine fix).** `.lastIndexOf` always ran STRING lastIndexOf
+on the materialized receiver, so an array was searched as its `a,b,c` comma-join —
+`["a","b","c","b"].lastIndexOf("b")` returned char index 6 instead of element index 3, and
+`[1,2,2,3].lastIndexOf(2)` returned 4 (the joined-string offset) instead of 2. Added `arrLastIndexOf` (scan
+backward, element strict-equality, 0-based / -1) and a branching `lastIdxOf` that keeps string lastIndexOf
+for a string receiver (mirroring how `idxOf` already branches for `indexOf`); the dispatch now evaluates the
+raw receiver (to see the array ref) instead of materializing it first. Number/string/boolean array elements,
+duplicates, missing, and first-element cases all match Node; string `.lastIndexOf` (substring, missing) and
+`.indexOf` (array + string) unchanged. New `arrlastindexof-diff` fuzzer (1800+ checks over array + string
+receivers). Full sweep green (412/412).

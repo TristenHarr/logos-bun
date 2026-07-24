@@ -3335,6 +3335,26 @@
         Return arrIndexOf(raw, subEval).
     Return strIndexOf(materialize(raw), materialize(subEval)).
 
+# Array.prototype.lastIndexOf: scan BACKWARD, returning the last element strictly-equal to the target
+# (0-based) or -1. Distinct from string lastIndexOf — an array receiver must compare ELEMENTS, not the
+# materialized `a,b,c` join (where `["a","b","c","b"].lastIndexOf("b")` would wrongly find char index 6).
+## To arrLastIndexOfLoop (els: Seq of Text, i: Int, target: Text) -> Int:
+    If i is less than 1:
+        Return -1.
+    Let el be item i of els.
+    If el is equal to target:
+        Return i - 1.
+    Return arrLastIndexOfLoop(els, i - 1, target).
+
+## To arrLastIndexOf (arrval: Text, target: Text) -> Int:
+    Let els be arrElements(concat(arrval, "")).
+    Return arrLastIndexOfLoop(els, length of els, target).
+
+## To lastIdxOf (raw: Text, subEval: Text) -> Int:
+    If isArrRef(raw):
+        Return arrLastIndexOf(raw, subEval).
+    Return strLastIndexOf(materialize(raw), materialize(subEval)).
+
 # indexOf's optional fromIndex (2nd arg). String.indexOf CLAMPS a negative fromIndex to 0; Array.indexOf
 # counts it from the END (`len + fromIndex`, floored at 0). Search starts at that 0-based position; a
 # string result is offset back by the start, an array scan begins at start+1.
@@ -5464,8 +5484,8 @@
         Let rst be methodRest(aft).
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
-        Let sval be materialize(jsEvalIn(recv, env)).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(strLastIndexOf(sval, materialize(jsEvalIn(trim(methodArg(aft)), env))))), rst)), env).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(lastIdxOf(concat(raw, ""), jsEvalIn(trim(methodArg(aft)), env)))), rst)), env).
     If lm is equal to " . split (":
         Let bef be substringBefore(expr, " . split (").
         Let aft be substringAfter(expr, " . split (").
