@@ -3324,6 +3324,17 @@
 
 # The Abstract Equality Comparison (`==`): same type → strict; null≈undefined (and only each other);
 # boolean → ToNumber; number↔string → compare as numbers. (Object↔primitive ToPrimitive is Cluster B.)
+# Object.is — SameValue. Identical to `===` except `NaN` is equal to `NaN`. (The engine collapses -0 to
+# 0, so the +0/-0 distinction SameValue would draw is not observable here.)
+## To objIs (a: Text, b: Text) -> Text:
+    If materialize(concat(a, "")) is equal to "NaN":
+        Return cmpResult(materialize(concat(b, "")) is equal to "NaN").
+    If strClassMatch(concat(a, ""), concat(b, "")) is equal to false:
+        Return "false".
+    If eitherNaN(a, b):
+        Return "false".
+    Return cmpResult(cmpVals(a, b) is equal to 0).
+
 ## To looseEqVal (a: Text, b: Text) -> Text:
     Let ta be jsType(concat(a, "")).
     Let tb be jsType(concat(b, "")).
@@ -5045,6 +5056,13 @@
         Let aft be substringAfter(expr, "Object . entries (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objEntries(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
+    If substringBefore(expr, "Object . is (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . is (") is equal to false:
+        Let bef be substringBefore(expr, "Object . is (").
+        Let aft be substringAfter(expr, "Object . is (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, objIs(jsEvalIn(trim(item 1 of args), env), jsEvalIn(trim(item 2 of args), env))), rst)), env).
     If substringBefore(expr, "Object . getOwnPropertyDescriptor (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . getOwnPropertyDescriptor (") is equal to false:
         Let bef be substringBefore(expr, "Object . getOwnPropertyDescriptor (").

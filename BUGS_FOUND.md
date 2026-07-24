@@ -2993,3 +2993,10 @@ would require threading the name through the encoded function-value format and a
 the existing `namedfnexpr-diff` fuzzer with two self-recursion shapes (factorial + fib). Full sweep green
 (215/215). (Fixed a `self` reserved-word codegen crash first — a LOGOS local named `self` emits invalid
 `let r#self`; renamed to selfName.)
+
+**Object.is (2026-07-24, 87th engine fix).** `Object.is(NaN, NaN)` returned NaN (unimplemented). Added the
+static dispatch + objIs (SameValue) — identical to `===` except NaN is equal to NaN. Numbers, strings,
+booleans, null/undefined, NaN, and object identity (same handle true, distinct literals false) all match
+Node. The +0/-0 SameValue distinction is not observable (the engine collapses -0 to 0), so it is not
+special-cased. New `objectis-diff` fuzzer (1800+ checks, atom cross-product + object identity). Full sweep
+green (216/216).
