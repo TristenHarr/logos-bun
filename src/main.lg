@@ -8162,6 +8162,45 @@
 ## To joinFour (pre: Text, fn: Text, rest: Text) -> Text:
     Return concat(concat(concat(concat(pre, " "), fn), " "), rest).
 
+# The top-level assignment operator in an arrow's expression body, or "" if none. Depth-aware, so a `=`
+# inside parens/brackets or a comparison (` == `/` === `) / arrow (` => `) never matches.
+## To topAssignOp (body: Text) -> Text:
+    If hasTopSep(body, " += "):
+        Return " += ".
+    If hasTopSep(body, " -= "):
+        Return " -= ".
+    If hasTopSep(body, " *= "):
+        Return " *= ".
+    If hasTopSep(body, " /= "):
+        Return " /= ".
+    If hasTopSep(body, " %= "):
+        Return " %= ".
+    If hasTopSep(body, " **= "):
+        Return " **= ".
+    If hasTopSep(body, " &&= "):
+        Return " &&= ".
+    If hasTopSep(body, " ||= "):
+        Return " ||= ".
+    If hasTopSep(body, " ??= "):
+        Return " ??= ".
+    If hasTopSep(body, " = "):
+        Return " = ".
+    Return "".
+
+# An arrow's expression body: an assignment (`x => s += x`, `x => o.k = x`) is emitted as a mutating
+# STATEMENT plus `return <lhs>` — so the assignment actually writes its target (and a forEach callback's
+# scalar accumulator persists) while the arrow still yields the assigned value. Only a simple-name or
+# member/index lhs qualifies, so a ternary/comparison body stays a plain `return`.
+## To arrowExprBody (body: Text) -> Text:
+    Let op be topAssignOp(concat(body, "")).
+    If op is not equal to "":
+        Let lhs be trim(substringBefore(concat(body, ""), op)).
+        If isSimpleName(concat(lhs, "")):
+            Return concat(concat(concat(body, " ; return "), lhs), "").
+        If isMemberTarget(concat(lhs, "")):
+            Return concat(concat(concat(body, " ; return "), lhs), "").
+    Return concat("return ", body).
+
 ## To buildArrow (preParams: Text, params: Text, right: Text) -> Text:
     Let rt be split(right, " ").
     Let firstR be item 1 of rt.
@@ -8174,7 +8213,7 @@
     Let eEnd be exprBodyEnd(rt, 1, 0, "").
     Let body be joinRange(rt, 1, eEnd - 1, "").
     Let rest be joinRange(rt, eEnd, nR, "").
-    Return joinFour(preParams, fnForm(params, concat("return ", body)), rest).
+    Return joinFour(preParams, fnForm(params, arrowExprBody(concat(body, ""))), rest).
 
 ## To desugarArrows (expr: Text) -> Text:
     If substringBefore(expr, " => ") is equal to expr:

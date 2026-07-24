@@ -3368,3 +3368,18 @@ getter class now matches Node). New `supermethod-diff` fuzzer (800+ checks). Ful
 `Object.keys` — `class C{m(){}}`→`["m",…]` vs Node `[…]` — because our model stores methods as own props
 rather than on a prototype; distinguishing them from legitimate plain-object methods needs instance marking
 or a prototype model. `super.method` is unaffected by this — it uses the filtered `__msuper_` records.)
+
+**Arrow with an assignment expression body — `x => s += x` (2026-07-24, 118th engine fix).** An arrow whose
+expression body is an assignment didn't mutate its target: `arr.forEach(x => s += x)` /
+`Object.keys(a).forEach(k => s += a[k])` left `s` at 0. buildArrow wrapped an expression body as
+`return <body>`, so `s += x` was evaluated as an expression (yielding the value) without writing s — the
+assignment-in-expression-position limitation. Fixed: when the body's top-level operator is an assignment
+(`=`/`+=`/`-=`/`*=`/`/=`/`%=`/`**=`/`&&=`/`||=`/`??=`, depth-aware so a `=` in parens or a comparison
+`==`/`===` never matches) AND its lhs is a simple name or member/index target, the body is emitted as the
+mutating STATEMENT plus `return <lhs>` — so the write happens (and a forEach callback's env write-back
+persists a scalar/member accumulator) while the arrow still yields the assigned value. A ternary/comparison/
+plain-value body stays a plain `return` (unchanged), so `map`/`filter`/`reduce` arrows are unaffected. Now
+`forEach(x=>s+=x)`, `forEach(x=>o.t+=x)`, `forEach(x=>last=x)`, and the earlier probe-35 RED
+`Object.keys(a).forEach(k=>s+=a[k])` all match Node. New `arrowassign-diff` fuzzer (800+ checks). Full sweep
+green (246/246). (A `map(x=>s+=x)` still won't persist the OUTER s — map has no env write-back — but its
+returned running-sum values are now correct; the general nested `let y=(x=5)` remains the deeper case.)
