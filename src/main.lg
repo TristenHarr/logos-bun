@@ -47,6 +47,8 @@
 
 ## To native jsToPrecision (x: Text, n: Int) -> Text
 
+## To native jsToLocaleNum (x: Text) -> Text
+
 ## To native jsBigintEval (expr: Text) -> Text
 
 ## To native jsMath1 (op: Text, x: Text) -> Text
@@ -4335,7 +4337,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -4385,6 +4387,13 @@
 ## To markerInBody (expr: Text, marker: Text) -> Bool:
     Let stack be fnBraceStack(split(substringBefore(expr, marker), " "), 1, 0, 0, "").
     Return substringBefore(stack, "F") is not equal to stack.
+
+# `toLocaleString()`: a NUMBER gets the en-US grouped format (native jsToLocaleNum); anything else falls
+# back to its ordinary string form (an array's `1,2,3`, a string as-is) — matching the common cases.
+## To localeStringOf (raw: Text) -> Text:
+    If isNumericStr(materialize(concat(raw, ""))):
+        Return concat(tagStr (), jsToLocaleNum(materialize(concat(raw, "")))).
+    Return concat(tagStr (), materialize(concat(raw, ""))).
 
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     Let lmm be leftmostMethod(concat(expr, "")).
@@ -4986,6 +4995,15 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), jsToPrecision(materialize(raw), safeInt(materialize(jsEvalIn(trim(argStr), env)))))), rst)), env).
+    If lm is equal to " . toLocaleString (":
+        Let bef be substringBefore(expr, " . toLocaleString (").
+        Let aft be substringAfter(expr, " . toLocaleString (").
+        Let argStr be balancedArg(aft, 1, 0, "").
+        Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), localeStringOf(concat(raw, ""))), rst)), env).
     If lm is equal to " . push (":
         Let bef be substringBefore(expr, " . push (").
         Let aft be substringAfter(expr, " . push (").

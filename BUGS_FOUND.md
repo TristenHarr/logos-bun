@@ -2766,3 +2766,18 @@ zero, and negatives match Node; `.toFixed`, `.toString(radix)`, other number met
 `toprecision-diff` fuzzer (4000+ checks across magnitudes/precisions incl. tie boundaries — it CAUGHT the
 half-even-vs-half-up rounding bug in the first cut, fixed with the string round-half-up). Toolchain change
 (env.rs + program.rs) committed alongside. Full sweep green (394/394).
+
+**Number.prototype.toLocaleString (2026-07-24, 69th engine fix).** Unimplemented (→ NaN). Added a native
+`js_to_locale_num` (toolchain) for the default en-US locale: comma thousands separators, up to 3 fractional
+digits (maximumFractionDigits = 3) rounded HALF-UP, trailing zeros stripped; a NUMBER receiver gets this
+format, anything else (array, string) falls back to its ordinary string form (`[1,2,3]`→"1,2,3"). Subtle
+correctness point discovered via the fuzzer: unlike `toFixed`/`toPrecision` (which round the EXACT f64),
+`Intl.NumberFormat` rounds the SHORTEST round-trip decimal — `String(v)` — so `(52915236.0975)` (whose exact
+f64 is `52915236.097499996`, and whose `.toFixed(3)` is `.097`) rounds to `.098` in `toLocaleString`. Fixed
+by formatting via Rust `{}` (shortest round-trip) instead of `{:.9}` (exact expansion), then string
+round-half-up, with carry-into-integer (`999.9996`→`1,000`). `1234567`→"1,234,567", `1234.5678`→"1,234.568",
+negatives, zero, sub-1, million+decimals, `[1,2,3]`/`"hello"` fallback all match Node; `.toFixed`/
+`.toPrecision`/`.toString(radix)` unchanged. New `tolocale-diff` fuzzer (4000+ checks across magnitudes —
+CAUGHT the exact-vs-shortest rounding difference). Toolchain change (env.rs + program.rs) committed
+alongside. Full sweep green (396/396). NOTE: box is en-US; a non-en-US default locale would diverge (a
+documented approximation — locale/options args are ignored).
