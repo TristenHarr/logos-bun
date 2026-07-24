@@ -4844,6 +4844,16 @@
             Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
             If isRegex(rrecv):
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), cmpResult(reTest(decodeStr(materialize(objGet(concat(rrecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(raft)), env))), materialize(objGet(concat(rrecv, ""), "__regex_flags"))))), methodRest(raft))), env).
+    If substringBefore(expr, " . exec (") is not equal to expr:
+        If markerInBody(concat(expr, ""), " . exec (") is equal to false:
+            Let ebef be substringBefore(expr, " . exec (").
+            Let eaft be substringAfter(expr, " . exec (").
+            Let erecv be jsEvalIn(recvExpr(concat(ebef, "")), env).
+            If isRegex(erecv):
+                Let einner be reMatchArrayInner(decodeStr(materialize(objGet(concat(erecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(eaft)), env))), materialize(objGet(concat(erecv, ""), "__regex_flags"))).
+                If einner is equal to "":
+                    Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), "null"), methodRest(eaft))), env).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), newArr(concat(concat(tagArr (), einner), tagArrEnd ()))), methodRest(eaft))), env).
     If substringBefore(expr, " . match (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . match (") is equal to false:
         Let mbef be substringBefore(expr, " . match (").

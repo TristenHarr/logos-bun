@@ -3103,3 +3103,9 @@ checks, sequential top-level groups × match/length/$N/$&). Full sweep green (22
 captures and captures that only surface under backtracking are a documented follow-up; the common
 top-level-sequential case — the vast majority of real usage — is covered. Also fixed two codegen move
 errors: recursive Text/Seq params need `concat(x,"")` clones and indexing pulled into prior Lets.)
+
+**RegExp.prototype.exec (2026-07-24, 97th engine fix).** `/(\d)/.exec("a5b")` returned nothing — `.exec`
+had no dispatch. Wired it to the same reMatchArrayInner that backs non-global `.match`, so `re.exec(str)`
+returns `[full, ...groups]` (with capture groups) or null. `exec()[0]`/`[N]`/`.length` and the null case
+all match Node, and it honors the `i` flag. New `regexexec-diff` fuzzer (1500+ checks). Full sweep green
+(226/226).
