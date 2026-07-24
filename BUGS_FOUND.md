@@ -2795,3 +2795,18 @@ match Node; `.toPrecision`/`.toLocaleString`/`.toString(radix)` unchanged. New `
 checks, deliberately sampling the half-integer tie boundary). Toolchain change (env.rs) committed alongside.
 Full sweep green (398/398). (Reusable doctrine: toFixed/toPrecision round the EXACT f64 half-up; Intl/
 toLocaleString rounds the SHORTEST round-trip decimal half-up — never Rust's half-to-even `format!`.)
+
+**Math.clz32 + Math.imul (2026-07-24, 71st engine fix).** Both were unimplemented (→ NaN). `Math.clz32(x)`
+= count leading zeros of `ToUint32(x)` (added to the native `js_math1`, with a `js_to_uint32` helper: NaN/±
+Infinity → 0, else the value truncated toward zero mod 2^32). `Math.imul(a,b)` = 32-bit wrapping integer
+multiply `ToInt32(a) * ToInt32(b)` interpreted as i32 (added as an early integer return in `js_math2`, and a
+`Math . imul (` dispatch in resolveMethods mirroring hypot). `clz32(1)`→31, `clz32(0)`→32,
+`clz32(4294967295)`→0, `imul(3,4)`→12, `imul(-5,3)`→-15, `imul(0xffffffff,5)`→-5 (overflow wrap), and the
+out-of-range/negative operands all match Node; the existing `js_math1`/`js_math2` ops (floor/sqrt/pow/hypot/
+max/…) unchanged. New `mathmore-diff` fuzzer (2400+ checks over the i32/u32 range). `Math.fround` was
+deliberately NOT shipped: its computed VALUE is correct (`(x as f32) as f64`), but for full-precision f32
+values its number-to-string display exposes a Rust `f64::to_string` vs V8 `Number→String` tie-break
+difference (`Math.fround(-720.743)` → both `-720.7429809570312` and `…313` round-trip to the same f64; Rust
+prints `…313`, V8 `…312`) — a pre-existing `js_num_fmt`/dtoa parity limitation that would need an
+ECMA-compliant dtoa to close (deferred). Toolchain change (env.rs) committed alongside. Full sweep green
+(400/400).

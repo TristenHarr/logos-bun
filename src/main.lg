@@ -1712,7 +1712,7 @@
     Return mathUnaryTry(expr, fns, i + 1, env).
 
 ## To mathUnary1 (expr: Text, env: Text) -> Text:
-    Return mathUnaryTry(concat(expr, ""), ["log10", "log2", "log1p", "log", "expm1", "exp", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sin", "cos", "tan", "cbrt"], 1, env).
+    Return mathUnaryTry(concat(expr, ""), ["log10", "log2", "log1p", "log", "expm1", "exp", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sin", "cos", "tan", "cbrt", "clz32"], 1, env).
 
 # Math constants → their f64 literal (checked longest-first so E doesn't shadow the L*/E-suffixed ones).
 ## To mathConst (expr: Text) -> Text:
@@ -4655,6 +4655,13 @@
         Let rst be methodRest(aft).
         Let args be splitArgs2(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, jsMath2("hypot", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
+    If substringBefore(expr, "Math . imul (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Math . imul (") is equal to false:
+        Let bef be substringBefore(expr, "Math . imul (").
+        Let aft be substringAfter(expr, "Math . imul (").
+        Let rst be methodRest(aft).
+        Let args be splitArgs2(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, jsMath2("imul", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Math . atan2 (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Math . atan2 (") is equal to false:
         Let bef be substringBefore(expr, "Math . atan2 (").
