@@ -3212,3 +3212,18 @@ real neighbours — and to advance one char on a zero-width match (so `/\B/g` �
 or stopping). `\b`/`\B` now work in test/match/matchAll/string-replace/callback-replace, including the
 title-case idiom and `\bword\b`; all existing global replace/match/matchAll is unchanged. New
 `wordboundary-diff` fuzzer (1500+ checks across five surfaces). Full sweep green (236/236).
+
+**Closures over objects/arrays capture by reference (2026-07-24, 108th engine fix — closure keystone).** A
+function expression / arrow captured its free variables via `substitute` (baking their values into the
+body), but `encFn`/`decFn` — which encode a function body's structural characters — used `chr(2)` as the
+escape for `;`, and `chr(2)` IS the tag-REF byte (`tagRef()`). So a substituted object/array ref (chr(2)+id)
+baked into a closure body was CORRUPTED on decode (chr(2)→`;`): the closure couldn't even READ a captured
+object (`const c={x:1}; const f=function(){return c.x}; f()` → undefined), let alone mutate it. Switched the
+`encFn`/`decFn` `;` escape to `chr(12)` (used only by envSet/envScan, never inside a value), so refs survive
+intact. A function expression / arrow now reads AND mutates a captured object or array with the mutation
+persisted — counter objects, caches, accumulator patterns all work (`const c={}; const f=function(){c.x=9};
+f(); c.x` → 9; array `push` closures; `set(k,v){cache[k]=v}`). This is the fundamental change to how function
+values are encoded; the full 236-fuzzer sweep is unchanged (no regression). New `closureref-diff` fuzzer
+(1200+ checks). Full sweep green (236/236). (Still by-VALUE, hence a separate documented gap: a closed-over
+SCALAR captures its definition-time value not the latest, a captured nested FUNCTION value can mis-nest, and
+an object METHOD closing over an outer var — all further closure-model work.)

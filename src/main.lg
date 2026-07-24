@@ -6224,7 +6224,7 @@
     Let x6 be replaceAll(x5, chr(91), chr(21)).
     Let x7 be replaceAll(x6, chr(93), chr(22)).
     Let x8 be replaceAll(x7, ",", chr(23)).
-    Return replaceAll(x8, ";", chr(2)).
+    Return replaceAll(x8, ";", chr(12)).
 
 ## To decFn (s: Text) -> Text:
     Let x1 be replaceAll(s, chr(16), " ").
@@ -6235,7 +6235,7 @@
     Let x6 be replaceAll(x5, chr(21), chr(91)).
     Let x7 be replaceAll(x6, chr(22), chr(93)).
     Let x8 be replaceAll(x7, chr(23), ",").
-    Return replaceAll(x8, chr(2), ";").
+    Return replaceAll(x8, chr(12), ";").
 
 # A function LITERAL in value position: anonymous `function ( … )` or a named function EXPRESSION
 # `function name ( … )`. funcValueOf already keys off the first `(`, so a name is transparent to it —
