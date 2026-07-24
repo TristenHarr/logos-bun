@@ -3549,3 +3549,14 @@ New `callnonfn-diff` fuzzer (1200+ checks, 6 seeds) pits the throws against a la
 regression set. Full sweep green (256/256, seeds 1-2). (Unhandled edges, deliberately not thrown to stay safe:
 a missing METHOD `o.missing()` — a bare property name doesn't resolve to a primitive — and a string-literal
 call `"s"()`; both remain a silent `undefined`, no worse than before.)
+
+**`Array.from(generator)` PANICKED the engine (2026-07-24, 130th engine fix).** `Array.from(g())` on a
+generator aborted with `Cannot parse 'undefined' as Int` — the base extractor (`arrFromBase`) had no
+generator case and fell through to `parseInt(obj.length)` with `length` undefined. It now iterates a generator
+via the same collected-yields path that for-of and spread use, and — defensively — ANY object with no `length`
+now yields an empty array instead of reaching the panicking `parseInt`. `Array.from(g())`, an empty generator,
+a generator with a map function (`Array.from(g(), x=>x*2)`), and array/string/Set/Map/array-like inputs all
+match Node. New `arrfromgen-diff` fuzzer (1200+ checks, 6 seeds). Full sweep green (257/257, seeds 1-2). (A
+separate generator bug remains: a generator stored in a variable and advanced by multiple separate `.next()`
+calls in one expression doesn't preserve its cursor — the eager-snapshot cursor model — tracked for a
+dedicated generator-state fix.)

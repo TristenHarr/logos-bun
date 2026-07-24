@@ -4291,11 +4291,16 @@
     If startsWith(v, tagStr ()):
         Return newArr(concat(concat(tagArr (), fromCharsLoop(substringAfter(v, tagStr ()), 1, "")), tagArrEnd ())).
     If isObjRef(v):
+        If isGenerator(concat(v, "")):
+            Let gv be iterElements(concat(v, "")).
+            Return newArr(concat(concat(tagArr (), joinChr6(gv, 1, length of gv, "")), tagArrEnd ())).
         If objGet(concat(v, ""), "__set_vals") is not equal to "undefined":
             Let sv be arrElements(objGet(concat(v, ""), "__set_vals")).
             Return newArr(concat(concat(tagArr (), joinChr6(sv, 1, length of sv, "")), tagArrEnd ())).
         If objGet(concat(v, ""), "__map_keys") is not equal to "undefined":
             Return mapEntriesArr(concat(v, "")).
+        If objGet(concat(v, ""), "length") is equal to "undefined":
+            Return newArr(concat(tagArr (), tagArrEnd ())).
         Return newArr(concat(concat(tagArr (), fromLenLoop(1, parseInt(objGet(concat(v, ""), "length")), "")), tagArrEnd ())).
     Return newArr(concat(tagArr (), tagArrEnd ())).
 
