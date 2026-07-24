@@ -3281,3 +3281,15 @@ object accumulators + key iteration unchanged. New `callbackcompound-diff` fuzze
 inc/dec/compound over arrays + Map/Set accumulation). Full sweep green (240/240). (The GENERAL scalar closure
 outside a forEach — `function f(){n++}; f()` — still returns the stale value: that's the deep closure/env-by-
 reference keystone requiring heap-boxed scalars, unchanged by this fix.)
+
+**Method call directly on a numeric literal via the double-dot idiom (2026-07-24, 112th engine fix).**
+`255..toString(16)` returned "" instead of "ff" (also `10..toString(2)`, `1000000..toLocaleString()`). In
+`255..toString`, the FIRST `.` is the number's trailing decimal point (`255.` === 255) and the SECOND `.`
+is the member access — but normJs kept a post-digit `.` as part of the number only when the NEXT char was
+another digit (`255.5`), so the double-dot fell through and emitted a broken `255 . . toString` (two operator
+dots) that couldn't resolve the method. Fixed with one targeted branch: when a `.` follows a digit and the
+next char is ALSO a `.`, treat the first as a trailing decimal point (drop it, `255.`→`255`), leaving the
+second `.` as the member access → `255 . toString`. Now `N..method(...)` works for toString(radix)/
+toFixed/toLocaleString; the spaced `255 .m()`, parenthesized `(255).m()`, decimal `3.14.toFixed()`, and all
+ordinary decimal/float parsing are unchanged. New `numdotmethod-diff` fuzzer (600+ checks across the four
+call forms). Full sweep green (241/241).

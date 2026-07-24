@@ -7835,6 +7835,8 @@
             If i is less than length of s:
                 If digitChar(item (i + 1) of s):
                     Return normJs(s, i + 1, inStr, concat(acc, c)).
+                If item (i + 1) of s is equal to ".":
+                    Return normJs(s, i + 1, inStr, concat(acc, "")).
     If expSignChar(c):
         If expMarkerEnd(concat(acc, "")):
             If i is less than length of s:
