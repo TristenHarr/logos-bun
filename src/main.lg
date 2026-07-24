@@ -2332,12 +2332,95 @@
         Return dropInternalEntries(entries, i + 1, entry).
     Return dropInternalEntries(entries, i + 1, concat(concat(acc, chr(10)), entry)).
 
-# objEntrySeq with engine-internal keys removed — the public enumerable own properties for Object.keys/etc.
+# JS own-property enumeration order: canonical array-index keys FIRST in ascending numeric order, then
+# the remaining string keys in insertion order. A canonical index is a non-empty all-digit key with no
+# leading zero (except "0"); capped at 9 digits so parseInt never overflows and larger numeric-looking
+# keys stay string keys (as the spec's 2^32-1 bound requires for any real object).
+## To isArrayIndexKey (k: Text) -> Bool:
+    If concat(k, "") is equal to "":
+        Return false.
+    If charLen(concat(k, "")) is greater than 9:
+        Return false.
+    If allDigits(concat(k, ""), 1) is equal to false:
+        Return false.
+    If concat(k, "") is equal to "0":
+        Return true.
+    If item 1 of concat(k, "") is equal to "0":
+        Return false.
+    Return true.
+
+## To entryKeyNum (entry: Text) -> Int:
+    Return parseInt(substringBefore(concat(entry, ""), tagObjKV ())).
+
+## To nlJoin (a: Text, b: Text) -> Text:
+    If a is equal to "":
+        Return b.
+    Return concat(concat(a, chr(10)), b).
+
+# Single pass over the entries: partition into (index-key entries, other entries), each a chr(10)-joined
+# string preserving encounter order. Returned as a 2-element Seq [idxStr, restStr] so `entries` is
+# consumed exactly once (an owned Seq param cannot be threaded to two separate owned-param calls).
+## To partitionEntries (entries: Seq of Text, i: Int, idxAcc: Text, restAcc: Text) -> Seq of Text:
+    If i is greater than length of entries:
+        Return [idxAcc, restAcc].
+    Let entry be concat(item i of entries, "").
+    If isArrayIndexKey(substringBefore(concat(entry, ""), tagObjKV ())):
+        Return partitionEntries(entries, i + 1, nlJoin(idxAcc, concat(entry, "")), restAcc).
+    Return partitionEntries(entries, i + 1, idxAcc, nlJoin(restAcc, concat(entry, ""))).
+
+# Stable insertion of one index entry into an already-ascending chr(10)-joined list.
+## To insByKeyNum (sortedEntries: Seq of Text, i: Int, entry: Text, kn: Int, placed: Int, acc: Text) -> Text:
+    If i is greater than length of sortedEntries:
+        If placed is equal to 0:
+            Return nlJoin(acc, concat(entry, "")).
+        Return acc.
+    Let cur be concat(item i of sortedEntries, "").
+    If placed is equal to 0:
+        If entryKeyNum(concat(cur, "")) is greater than kn:
+            Return insByKeyNum(sortedEntries, i + 1, concat(entry, ""), kn, 1, nlJoin(nlJoin(acc, concat(entry, "")), concat(cur, ""))).
+    Return insByKeyNum(sortedEntries, i + 1, concat(entry, ""), kn, placed, nlJoin(acc, concat(cur, ""))).
+
+## To sortIdxEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be concat(item i of entries, "").
+    If acc is equal to "":
+        Return sortIdxEntries(entries, i + 1, concat(entry, "")).
+    Return sortIdxEntries(entries, i + 1, insByKeyNum(split(concat(acc, ""), chr(10)), 1, concat(entry, ""), entryKeyNum(concat(entry, "")), 0, "")).
+
+# objEntrySeq with engine-internal keys removed AND reordered to JS enumeration order (index keys
+# ascending first, then insertion-order string keys) — the public enumerable own properties for
+# Object.keys/values/entries. partitionEntries receives the fresh split result (owned) so `entries`
+# is never a reused param.
 ## To objEntrySeqPublic (objVal: Text) -> Seq of Text:
     Let filtered be dropInternalEntries(objEntrySeq(objVal), 1, "").
-    If filtered is equal to "":
+    If concat(filtered, "") is equal to "":
         Return [] of Text.
-    Return split(filtered, chr(10)).
+    Let parts be partitionEntries(split(concat(filtered, ""), chr(10)), 1, "", "").
+    Let idxStr be concat(item 1 of parts, "").
+    Let restStr be concat(item 2 of parts, "").
+    If concat(idxStr, "") is equal to "":
+        Return split(concat(restStr, ""), chr(10)).
+    Let sortedIdx be sortIdxEntries(split(concat(idxStr, ""), chr(10)), 1, "").
+    If concat(restStr, "") is equal to "":
+        Return split(concat(sortedIdx, ""), chr(10)).
+    Return split(nlJoin(sortedIdx, concat(restStr, "")), chr(10)).
+
+# Like objEntrySeq but reordered to JS enumeration order (index keys ascending, then string keys in
+# insertion order), WITHOUT dropping engine-internal keys — for JSON.stringify, whose key order must
+# match a real engine. objEntrySeq(objVal) is passed fresh so it is never a reused param.
+## To objEntrySeqOrdered (objVal: Text) -> Seq of Text:
+    Let parts be partitionEntries(objEntrySeq(objVal), 1, "", "").
+    Let idxStr be concat(item 1 of parts, "").
+    Let restStr be concat(item 2 of parts, "").
+    If concat(idxStr, "") is equal to "":
+        If concat(restStr, "") is equal to "":
+            Return [] of Text.
+        Return split(concat(restStr, ""), chr(10)).
+    Let sortedIdx be sortIdxEntries(split(concat(idxStr, ""), chr(10)), 1, "").
+    If concat(restStr, "") is equal to "":
+        Return split(concat(sortedIdx, ""), chr(10)).
+    Return split(nlJoin(sortedIdx, concat(restStr, "")), chr(10)).
 
 # String-tagged index elements "0".."n-1" (Object.keys returns STRING keys, unlike arr.keys()'s numbers).
 ## To numStrIdxLoop (n: Int, i: Int, acc: Text) -> Text:
@@ -2539,7 +2622,7 @@
     If isArrRef(v):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
     If isObjRef(v):
-        Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeq(v), 1, "")), encBraceR ()).
+        Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeqOrdered(v), 1, "")), encBraceR ()).
     If isJsonOmit(concat(v, "")):
         Return "undefined".
     Return v.
@@ -2606,7 +2689,7 @@
         Return concat(concat(concat(encBrkL (), body), concat(encNewline (), pad)), encBrkR ()).
     If isObjRef(v):
         Let inner be concat(pad, gap).
-        Let body be jsonIndObjLoop(objEntrySeq(v), 1, gap, inner, "").
+        Let body be jsonIndObjLoop(objEntrySeqOrdered(v), 1, gap, inner, "").
         If body is equal to "":
             Return concat(encBraceL (), encBraceR ()).
         Return concat(concat(concat(encBraceL (), body), concat(encNewline (), pad)), encBraceR ()).
