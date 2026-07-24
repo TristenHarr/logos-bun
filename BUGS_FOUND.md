@@ -3293,3 +3293,20 @@ second `.` as the member access → `255 . toString`. Now `N..method(...)` works
 toFixed/toLocaleString; the spaced `255 .m()`, parenthesized `(255).m()`, decimal `3.14.toFixed()`, and all
 ordinary decimal/float parsing are unchanged. New `numdotmethod-diff` fuzzer (600+ checks across the four
 call forms). Full sweep green (241/241).
+
+**WeakMap/WeakSet + object-key identity in Map/Set (2026-07-24, 113th engine fix).** Two related gaps. (A)
+`new WeakMap()`/`new WeakSet()` were unimplemented — `wm.get(k)` returned NaN. Since our objects are heap
+refs whose ref string IS their identity, a WeakMap/WeakSet is faithfully backed by the existing Map/Set
+machinery for all object-key usage (get/set/has/delete/add): added `new WeakMap (`/`new WeakSet (`
+constructors routing to `newMap()`/`newSetFrom()`, so the Map/Set method dispatch (via isMap/isSet) carries
+them. (B) A pre-existing bug this exposed: Map/Set with distinct OBJECT keys collapsed to one entry — `new
+Map(); m.set({},"x"); m.set({},"y")` gave size 1, both `get` returning "y". `mapKeyIdx` compared
+`materialize()`d keys, so every `{}` became "[object Object]" and merged. Fixed: object/array keys (heap
+refs) now compare by REFERENCE identity (the raw ref string carries a unique id — two distinct `{}` are
+different keys), while primitive keys still compare by value (materialize). Now WeakMap/WeakSet get/set/has/
+delete/add, WeakMap-as-memo-cache, and Map/Set with distinct object keys all match Node; primitive-key Maps/
+Sets (string/number keys, NaN, dedup, forEach, size) are unchanged. New `weakmap-diff` fuzzer (800+ checks).
+Full sweep green (242/242). (Known pre-existing edge, unchanged: a Map keyed by both `1` and `"1"` still
+merges them — primitive keys compare by materialized value, so number-vs-string type isn't distinguished;
+rare, and WeakMap/WeakSet iteration semantics — they're intentionally non-iterable in spec — are not
+enforced since they reuse Map/Set storage.)

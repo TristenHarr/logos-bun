@@ -4805,6 +4805,20 @@
         Let bef be substringBefore(expr, "Date . now (").
         Let aft be substringAfter(expr, "Date . now (").
         Return resolveMethods(trim(concat(concat(bef, jsDateNow()), methodRest(aft))), env).
+    If substringBefore(expr, "new WeakMap (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new WeakMap (") is equal to false:
+        Let bef be substringBefore(expr, "new WeakMap (").
+        Let aft be substringAfter(expr, "new WeakMap (").
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newMap()), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, mapFromEntries(jsEvalIn(trim(methodArg(aft)), env), newMap())), methodRest(aft))), env).
+    If substringBefore(expr, "new WeakSet (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new WeakSet (") is equal to false:
+        Let bef be substringBefore(expr, "new WeakSet (").
+        Let aft be substringAfter(expr, "new WeakSet (").
+        If trim(methodArg(aft)) is equal to "":
+            Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
+        Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
     If substringBefore(expr, "new Map (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Map (") is equal to false:
         Let bef be substringBefore(expr, "new Map (").
@@ -9473,10 +9487,22 @@
         Return objGet(concat(v, ""), "__map_keys") is not equal to "undefined".
     Return false.
 
+# Index of key `k` among a Map/Set's stored keys, or 0 if absent. Object/array keys (heap refs) compare by
+# REFERENCE identity — the raw ref string carries a unique id, so two distinct `{}` are different keys —
+# while primitive keys compare by value (materialize: NaN matches NaN, `1` and `"1"` stay distinct because
+# their tagged raw forms differ). Materializing an object key would collapse every `{}` to the same
+# "[object Object]" and merge distinct keys.
 ## To mapKeyIdx (keys: Seq of Text, i: Int, k: Text) -> Int:
     If i is greater than length of keys:
         Return 0.
-    If materialize(item i of keys) is equal to materialize(concat(k, "")):
+    Let sk be concat(item i of keys, "").
+    If isRef(sk):
+        If sk is equal to concat(k, ""):
+            Return i.
+        Return mapKeyIdx(keys, i + 1, k).
+    If isRef(concat(k, "")):
+        Return mapKeyIdx(keys, i + 1, k).
+    If materialize(sk) is equal to materialize(concat(k, "")):
         Return i.
     Return mapKeyIdx(keys, i + 1, k).
 
