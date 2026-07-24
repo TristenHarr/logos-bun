@@ -2144,21 +2144,27 @@
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), "undefined"), rest))).
     If isArrRef(lastTok):
-        Let elem be arrGet(lastTok, parseInt(materialize(evalIndex(inner)))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
-        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
+        If concat(decodeStr(materialize(evalIndex(inner))), "") is equal to "length":
+            Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), toText(propLength(concat(lastTok, "")))), concat(rest, "")))).
+        Let elem be arrGet(concat(lastTok, ""), parseInt(materialize(evalIndex(inner)))).
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), concat(rest, "")))).
     If isObjRef(lastTok):
         Let got be objGet(lastTok, materialize(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), got), rest))).
     If startsWith(lastTok, tagStr ()):
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        If concat(decodeStr(materialize(evalIndex(inner))), "") is equal to "length":
+            Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), toText(propLength(concat(lastTok, "")))), concat(rest, "")))).
         Let elem be strIndexChar(materialize(concat(lastTok, "")), parseInt(evalIndex(inner))).
-        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
-        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), concat(rest, "")))).
     If startsWith(lastTok, chr(34)):
-        Let elem be strIndexChar(materialize(litToStr(concat(lastTok, ""))), parseInt(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
-        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), rest))).
+        If concat(decodeStr(materialize(evalIndex(inner))), "") is equal to "length":
+            Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), toText(propLength(litToStr(concat(lastTok, ""))))), concat(rest, "")))).
+        Let elem be strIndexChar(materialize(litToStr(concat(lastTok, ""))), parseInt(evalIndex(inner))).
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), concat(rest, "")))).
     If inner is equal to "":
         Return resolveArrays(trim(concat(concat(rawPrefix, newArr(concat(tagArr (), tagArrEnd ()))), rest))).
     Return resolveArrays(trim(concat(concat(rawPrefix, buildArr(splitArgsN(inner), 1, "")), rest))).
