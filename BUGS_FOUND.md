@@ -2922,3 +2922,15 @@ concatenation, `.length`, and `decodeURIComponent("%3B")` all match Node; every 
 entire suite) unchanged. New `semistr-diff` fuzzer (1800+ checks over semicolon-sprinkled strings across
 return/var/field/split/length/join). Full sweep green (418/418). This also completes the 79th fix's
 decodeURIComponent (`%3B` now decodes correctly).
+
+**Local Date getters + optional catch binding (2026-07-24, 81st engine fix).** Two bounded gaps (main.lg).
+(1) `Date.prototype.getHours`/`getMinutes`/`getSeconds` returned NaN — the UTC variants were wired but the
+local ones were absent from both the method table and `dateMethod`. The engine is UTC-only (getFullYear ==
+getUTCFullYear), so each local getter now aliases its UTC field; `new Date(2024,5,15,10,30,45)` reports
+10/30/45 and `getHours() === getUTCHours()`. (2) The optional catch binding `catch { … }` (no `(e)`) →
+NaN: `execTry` extracted the binding via `substringAfter(rest1,"(")`/`")"`, which grabbed garbage when
+`catch` was followed directly by `{`, so the catch block never ran. Added a branch that runs the block with
+an empty binding when `catch` is followed by `{`. `try{throw 1}catch{…}`, `catch{}finally{}`, and the
+existing `catch(e){…}`/`finally`/nested-throw forms all match Node; UTC getters, getFullYear/getMonth/getDay
+unchanged. New `datelocal-diff` (900+ checks, UTC-forced) and `optcatch-diff` (900+ checks, binding-less vs
+`(e)` × finally) fuzzers. Full sweep green (422/422).

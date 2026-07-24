@@ -3046,9 +3046,15 @@
         Return jsDateField(ms, "date").
     If mname is equal to "getUTCHours":
         Return jsDateField(ms, "hours").
+    If mname is equal to "getHours":
+        Return jsDateField(ms, "hours").
     If mname is equal to "getUTCMinutes":
         Return jsDateField(ms, "minutes").
+    If mname is equal to "getMinutes":
+        Return jsDateField(ms, "minutes").
     If mname is equal to "getUTCSeconds":
+        Return jsDateField(ms, "seconds").
+    If mname is equal to "getSeconds":
         Return jsDateField(ms, "seconds").
     If mname is equal to "getUTCMilliseconds":
         Return jsDateField(ms, "ms").
@@ -4411,7 +4417,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -6261,6 +6267,14 @@
     Let rest1 be trim(substringAfter(substringAfter(afterTryBrace, tryBlock), chr(125))).
     Let afterTry be runBlockStr(tryBlock, env).
     If startsWith(rest1, "catch"):
+        If startsWith(trim(substringAfter(rest1, "catch")), chr(123)):
+            Let afterKw be trim(substringAfter(rest1, "catch")).
+            Let catchBlock0 be braceBody(substringAfter(afterKw, chr(123)), 1, 0, "").
+            Let afterCatch0 be tryCatchRun(afterTry, "", catchBlock0).
+            Let restC0 be trim(substringAfter(substringAfter(afterKw, catchBlock0), chr(125))).
+            If startsWith(restC0, "finally"):
+                Return runFinally(braceBody(substringAfter(restC0, chr(123)), 1, 0, ""), afterCatch0).
+            Return afterCatch0.
         Let cparam be trim(substringBefore(substringAfter(rest1, "("), ")")).
         Let afterCP be substringAfter(rest1, ")").
         Let catchBlock be braceBody(substringAfter(afterCP, chr(123)), 1, 0, "").
