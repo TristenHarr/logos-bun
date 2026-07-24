@@ -3034,3 +3034,14 @@ encodeStr so its parens stay inert on re-resolution AND it behaves as a normal s
 = 44, `.slice`, `.includes` all work). New `barethrow-diff` fuzzer (1200+ checks, null/undefined × props ×
 name/message/instanceof/typeof/constructor/toString/length). Full sweep green (219/219). (A throw from
 inside a map callback still doesn't propagate — a separate pre-existing gap, not from this change.)
+
+**Throw from inside map/filter/forEach callback (2026-07-24, 91st engine fix).** `try { arr.forEach(x => {
+if (bad) throw new Error(...) }) } catch(e) { … }` never reached the catch — callFnIdx/callFnIdx3 returned
+only the callback's `__ret`, discarding its `__throw` (unlike callFn, which calls maybePropagateThrow), and
+the map/filter/forEach loops kept iterating regardless. Now callFnIdx/callFnIdx3 propagate a pending throw
+(maybePropagateThrow after runBlockStr) and arrMapLoop/arrForEachLoop/arrFilterLoop short-circuit when
+throwPending() — so the error surfaces to the enclosing try/catch. Throws raised directly and via a called
+function inside a callback both propagate with the right message; non-throwing map/filter/forEach results are
+unchanged (the throwPending check is inert when nothing throws). New `callbackthrow-diff` fuzzer (1200+
+checks). Full sweep green (220/220). (forEach scalar `s+=`/`c++` closure-writeback and chained `x.y.z` on an
+undefined intermediate — `(1).y.z` throws nothing even outside a callback — remain separate pre-existing gaps.)

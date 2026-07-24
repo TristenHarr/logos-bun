@@ -3610,6 +3610,8 @@
         Return acc.
     Let el be item i of els.
     Let r be callFnIdx3(concat(fnval, ""), el, toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return acc.
     If i is equal to 1:
         Return arrMapLoop(els, i + 1, fnval, arrv, env, r).
     Let nextAcc be concat(concat(acc, tagArrSep ()), r).
@@ -3622,6 +3624,8 @@
     If i is greater than length of els:
         Return "undefined".
     Let r be callFnIdx3(concat(fnval, ""), item i of els, toText(i - 1), concat(arrv, ""), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return "undefined".
     If r is equal to "__never__":
         Return "undefined".
     Return arrForEachLoop(els, i + 1, fnval, arrv, env).
@@ -3761,8 +3765,12 @@
     Let params be patFields(paramStr).
     Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 1:
-        Return envGet(runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)), "__ret").
-    Return envGet(runBlockStr(body, e1), "__ret").
+        Let d2 be runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)).
+        Let p2 be maybePropagateThrow(concat(d2, "")).
+        Return envGet(d2, "__ret").
+    Let d1 be runBlockStr(body, e1).
+    Let p1 be maybePropagateThrow(concat(d1, "")).
+    Return envGet(d1, "__ret").
 
 # Like callFnIdx but with the iterated array itself as the third argument (map/filter/forEach's
 # `(value, index, array)` callback signature), bound only when the callback declares a third
@@ -3774,10 +3782,16 @@
     Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 2:
         Let e2 be bindParamVal(trim(item 2 of params), idx, e1).
-        Return envGet(runBlockStr(body, bindParamVal(trim(item 3 of params), arrv, e2)), "__ret").
+        Let d3 be runBlockStr(body, bindParamVal(trim(item 3 of params), arrv, e2)).
+        Let p3 be maybePropagateThrow(concat(d3, "")).
+        Return envGet(d3, "__ret").
     If length of params is greater than 1:
-        Return envGet(runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)), "__ret").
-    Return envGet(runBlockStr(body, e1), "__ret").
+        Let d2 be runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)).
+        Let p2 be maybePropagateThrow(concat(d2, "")).
+        Return envGet(d2, "__ret").
+    Let d1 be runBlockStr(body, e1).
+    Let p1 be maybePropagateThrow(concat(d1, "")).
+    Return envGet(d1, "__ret").
 
 ## To arrFromMapLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
     If i is greater than length of els:
@@ -4250,6 +4264,8 @@
         Return acc.
     Let el be item i of els.
     Let keep be boolOf(callFnIdx3(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(arrv, ""), concat(env, ""))).
+    If throwPending() is equal to "1":
+        Return acc.
     If keep:
         If acc is equal to "":
             Return arrFilterLoop(els, i + 1, fnval, arrv, env, el).
