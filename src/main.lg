@@ -1729,6 +1729,8 @@
     If name is equal to "isFinite":
         Return cmpResult(isFiniteNum(jsToNumberOf(av))).
     If name is equal to "String":
+        If isSymbol(concat(av, "")):
+            Return symbolToText(concat(av, "")).
         Return concat(tagStr (), materialize(av)).
     If name is equal to "Boolean":
         Return cmpResult(boolOf(av)).
@@ -3282,6 +3284,11 @@
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
         Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks))).
+    If isSymbol(concat(recv, "")):
+        If item 1 of tailToks is equal to "description":
+            Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+            Let restToks be joinRange(tailToks, 2, length of tailToks, "").
+            Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), symbolDesc(concat(recv, ""))), restToks))).
     If isObjRef(recv):
         Let val be getMember(recv, item 1 of tailToks).
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
@@ -3682,6 +3689,20 @@
     If isObjRef(v):
         Return objGet(concat(v, ""), "__symbol") is not equal to "undefined".
     Return false.
+
+# The `Symbol(desc)` display string for String(sym) / sym.toString(). Built with ENCODED parens so the
+# result is inert string content (a raw `(` would re-trigger the `Symbol (` constructor marker); the
+# stored description is already encoded, so it is spliced verbatim after the tagStr strip.
+## To symbolToText (v: Text) -> Text:
+    Let desc be substringAfter(objGet(concat(v, ""), "__symbol"), tagStr ()).
+    Return concat(concat(concat(concat(tagStr (), "Symbol"), encParenL ()), desc), encParenR ()).
+
+# A Symbol's description (sym.description) — undefined for Symbol() with no argument (stored as "").
+## To symbolDesc (v: Text) -> Text:
+    Let desc be substringAfter(objGet(concat(v, ""), "__symbol"), tagStr ()).
+    If concat(desc, "") is equal to "":
+        Return "undefined".
+    Return concat(tagStr (), desc).
 
 # A Date is a heap object carrying a __date_ms millisecond timestamp; its getter methods route to
 # jsDateField (a manual UTC epoch→civil-date conversion in the toolchain), getTime/valueOf return the
@@ -6193,6 +6214,8 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
+        If isSymbol(concat(raw, "")):
+            Return resolveMethods(trim(concat(concat(concat(prefix, " "), symbolToText(concat(raw, ""))), rst)), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), numToStringVal(raw, argStr, env)), rst)), env).
     If lm is equal to " . hasOwnProperty (":
         Let bef be substringBefore(expr, " . hasOwnProperty (").
