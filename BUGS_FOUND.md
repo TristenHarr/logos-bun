@@ -2934,3 +2934,15 @@ an empty binding when `catch` is followed by `{`. `try{throw 1}catch{…}`, `cat
 existing `catch(e){…}`/`finally`/nested-throw forms all match Node; UTC getters, getFullYear/getMonth/getDay
 unchanged. New `datelocal-diff` (900+ checks, UTC-forced) and `optcatch-diff` (900+ checks, binding-less vs
 `(e)` × finally) fuzzers. Full sweep green (422/422).
+
+**Array-callback third argument (2026-07-24, 82nd engine fix).** `arr.map`/`filter`/`forEach`
+callbacks receive `(value, index, array)`, but the loops only threaded `(value, index)` to callFnIdx,
+so a callback referencing its third parameter saw `undefined` — `[1,2,3].map((v,i,a)=>a.length)`
+gave NaN instead of 3, `filter((v,i,a)=>i<a.length-1)` mis-filtered, `forEach((v,i,a)=>…a[i]…)`
+read undefined. Added `callFnIdx3` (binds the iterated array as the 3rd arg only when the callback
+declares three params — 1/2-arg callbacks untouched) and threaded the source array through
+arrMapLoop/arrForEachLoop/arrFilterLoop. `map`/`filter`/`forEach` third-arg forms now match Node;
+reduce's own 3-arg `(acc,el,i)` path (callFn3) and Array.from's map (no array arg, per spec) are
+unchanged. New `callbackarr-diff` fuzzer (1800+ checks, a.length / a[i] / index-vs-length). Full
+sweep green (212/212). (The forEach scalar `s+=` closure-writeback remains a separate deferred gap —
+heap-persisting `out.push(...)` works.)
