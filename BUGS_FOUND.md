@@ -3188,3 +3188,15 @@ bound at call time. Prototype methods reading `this`, data properties, multi-met
 New `prototype-diff` fuzzer (1200+ checks). Full sweep green (234/234). (`this.f++`/`++this.f` writeback
 inside a method — pre-existing, affects class methods too — is a separate documented gap; explicit
 `this.f = this.f + 1` works.)
+
+**Member increment/decrement in return position (2026-07-24, 106th engine fix).** `return ++o.n` /
+`return o.n++` / `return --a[i]` gave NaN — the incDec preprocessor rewrote a PREFIX `++x` as a scalar even
+when `x` was a member (`++o.n`), mangling the path, and the return statement didn't apply member inc/dec at
+all. Added a `memberFollows` guard to the three scalar prefix rewriters (incDecEnv, incDecRewrite,
+hasSimpleIncDec) so `++o.n`/`--a[i]` fall through to the member handlers, and member inc/dec handling in the
+return statement (prefix yields the new value, postfix the old, with the member written back through its
+ref). `return ±±member`, object-literal methods returning `++this.n`, and array-index increments now match
+Node, mutation persisted; scalar `++x`, bare `o.n++`/`++o.n` statements, and loops unchanged. New
+`memberincret-diff` fuzzer (1500+ checks). Full sweep green (234/234). (Class-method `++this.n` — entangled
+with how class methods capture `this` — and member inc/dec in assignment position `let x = o.n++` remain
+separate documented gaps; explicit `this.n = this.n + 1` works everywhere.)

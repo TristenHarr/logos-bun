@@ -6733,6 +6733,17 @@
         Return item (i - 1) of toks is equal to ".".
     Return false.
 
+# A prefix `++x`/`--x` where the target `x` is immediately followed by `.`/`[` is a MEMBER increment
+# (`++o.n`, `--a[i]`), not a scalar — the scalar rewriters must skip it so it reaches the member handlers.
+## To memberFollows (toks: Seq of Text, j: Int) -> Bool:
+    If (j + 1) is greater than length of toks:
+        Return false.
+    If item (j + 1) of toks is equal to ".":
+        Return true.
+    If item (j + 1) of toks is equal to chr(91):
+        Return true.
+    Return false.
+
 # A postfix `x++` target must be a real identifier, not a keyword: in `return ++c` the `++` is a PREFIX
 # of `c`, so `return` must not be read as `return++`. Excludes the word-like keywords that can precede a
 # unary `++`/`--`.
@@ -6781,14 +6792,16 @@
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
             If isWordChar1(x):
-                Let nv be jsEvalIn(concat(x, " + 1"), concat(env, "")).
-                Return incDecEnv(toks, i + 2, depth, envSet(env, x, nv)).
+                If memberFollows(toks, i + 1) is equal to false:
+                    Let nv be jsEvalIn(concat(x, " + 1"), concat(env, "")).
+                    Return incDecEnv(toks, i + 2, depth, envSet(env, x, nv)).
     If t is equal to "--":
         If i is less than length of toks:
             Let xd be item (i + 1) of toks.
             If isWordChar1(xd):
-                Let nvd be jsEvalIn(concat(xd, " - 1"), concat(env, "")).
-                Return incDecEnv(toks, i + 2, depth, envSet(env, xd, nvd)).
+                If memberFollows(toks, i + 1) is equal to false:
+                    Let nvd be jsEvalIn(concat(xd, " - 1"), concat(env, "")).
+                    Return incDecEnv(toks, i + 2, depth, envSet(env, xd, nvd)).
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
@@ -6817,16 +6830,18 @@
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
             If isWordChar1(x):
-                Let nv be materialize(jsEvalIn(concat(x, " + 1"), concat(env, ""))).
-                Let e2 be envSet(env, x, nv).
-                Return incDecRewrite(toks, i + 2, depth, e2, concat(concat(acc, " "), nv)).
+                If memberFollows(toks, i + 1) is equal to false:
+                    Let nv be materialize(jsEvalIn(concat(x, " + 1"), concat(env, ""))).
+                    Let e2 be envSet(env, x, nv).
+                    Return incDecRewrite(toks, i + 2, depth, e2, concat(concat(acc, " "), nv)).
     If t is equal to "--":
         If i is less than length of toks:
             Let xd be item (i + 1) of toks.
             If isWordChar1(xd):
-                Let nvd be materialize(jsEvalIn(concat(xd, " - 1"), concat(env, ""))).
-                Let e3 be envSet(env, xd, nvd).
-                Return incDecRewrite(toks, i + 2, depth, e3, concat(concat(acc, " "), nvd)).
+                If memberFollows(toks, i + 1) is equal to false:
+                    Let nvd be materialize(jsEvalIn(concat(xd, " - 1"), concat(env, ""))).
+                    Let e3 be envSet(env, xd, nvd).
+                    Return incDecRewrite(toks, i + 2, depth, e3, concat(concat(acc, " "), nvd)).
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
@@ -6861,11 +6876,13 @@
     If t is equal to "++":
         If i is less than length of toks:
             If isWordChar1(item (i + 1) of toks):
-                Return true.
+                If memberFollows(toks, i + 1) is equal to false:
+                    Return true.
     If t is equal to "--":
         If i is less than length of toks:
             If isWordChar1(item (i + 1) of toks):
-                Return true.
+                If memberFollows(toks, i + 1) is equal to false:
+                    Return true.
     If i is less than length of toks:
         Let nx be item (i + 1) of toks.
         If nx is equal to "++":
@@ -7155,6 +7172,29 @@
         If startsWith(trim(substringAfter(s, "return")), "console . log ("):
             Let logged be doConsoleLog(balancedArg(substringAfter(trim(substringAfter(s, "return")), "console . log ("), 1, 0, ""), env).
             Return envSet(env, "__ret", "undefined").
+        Let rtoks be split(trim(substringAfter(s, "return")), " ").
+        If item 1 of rtoks is equal to "++":
+            If isMemberTarget(trim(joinRange(rtoks, 2, length of rtoks, ""))):
+                Let ptgt be trim(joinRange(rtoks, 2, length of rtoks, "")).
+                Let penv be assignTarget(concat(ptgt, ""), jsEvalIn(concat(ptgt, " + 1"), env), env).
+                Return envSet(penv, "__ret", jsEvalIn(concat(ptgt, ""), penv)).
+        If item 1 of rtoks is equal to "--":
+            If isMemberTarget(trim(joinRange(rtoks, 2, length of rtoks, ""))):
+                Let mtgt be trim(joinRange(rtoks, 2, length of rtoks, "")).
+                Let menv be assignTarget(concat(mtgt, ""), jsEvalIn(concat(mtgt, " - 1"), env), env).
+                Return envSet(menv, "__ret", jsEvalIn(concat(mtgt, ""), menv)).
+        If item (length of rtoks) of rtoks is equal to "++":
+            If isMemberTarget(trim(joinRange(rtoks, 1, (length of rtoks) - 1, ""))):
+                Let xtgt be trim(joinRange(rtoks, 1, (length of rtoks) - 1, "")).
+                Let oldv be jsEvalIn(concat(xtgt, ""), env).
+                Let xenv be assignTarget(concat(xtgt, ""), jsEvalIn(concat(xtgt, " + 1"), env), env).
+                Return envSet(xenv, "__ret", concat(oldv, "")).
+        If item (length of rtoks) of rtoks is equal to "--":
+            If isMemberTarget(trim(joinRange(rtoks, 1, (length of rtoks) - 1, ""))):
+                Let ytgt be trim(joinRange(rtoks, 1, (length of rtoks) - 1, "")).
+                Let oldvd be jsEvalIn(concat(ytgt, ""), env).
+                Let yenv be assignTarget(concat(ytgt, ""), jsEvalIn(concat(ytgt, " - 1"), env), env).
+                Return envSet(yenv, "__ret", concat(oldvd, "")).
         Let rv be jsEvalIn(substringAfter(s, "return"), env).
         If throwPending() is equal to "1":
             Return env.
