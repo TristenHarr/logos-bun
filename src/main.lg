@@ -2270,6 +2270,76 @@
         Return "undefined".
     Return v.
 
+# Pretty-printing stringify — the third JSON.stringify argument (a per-level indent). `gap` is one
+# indent unit (encoded whitespace), `pad` the accumulated indent at the current depth. Objects/arrays
+# place each member on its own line at pad+gap and a colon is followed by one space; empty {} / [] stay
+# on one line. Whitespace is emitted as encSpace/encNewline so it decodes to real space/newline on output.
+## To jsonGap (n: Int, acc: Text) -> Text:
+    If n is less than 1:
+        Return acc.
+    Return jsonGap(n - 1, concat(acc, encSpace ())).
+
+## To indentGap (indV: Text) -> Text:
+    If startsWith(concat(indV, ""), tagStr ()):
+        Let content be substringAfter(concat(indV, ""), tagStr ()).
+        If length of content is greater than 10:
+            Return strSliceLoop(content, 1, 10, "").
+        Return content.
+    Let k be safeInt(concat(indV, "")).
+    If k is less than 1:
+        Return "".
+    If k is greater than 10:
+        Return jsonGap(10, "").
+    Return jsonGap(k, "").
+
+## To jsonArrElemInd (v: Text, gap: Text, inner: Text) -> Text:
+    If isJsonOmit(concat(v, "")):
+        Return "null".
+    Return jsonStrInd(concat(v, ""), gap, inner).
+
+## To jsonIndArrLoop (els: Seq of Text, i: Int, gap: Text, inner: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let line be concat(concat(encNewline (), inner), jsonArrElemInd(concat(item i of els, ""), gap, inner)).
+    If i is equal to 1:
+        Return jsonIndArrLoop(els, i + 1, gap, inner, line).
+    Return jsonIndArrLoop(els, i + 1, gap, inner, concat(concat(acc, ","), line)).
+
+## To jsonIndObjLoop (entries: Seq of Text, i: Int, gap: Text, inner: Text, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let val be substringAfter(entry, tagObjKV ()).
+    If isJsonOmit(concat(val, "")):
+        Return jsonIndObjLoop(entries, i + 1, gap, inner, acc).
+    Let esc be jsonEscape(substringBefore(entry, tagObjKV ()), 1, "").
+    Let keyPart be concat(concat(chr(34), esc), chr(34)).
+    Let pair be concat(concat(keyPart, concat(":", encSpace ())), jsonStrInd(concat(val, ""), gap, inner)).
+    Let line be concat(concat(encNewline (), inner), pair).
+    If acc is equal to "":
+        Return jsonIndObjLoop(entries, i + 1, gap, inner, line).
+    Return jsonIndObjLoop(entries, i + 1, gap, inner, concat(concat(acc, ","), line)).
+
+## To jsonStrInd (v: Text, gap: Text, pad: Text) -> Text:
+    If startsWith(v, tagStr ()):
+        Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "")), chr(34)).
+    If isArrRef(v):
+        Let els be arrElements(v).
+        If length of els is less than 1:
+            Return concat(encBrkL (), encBrkR ()).
+        Let inner be concat(pad, gap).
+        Let body be jsonIndArrLoop(els, 1, gap, inner, "").
+        Return concat(concat(concat(encBrkL (), body), concat(encNewline (), pad)), encBrkR ()).
+    If isObjRef(v):
+        Let inner be concat(pad, gap).
+        Let body be jsonIndObjLoop(objEntrySeq(v), 1, gap, inner, "").
+        If body is equal to "":
+            Return concat(encBraceL (), encBraceR ()).
+        Return concat(concat(concat(encBraceL (), body), concat(encNewline (), pad)), encBraceR ()).
+    If isJsonOmit(concat(v, "")):
+        Return "undefined".
+    Return v.
+
 ## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text) -> Text:
     If i is greater than length of s:
         Return acc.
@@ -4918,7 +4988,14 @@
         Let aft be substringAfter(expr, "JSON . stringify (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (length of argStr) + 2, length of aft, "").
-        Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), jsonStringify(jsEvalIn(trim(argStr), env)))), rst)), env).
+        Let sargs be splitArgsN(concat(argStr, "")).
+        Let valV be jsEvalIn(trim(item 1 of sargs), env).
+        If length of sargs is greater than 2:
+            If trim(item 3 of sargs) is not equal to "":
+                Let gap be indentGap(jsEvalIn(trim(item 3 of sargs), env)).
+                If gap is not equal to "":
+                    Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), jsonStrInd(concat(valV, ""), gap, ""))), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), jsonStringify(concat(valV, "")))), rst)), env).
     If substringBefore(expr, "String . fromCharCode (") is not equal to expr:
       If markerInBody(concat(expr, ""), "String . fromCharCode (") is equal to false:
         Let bef be substringBefore(expr, "String . fromCharCode (").

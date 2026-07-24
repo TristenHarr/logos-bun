@@ -2958,3 +2958,15 @@ materialized and concatenated left to right, re-tagged as a string. `concat([4,5
 `concat(6)`, `concat(3,4,[5,6])`, `concat("b",["c","d"])`, `concat()`, `"a".concat("b","c","d")` all
 match Node. New `concatargs-diff` fuzzer (1800+ checks, mixed array/scalar args + string concat). Full
 sweep green (213/213).
+
+**JSON.stringify indent (third argument) (2026-07-24, 84th engine fix).** `JSON.stringify(x, null, 2)`
+returned NaN — the dispatch fed the entire argument text to jsEvalIn as one expression, so the value +
+replacer + indent collapsed. Rewrote it to split the args (splitArgsN, which respects `{}`/`[]`/strings)
+and take the value from arg 1; when a third (indent) arg is present and non-empty, pretty-print via a new
+jsonStrInd: each object/array member on its own line at the accumulated indent, a colon followed by one
+space, empty `{}`/`[]` kept on one line, whitespace emitted as encSpace/encNewline so it decodes to real
+space/newline. A number indent is min(10,n) spaces (0 → compact); a string indent is its first 10 chars
+(`"\t"` works). Also fixes the two-arg `stringify(x, replacer)` form (previously the same mis-parse).
+Compact stringify, undefined-skipping, and nested structures all match Node byte-for-byte. New
+`stringifyindent-diff` fuzzer (1200+ checks, nested structures × 0/2/4/tab/null indents, full-output
+compare). Full sweep green (214/214).
