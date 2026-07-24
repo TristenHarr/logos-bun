@@ -8365,13 +8365,41 @@
         Return true.
     Return boolOf(jsEvalIn(concat(cond, ""), env)).
 
+# A `for (let i …)` loop variable is a FRESH per-iteration binding in JS, so a closure created in the body
+# captures that iteration's value (`for(let i=0;i<3;i++) fns.push(()=>i)` → 0,1,2). With `let`/`const` the
+# loop var's CURRENT value is baked into the body before each iteration runs, so an inline closure freezes
+# the right value instead of all sharing the final one (3,3,3). Only fires when the body actually contains a
+# closure (`=>`/`function`) — a plain body is left untouched — and never for `var` (function-scoped, shared).
+## To loopLetVar (init: Text) -> Text:
+    If startsWith(trim(concat(init, "")), "let "):
+        Return firstDeclName(substringAfter(trim(concat(init, "")), "let ")).
+    If startsWith(trim(concat(init, "")), "const "):
+        Return firstDeclName(substringAfter(trim(concat(init, "")), "const ")).
+    Return "".
+
+## To firstDeclName (rest: Text) -> Text:
+    If hasSep(concat(rest, ""), " = ") is equal to false:
+        Return "".
+    Let nm be trim(substringBefore(concat(rest, ""), " = ")).
+    If isSimpleName(concat(nm, "")):
+        Return nm.
+    Return "".
+
+## To iterBakeBody (body: Text, initPart: Text, env: Text) -> Text:
+    If hasClosureMarker(concat(body, "")) is equal to false:
+        Return concat(body, "").
+    Let vn be loopLetVar(concat(initPart, "")).
+    If vn is equal to "":
+        Return concat(body, "").
+    Return substitute(concat(body, ""), envSet("", concat(vn, ""), envGet(concat(env, ""), concat(vn, "")))).
+
 ## To forStmt (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
     Let cond be trim(item 2 of parts).
     If forCondHolds(concat(cond, ""), env):
-        Let body be loopBody(concat(stmt, "")).
+        Let body be iterBakeBody(loopBody(concat(stmt, "")), trim(item 1 of parts), env).
         Let update be trim(item 3 of parts).
         Let afterBody be runBlockStr(body, env).
         If hasHalt(afterBody):

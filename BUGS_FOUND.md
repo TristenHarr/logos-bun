@@ -3622,3 +3622,17 @@ unchanged. New `objclosure-diff` fuzzer (1200+ checks, 6 seeds). Full sweep gree
 mutated captured scalar with a NON-numeric-literal init — `let n = s; ++n` — is still baked by value across an
 escape because only numeric-literal scalars are heap-boxed; boxing an identifier init can't be done safely
 because it might alias a function, whose `this`-binding a box would change.)
+
+**`for (let i …)` loop closures all shared the final value (2026-07-24, 135th engine fix).** A `for (let i …)`
+loop variable is a FRESH per-iteration binding in JS, so a closure created in the body captures that
+iteration's value — but ours had every closure resolve `i` by name and read the loop's final value:
+`for(let i=0;i<3;i++) fns.push(()=>i)` then calling them gave `3,3,3` instead of `0,1,2`. The loop var's
+CURRENT value is now baked into the body before each iteration runs — but only when the body actually contains
+a closure (`=>`/`function`) and the loop var is `let`/`const`; a `var` counter (function-scoped, genuinely
+shared) still yields `3,3,3`, and a closure-free body is left untouched (no cost). Baked via substitute with a
+single-variable env so only the loop var is frozen, not other free names (a captured heap ref must still
+resolve live). The arrow and function-expression closure forms, scaled captures, and nested loops all match
+Node; accumulators, index pushes, and products are unchanged. New `forletclosure-diff` fuzzer (1200+ checks, 6
+seeds). Full sweep green (262/262, seeds 1-2). (A closure that captures a per-iteration BODY binding rather
+than the loop var itself — `for(let i…){ const j=i*i; out.push(()=>j) }` — still shares `j`'s final value;
+baking every body-local binding per iteration is a deeper follow-up.)
