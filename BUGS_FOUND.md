@@ -3505,3 +3505,17 @@ bound value is a heap object, so `typeOfVal` gained an `isBoundFn` check ahead o
 (253/253, seeds 1-2). `Function.prototype.bind` is now feature-complete for the engine: `this`-binding, partial
 application, use as a callback, and correct `typeof`. (Only double-bind `f.bind(a).bind(b)` — re-binding an
 already-bound function, where the second `this` is ignored but args accumulate — remains, a rare edge.)
+
+**Immediately-invoked NAMED function expression was mis-parsed (2026-07-24, 127th engine fix).** An IIFE whose
+function expression carries a name — `(function fact(n){return n<=1?1:n*fact(n-1)})(5)` — returned `NaN`, even
+with no self-reference (`(function f(n){return n+100})(5)` → NaN). The callee dispatch recognized the
+anonymous-IIFE shape by the last prefix token being literally `function`, but a NAMED expression makes the last
+token the function's own NAME, so it fell through every branch and built nothing. Now, when the token BEFORE
+the callee is `function`, the same value is constructed with the correct params AND the self-name is bound to
+that value in the environment threaded into the call — so the body can recurse. `(function fact(n){…fact(n-1)})
+(5)` === 120, factorial/fibonacci/string-accumulate recursion, non-recursive named IIFEs, multi-arg, and nested
+named IIFEs all match Node. Anonymous IIFEs, named-fn declarations, and a named function expression assigned to
+a variable (which already recursed) are unchanged. New `namediife-diff` fuzzer (1200+ checks, 6 seeds). Full
+sweep green (254/254, seeds 1-2). (The named-expression's name still leaks into the surrounding scope when the
+expression is assigned to a variable — a pre-existing, separate spec deviation; the IIFE form has no observable
+leak.)

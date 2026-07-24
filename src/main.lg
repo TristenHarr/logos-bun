@@ -1858,6 +1858,15 @@
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), fnval), remainder), env).
     If length of ptoks is greater than 1:
+        If item ((length of ptoks) - 1) of ptoks is equal to "function":
+            Let afterBraceN be substringAfter(rest, chr(123)).
+            Let bodyN be braceBody(afterBraceN, 1, 0, "").
+            Let remainderN be strSliceLoop(afterBraceN, (length of bodyN) + 2, length of afterBraceN, "").
+            Let fnvalN be concat(concat(concat(chr(1), encFn(trim(item np of pieces))), chr(1)), encFn(trim(bodyN))).
+            Let newPrefixN be joinRange(ptoks, 1, (length of ptoks) - 2, "").
+            Let envN be envSet(env, concat(lastTok, ""), concat(fnvalN, "")).
+            Return resolveCalls(concat(concat(concat(newPrefixN, " "), fnvalN), remainderN), envN).
+    If length of ptoks is greater than 1:
         If item ((length of ptoks) - 1) of ptoks is equal to "new":
             If startsWith(envGet(env, lastTok), chr(1)):
                 Let inst be applyProto(newObjRef(concat(tagObj (), tagObjEnd ())), concat(lastTok, ""), concat(env, "")).
