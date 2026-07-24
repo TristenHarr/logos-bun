@@ -3086,3 +3086,20 @@ is tested against both cases of the input char (chSwapCase). `i` now works acros
 for literals, classes, and ranges; case-sensitive matching, `\d\w\s`, and anchors are unchanged. New
 `regexci-diff` fuzzer (1500+ checks, i vs non-i × four methods × literal/class/range). Full sweep green
 (224/224). (Capture-group `$N`/`match()[N]` remains a separate deferred matcher-redesign item.)
+
+**Regex capture groups — match()[N] + $N replace (2026-07-24, 96th engine fix).** Capture groups were
+entirely unread: `"abc".match(/(a)(b)(c)/)[1]` was undefined, `/(\w+) (\w+)/.exec`-style access gave
+nothing, and `"2024-01".replace(/(\d+)-(\d+)/,"$2/$1")` emitted the literal "$2/$1". The matcher (mh) uses
+the pattern-derivative method, which dissolves group boundaries, so captures can't be read from a single
+match. Added a SEPARATE forward extraction pass, capExtract, that walks the pattern's TOP-LEVEL structure
+at the known match start: each `(body)` group captures body's greedy match at the cursor (which aligns with
+the overall match for the common non-backtracking patterns) and the non-group runs between groups advance
+the cursor; non-capturing `(?:…)` groups are matched but not numbered. `.match` (non-global) now returns
+`[full, ...groups]` via reMatchArrayInner, so `m[1]`/`m[2]`/`m.length` work; and reReplaceLoop runs
+backrefScan per match to substitute `$1`..`$9` (missing group → literal), `$&` (whole match), and `$$`
+(literal `$`) — global replaces reorder per match, and it composes with the `i` flag. Plain (group-less)
+match/replace/split, `\d\w\s`, anchors, and split are unchanged. New `capturegroups-diff` fuzzer (1500+
+checks, sequential top-level groups × match/length/$N/$&). Full sweep green (225/225). (Nested-group inner
+captures and captures that only surface under backtracking are a documented follow-up; the common
+top-level-sequential case — the vast majority of real usage — is covered. Also fixed two codegen move
+errors: recursive Text/Seq params need `concat(x,"")` clones and indexing pulled into prior Lets.)

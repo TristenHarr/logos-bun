@@ -4857,10 +4857,10 @@
                 If mall is equal to "":
                     Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), mall), tagArrEnd ()))), methodRest(maft))), env).
-            Let mfound be reFind(msrc, mtext, materialize(objGet(concat(mre, ""), "__regex_flags"))).
-            If mfound is equal to "":
+            Let minner be reMatchArrayInner(msrc, mtext, materialize(objGet(concat(mre, ""), "__regex_flags"))).
+            If minner is equal to "":
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), concat(tagStr (), mfound)), tagArrEnd ()))), methodRest(maft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), minner), tagArrEnd ()))), methodRest(maft))), env).
     If substringBefore(expr, "new Promise (") is not equal to expr:
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
@@ -8904,6 +8904,82 @@
     Let ci be reApplyCi(concat(flags, "")).
     Return reFindAllLoop(pat, text, "").
 
+# --- Capture-group extraction ---
+# The matcher (mh) dissolves group boundaries via the pattern-derivative method, so captures can't be read
+# out of a single match. capExtract runs a SEPARATE forward pass over the pattern's TOP-LEVEL structure at
+# the known match start: each top-level `(body)` group captures body's greedy match at the cursor (which
+# aligns with the overall match for the common non-backtracking patterns), and the non-group runs between
+# groups advance the cursor. Returns the group texts as a tagArrSep-joined array-inner of tagStr elements
+# (encoded), ready to append after the full match for `.match`/`.exec`, or index for `$N` in `.replace`.
+# Non-capturing `(?:…)` groups are matched but not numbered. (Nested-group inner captures and captures that
+# only surface under backtracking are a documented follow-up; top-level sequential groups are covered.)
+
+# Index of the next TOP-LEVEL `(` at or after i, skipping `\`-escapes and `[…]` classes; length+1 if none.
+## To capNextParen (pat: Text, i: Int) -> Int:
+    If i is greater than length of pat:
+        Return i.
+    Let c be item i of pat.
+    If c is equal to chr(92):
+        Return capNextParen(concat(pat, ""), i + 2).
+    If c is equal to chr(91):
+        Return capNextParen(concat(pat, ""), classEnd(concat(pat, ""), i + 1) + 1).
+    If c is equal to "(":
+        Return i.
+    Return capNextParen(concat(pat, ""), i + 1).
+
+# A sub-match end index: mh returns 0 on no-match (e.g. an optional group that matched empty), which means
+# the cursor stays put (an empty capture), not moves backward.
+## To capEnd (end: Int, ti: Int) -> Int:
+    If end is less than ti:
+        Return ti.
+    Return end.
+
+## To capAfterQuant (pos: Int, q: Text) -> Int:
+    If q is equal to "":
+        Return pos.
+    Return pos + 1.
+
+## To capAppend (acc: Text, gtext: Text) -> Text:
+    Let piece be concat(tagStr (), gtext).
+    If acc is equal to "":
+        Return piece.
+    Return concat(concat(acc, tagArrSep ()), piece).
+
+## To capWalk (pat: Text, pi: Int, text: Text, ti: Int, acc: Text) -> Text:
+    If pi is greater than length of pat:
+        Return acc.
+    If item pi of pat is equal to "(":
+        Let gend be reGroupEnd(concat(pat, ""), pi + 1, 0, "").
+        Let bodyRaw be strSliceLoop(concat(pat, ""), pi + 1, gend - 1, "").
+        Let body be reGroupBody(concat(bodyRaw, "")).
+        Let q be reQuantAt(concat(pat, ""), gend + 1).
+        Let realEnd be capEnd(mh(concat(body, ""), 1, concat(text, ""), ti), ti).
+        Let gtext be strSliceLoop(concat(text, ""), ti, realEnd - 1, "").
+        Let nextPi be capAfterQuant(gend + 1, q).
+        If startsWith(bodyRaw, concat("?", ":")):
+            Return capWalk(concat(pat, ""), nextPi, concat(text, ""), realEnd, acc).
+        Return capWalk(concat(pat, ""), nextPi, concat(text, ""), realEnd, capAppend(acc, gtext)).
+    Let np be capNextParen(concat(pat, ""), pi).
+    Let gap be strSliceLoop(concat(pat, ""), pi, np - 1, "").
+    Return capWalk(concat(pat, ""), np, concat(text, ""), capEnd(mh(concat(gap, ""), 1, concat(text, ""), ti), ti), acc).
+
+## To capExtract (pat: Text, text: Text, matchStart: Int) -> Text:
+    Return capWalk(pat, 1, text, matchStart, "").
+
+# The array-inner for a non-global `.match`/`.exec`: the full match followed by each capture group's text
+# (tagStr elements joined by tagArrSep), or "" when the pattern doesn't match. capExtract runs after the
+# match start is known, so the cursor it walks from is the real match position.
+## To reMatchArrayInner (pat: Text, text: Text, flags: Text) -> Text:
+    Let ci be reApplyCi(concat(flags, "")).
+    Let start be reSearchStart(pat, text).
+    If start is equal to 0:
+        Return "".
+    Let full be concat(tagStr (), strSliceLoop(text, start, reMatchEnd(pat, text, start) - 1, "")).
+    Let groups be capExtract(pat, text, start).
+    If groups is equal to "":
+        Return full.
+    Return concat(concat(full, tagArrSep ()), groups).
+
 ## To reFlagsArg (rargs: Seq of Text, env: Text) -> Text:
     If length of rargs is less than 2:
         Return "".
@@ -8923,14 +8999,16 @@
     If start is equal to 0:
         Return concat(acc, text).
     Let endp be reMatchEnd(pat, text, start).
-    Let before be strSliceLoop(text, 1, start - 1, "").
-    Let after be strSliceLoop(text, endp, length of text, "").
+    Let before be strSliceLoop(concat(text, ""), 1, start - 1, "").
+    Let after be strSliceLoop(concat(text, ""), endp, length of text, "").
+    Let matched be strSliceLoop(concat(text, ""), start, endp - 1, "").
+    Let rep be applyBackrefs(concat(repl, ""), concat(matched, ""), capExtract(concat(pat, ""), concat(text, ""), start)).
     If global is equal to false:
-        Return concat(acc, concat(before, concat(repl, after))).
+        Return concat(acc, concat(before, concat(rep, after))).
     If endp is greater than start:
-        Let nextAcc be concat(acc, concat(before, concat(repl, ""))).
+        Let nextAcc be concat(acc, concat(before, concat(rep, ""))).
         Return reReplaceLoop(pat, after, repl, true, nextAcc).
-    Return concat(acc, concat(before, concat(repl, after))).
+    Return concat(acc, concat(before, concat(rep, after))).
 
 # Inverse of decodeStr: re-encode a raw string's structural characters back into the byte vocabulary,
 # so a value produced from DECODED text (regex replace/split results) is a well-formed jsint string.
@@ -8945,6 +9023,41 @@
     Let h be replaceAll(g, chr(34), encQuote ()).
     Let ii be replaceAll(h, chr(92), encBackslash ()).
     Return replaceAll(ii, chr(10), encNewline ()).
+
+# Substitute a replacement string's backreferences for one match: `$&` → the whole match, `$$` → a literal
+# `$`, `$1`..`$9` → the corresponding capture group's text (kept literal when that group doesn't exist).
+# `groups` is the capExtract inner split into tagStr elements; a `$N` reads element N (decoded).
+## To backrefScan (repl: Text, i: Int, full: Text, groups: Seq of Text, acc: Text) -> Text:
+    If i is greater than length of repl:
+        Return acc.
+    Let c be item i of repl.
+    If c is not equal to "$":
+        Return backrefScan(concat(repl, ""), i + 1, concat(full, ""), groups, concat(acc, c)).
+    If i is greater than (length of repl - 1):
+        Return backrefScan(concat(repl, ""), i + 1, concat(full, ""), groups, concat(acc, c)).
+    Let nx be item (i + 1) of repl.
+    If nx is equal to "$":
+        Return backrefScan(concat(repl, ""), i + 2, concat(full, ""), groups, concat(acc, "$")).
+    If nx is equal to "&":
+        Let a2 be concat(acc, concat(full, "")).
+        Return backrefScan(concat(repl, ""), i + 2, concat(full, ""), groups, a2).
+    If digitChar(nx):
+        Let gi be parseInt(nx).
+        Let ng be length of groups.
+        If gi is greater than 0:
+            If gi is less than (ng + 1):
+                Let gtext be substringAfter(item gi of groups, tagStr ()).
+                Return backrefScan(concat(repl, ""), i + 2, concat(full, ""), groups, concat(acc, gtext)).
+        Let lit be concat(concat(acc, "$"), nx).
+        Return backrefScan(concat(repl, ""), i + 2, concat(full, ""), groups, lit).
+    Return backrefScan(concat(repl, ""), i + 1, concat(full, ""), groups, concat(acc, c)).
+
+## To applyBackrefs (repl: Text, full: Text, groupsInner: Text) -> Text:
+    If substringBefore(concat(repl, ""), "$") is equal to repl:
+        Return concat(repl, "").
+    If groupsInner is equal to "":
+        Return backrefScan(concat(repl, ""), 1, full, [] of Text, "").
+    Return backrefScan(concat(repl, ""), 1, full, split(groupsInner, tagArrSep ()), "").
 
 ## To reReplace (pat: Text, text: Text, repl: Text, flags: Text) -> Text:
     Let ci be reApplyCi(concat(flags, "")).
