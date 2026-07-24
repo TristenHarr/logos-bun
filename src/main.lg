@@ -3758,6 +3758,37 @@
     Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), newInner), tagArrEnd ())).
     Return newArr(concat(concat(tagArr (), removed), tagArrEnd ())).
 
+# `arr.shift()`: remove and return the FIRST element, mutating the array in place through its heap ref
+# (empty array → undefined, array unchanged). Element ranges re-read fresh so the Seq isn't threaded twice.
+## To arrShift (arrval: Text) -> Text:
+    Let n be length of arrElements(concat(arrval, "")).
+    If n is equal to 0:
+        Return "undefined".
+    Let first be item 1 of arrElements(concat(arrval, "")).
+    Let rest be joinRange6(arrElements(concat(arrval, "")), 2, n, "").
+    Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), rest), tagArrEnd ())).
+    Return concat(first, "").
+
+# `arr.pop()` in EXPRESSION position: remove and return the LAST element, mutating in place (the bare
+# statement `a.pop()` is handled separately in execStmt). Empty array → undefined.
+## To arrPopEl (arrval: Text) -> Text:
+    Let n be length of arrElements(concat(arrval, "")).
+    If n is equal to 0:
+        Return "undefined".
+    Let last be item n of arrElements(concat(arrval, "")).
+    Let rest be joinRange6(arrElements(concat(arrval, "")), 1, n - 1, "").
+    Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), rest), tagArrEnd ())).
+    Return concat(last, "").
+
+# `arr.unshift(...items)`: prepend the items (in order), mutating in place, and return the NEW length.
+## To arrUnshift (arrval: Text, argStr: Text, env: Text) -> Text:
+    Let items be spliceItems(concat(argStr, ""), 1, concat(env, ""), "").
+    Let n be length of arrElements(concat(arrval, "")).
+    Let existing be joinRange6(arrElements(concat(arrval, "")), 1, n, "").
+    Let newInner be sepJoin(concat(items, ""), concat(existing, "")).
+    Let mutated be mutArr(concat(arrval, ""), concat(concat(tagArr (), newInner), tagArrEnd ())).
+    Return toText(length of arrElements(concat(arrval, ""))).
+
 ## To arrConcat (a: Text, b: Text) -> Text:
     Let ea be arrElements(a).
     Let eb be arrElements(b).
@@ -4302,7 +4333,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -5150,6 +5181,33 @@
         Let raw be jsEvalIn(recv, env).
         Let removed be arrSplice(concat(raw, ""), methodArg(aft), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), removed), rst)), env).
+    If lm is equal to " . shift (":
+        Let bef be substringBefore(expr, " . shift (").
+        Let aft be substringAfter(expr, " . shift (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let firstEl be arrShift(concat(raw, "")).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), firstEl), rst)), env).
+    If lm is equal to " . unshift (":
+        Let bef be substringBefore(expr, " . unshift (").
+        Let aft be substringAfter(expr, " . unshift (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let newlen be arrUnshift(concat(raw, ""), methodArg(aft), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), newlen), rst)), env).
+    If lm is equal to " . pop (":
+        Let bef be substringBefore(expr, " . pop (").
+        Let aft be substringAfter(expr, " . pop (").
+        Let rst be methodRest(aft).
+        Let recv be recvExpr(concat(bef, "")).
+        Let prefix be recvPrefix(concat(bef, "")).
+        Let raw be jsEvalIn(recv, env).
+        Let lastEl be arrPopEl(concat(raw, "")).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), lastEl), rst)), env).
     If lm is equal to " . slice (":
         Let bef be substringBefore(expr, " . slice (").
         Let aft be substringAfter(expr, " . slice (").

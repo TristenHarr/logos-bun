@@ -2736,3 +2736,18 @@ unchanged. New `ctorname-diff` fuzzer (1500 checks/6 seeds). It caught a bad pro
 reference (`(5).toString` as a Function value — a deeper, unimplemented feature) which was scoped out.
 Full sweep green (390/390). DEFERRED (documented): constructor IDENTITY (`x.constructor === Array`, needs
 singleton globals) and a class instance's real class name (instances are unmarked → "Object").
+
+**Array shift / unshift + expression-position pop (2026-07-23, 67th engine fix).** The front-of-array
+mutators were unimplemented (`.shift(`/`.unshift(` not in the method table) — `a.shift()` returned NaN and
+didn't remove, `a.unshift(x)` no-op'd — and `a.pop()` worked only as a bare STATEMENT (its expression form
+`return a.pop()` returned NaN, since only execStmt handled it). Added `arrShift` (remove+return the first
+element, undefined on empty), `arrUnshift` (prepend the items, return the new length), and `arrPopEl`
+(remove+return the last element for the expression path) — all mutating in place through the heap ref
+(mutArr, so an aliasing binding sees it), reusing the splice-family helpers (joinRange6, sepJoin,
+spliceItems). Registered `.shift(`/`.unshift(`/`.pop(` in the method table with resolveMethods handlers
+mirroring splice. `a.shift()`+array, `a.unshift(0)`/`unshift(-1,0)`→new length, `return a.pop()`, empty
+shift/pop→undefined, alias visibility, a `while(q.length) q.shift()` queue drain and a `while(s.length)
+s.pop()` stack drain, and string/object elements all match Node; push, the bare `a.pop()` statement,
+splice, slice unchanged. New `shiftunshift-diff` fuzzer (900 checks/3 seeds × shift/pop/unshift, RETURN
+value + post-op array). Gotcha: a local named `shifted` is a reserved identifier surface in LOGOS (parse
+error `ExpectedIdentifier`) — renamed to `firstEl`. Full sweep green (392/392).
