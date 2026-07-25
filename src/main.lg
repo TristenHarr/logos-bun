@@ -7378,6 +7378,10 @@
             Let sv be envGet(concat(env, ""), concat(concat(concat("__static_", cur), "_"), nxt2)).
             If sv is not equal to "":
                 Return resolveStaticProps(toks, i + 3, env, concat(concat(acc, " "), sv)).
+            Let sg be envGet(concat(env, ""), concat(concat(concat("__static_get_", cur), "_"), nxt2)).
+            If startsWith(concat(sg, ""), chr(1)):
+                Let gv be envGet(runBlockStr(fnBody(concat(sg, "")), concat(env, "")), "__ret").
+                Return resolveStaticProps(toks, i + 3, env, concat(concat(acc, " "), concat(gv, ""))).
     Return resolveStaticProps(toks, i + 1, env, concat(concat(acc, " "), cur)).
 
 # If an assignment target `ClassName . field` names a static field (its `__static_<Class>_<field>`
@@ -10616,6 +10620,16 @@
             Let sfrest be trim(substringAfter(substringAfter(b, " = "), " ; ")).
             Let sfbind be concat(concat(concat(concat("__static_", cname), concat("_", sfname)), concat(" = ", sfval)), " ; ").
             Return classWalk(cname, parent, sfrest, cparams, cbody, methods, concat(statics, sfbind), fields).
+        If nthTok(concat(b, ""), 2) is equal to "get":
+            If nthTok(concat(b, ""), 3) is not equal to chr(40):
+                Let sgHead be concat(concat(concat(concat("__static_get_", cname), "_"), nthTok(concat(b, ""), 3)), " = function ( ) ").
+                Let sgBind be concat(concat(concat(concat(sgHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+                Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, sgBind), fields).
+        If nthTok(concat(b, ""), 2) is equal to "set":
+            If nthTok(concat(b, ""), 3) is not equal to chr(40):
+                Let ssHead be concat(concat(concat(concat(concat("__static_set_", cname), "_"), nthTok(concat(b, ""), 3)), concat(" = function ( ", params)), " ) ").
+                Let ssBind be concat(concat(concat(concat(ssHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
+                Return classWalk(cname, parent, rest, cparams, cbody, methods, concat(statics, ssBind), fields).
         If nthTok(concat(b, ""), 2) is not equal to chr(40):
             Let sname be nthTok(concat(b, ""), 2).
             Let sHead be concat(concat(concat(concat(concat("__static_", cname), "_"), sname), concat(" = function ( ", params)), " ) ").
