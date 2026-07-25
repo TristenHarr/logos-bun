@@ -9386,7 +9386,7 @@
 ## To forStmt (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
-    Let parts be split(substringBefore(substringAfter(stmt, "("), ")"), ";").
+    Let parts be split(forHeader(concat(stmt, "")), ";").
     Let cond be trim(item 2 of parts).
     If forCondHolds(concat(cond, ""), env):
         Let body be iterBakeBody(loopBody(concat(stmt, "")), trim(item 1 of parts), env).
@@ -9498,8 +9498,15 @@
         Return execDoWhile(rest, lbl, env).
     Return env.
 
+# The full for-header between `for (` and its MATCHING `)`, extracted with balancedArg so a header
+# clause containing parens (a call `i < big()`, a group `(a+b)`, an update `f(i++)`) is not truncated
+# at the first inner `)` — the naive first-`)` scan split the header into < 3 clauses and `item 3`
+# (the update) then panicked.
+## To forHeader (stmt: Text) -> Text:
+    Return trim(balancedArg(concat(substringAfter(concat(stmt, ""), "("), ""), 1, 0, "")).
+
 ## To execFor (stmt: Text, lbl: Text, env: Text) -> Text:
-    Let hdr be substringBefore(substringAfter(stmt, "("), ")").
+    Let hdr be forHeader(concat(stmt, "")).
     If hasSep(hdr, " of "):
         Return execForOf(stmt, lbl, env).
     If hasSep(hdr, " in "):
