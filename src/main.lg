@@ -12409,7 +12409,7 @@
     Let joined be joinImportLines(split(src, chr(10)), 1, "", "").
     Let importedEnv be applyImports(split(joined, chr(10)), 1, dir, baseEnv).
     Let body be stripModuleSyntax(joined).
-    Let flat be splitTop(normalizeJs(body), 1, 0, "").
+    Let flat be boxCaptured(splitTop(normalizeJs(body), 1, 0, "")).
     Return runBlock(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, importedEnv)).
 
 ## To loadModule (resolved: Text) -> Text:
