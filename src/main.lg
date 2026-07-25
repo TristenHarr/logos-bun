@@ -2810,7 +2810,7 @@
         Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeqPublic(v), 1, "")), encBraceR ()).
     If isJsonOmit(concat(v, "")):
         Return "undefined".
-    Return v.
+    Return jsonNumFix(concat(v, "")).
 
 # JSON.stringify honors a user-defined toJSON(): a plain object carrying a callable `toJSON` property is
 # replaced by its toJSON() result before serialization. Date has its own ISO path, so it is excluded.
@@ -3017,7 +3017,7 @@
         Return concat(concat(concat(encBraceL (), body), concat(encNewline (), pad)), encBraceR ()).
     If isJsonOmit(concat(v, "")):
         Return "undefined".
-    Return v.
+    Return jsonNumFix(concat(v, "")).
 
 ## To jsonSplitTop (s: Text, i: Int, depth: Int, inStr: Bool, acc: Text, len: Int) -> Text:
     If i is greater than len:
@@ -3615,6 +3615,17 @@
         If startsWith(concat(objval, ""), tagStr ()):
             Return toText(propLength(concat(objval, ""))).
     Return objGet(concat(objval, ""), concat(key, "")).
+
+# JSON has no NaN/Infinity — JSON.stringify serializes a non-finite number as null. Every other scalar
+# (a finite number, true/false, null) is emitted verbatim.
+## To jsonNumFix (v: Text) -> Text:
+    If concat(v, "") is equal to "NaN":
+        Return "null".
+    If concat(v, "") is equal to "Infinity":
+        Return "null".
+    If concat(v, "") is equal to "-Infinity":
+        Return "null".
+    Return concat(v, "").
 
 ## To resolveProps (expr: Text) -> Text:
     If substringBefore(expr, " . length") is equal to expr:
