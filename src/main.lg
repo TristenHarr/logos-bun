@@ -793,18 +793,13 @@
 ## To hasTopSep (s: Text, sep: Text) -> Bool:
     Return tokHasTopSep(split(concat(s, ""), " "), 1, 0, trim(sep)).
 
+# Logical `!` is the negation of the SAME truthiness oracle the ternary/`&&`/`||` use (boolOf), so a
+# tagged empty string and NaN — both falsy — negate to true. A bespoke literal-comparison list here used
+# to miss those (it saw the tagStr-marked "" and "NaN" as truthy).
 ## To notOf (b: Text) -> Text:
-    If b is equal to "false":
-        Return "true".
-    If b is equal to "0":
-        Return "true".
-    If b is equal to "":
-        Return "true".
-    If b is equal to "null":
-        Return "true".
-    If b is equal to "undefined":
-        Return "true".
-    Return "false".
+    If boolOf(concat(b, "")):
+        Return "false".
+    Return "true".
 
 ## To eitherNaN (a: Text, b: Text) -> Bool:
     If a is equal to "NaN":
