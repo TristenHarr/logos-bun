@@ -1,7 +1,8 @@
-// fuzz/jsint/regexexec — RegExp.prototype.exec(str). Previously unimplemented (no dispatch). Wired to the
-// same reMatchArrayInner used by non-global .match, so exec returns [full, ...groups] (with captures) or
-// null. This fuzzer runs re.exec over structured subjects with capture groups and checks group extraction,
-// length, the full match, and the null case vs Node.
+// fuzz/jsint/regexexec — RegExp.prototype.exec(str). Non-global exec returns [full, ...groups] (with
+// captures) or null. A GLOBAL/sticky regex is stateful: it advances lastIndex past each match so a
+// statement-form loop `let m=re.exec(s); while(m){ …; m=re.exec(s) }` walks the string, then a miss
+// resets and returns null; a non-global regex re-matches from the start every call. This fuzzer checks
+// group extraction, length, the full match, the null case, AND stateful global iteration vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -19,11 +20,14 @@ if (OURS) {
   const num = () => String(10 + ri(900));
   const program = () => {
     const a = word(), b = num();
-    const k = ri(4);
+    const k = ri(7);
     if (k === 0) return `(function(){ let m=/(\\w+)/.exec("${a}${b}"); return m?m[1]:"null" })()`;
     if (k === 1) return `(function(){ let m=/([a-z]+)(\\d+)/.exec("${a}${b}"); return m?(m[1]+"|"+m[2]):"null" })()`;
     if (k === 2) return `(function(){ let m=/([a-z]+)(\\d+)/.exec("${a}${b}"); return m?String(m.length):"null" })()`;
-    return `(function(){ let m=/(z9q)/.exec("${a}${b}"); return m?m[0]:"null" })()`;
+    if (k === 3) return `(function(){ let m=/(z9q)/.exec("${a}${b}"); return m?m[0]:"null" })()`;
+    if (k === 4) return `(function(){ let re=/(\\d)/g, out=[], m=re.exec("${a}${b}"); while(m){out.push(m[1]); m=re.exec("${a}${b}")} return out.join(",") })()`;
+    if (k === 5) return `(function(){ let re=/\\d/g; re.exec("${a}${b}"); let m=re.exec("${a}${b}"); return m?m[0]:"null" })()`;
+    return `(function(){ let re=/\\d+/; return re.exec("${a}${b}")[0]+"/"+re.exec("${a}${b}")[0] })()`; // non-global: no advance
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {

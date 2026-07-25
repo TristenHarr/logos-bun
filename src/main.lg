@@ -2804,6 +2804,8 @@
         Return concat(concat(chr(34), jsonEscape(substringAfter(v, tagStr ()), 1, "", charLen(substringAfter(v, tagStr ())))), chr(34)).
     If isArrRef(v):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
+    If isDateObj(concat(v, "")):
+        Return concat(concat(chr(34), jsDateField(objGet(concat(v, ""), "__date_ms"), "iso")), chr(34)).
     If isObjRef(v):
         Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeqPublic(v), 1, "")), encBraceR ()).
     If isJsonOmit(concat(v, "")):
@@ -2886,6 +2888,8 @@
         Let inner be concat(pad, gap).
         Let body be jsonIndArrLoop(els, 1, gap, inner, "").
         Return concat(concat(concat(encBrkL (), body), concat(encNewline (), pad)), encBrkR ()).
+    If isDateObj(concat(v, "")):
+        Return concat(concat(chr(34), jsDateField(objGet(concat(v, ""), "__date_ms"), "iso")), chr(34)).
     If isObjRef(v):
         Let inner be concat(pad, gap).
         Let body be jsonIndObjLoop(objEntrySeqPublic(v), 1, gap, inner, "").
@@ -6067,10 +6071,7 @@
             Let eaft be substringAfter(expr, " . exec (").
             Let erecv be jsEvalIn(recvExpr(concat(ebef, "")), env).
             If isRegex(erecv):
-                Let einner be reMatchArrayInner(decodeStr(materialize(objGet(concat(erecv, ""), "__regex_src"))), decodeStr(materialize(jsEvalIn(trim(methodArg(eaft)), env))), materialize(objGet(concat(erecv, ""), "__regex_flags"))).
-                If einner is equal to "":
-                    Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), "null"), methodRest(eaft))), env).
-                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), newArr(concat(concat(tagArr (), einner), tagArrEnd ()))), methodRest(eaft))), env).
+                Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ebef, "")), " "), reExecResult(concat(erecv, ""), decodeStr(materialize(jsEvalIn(trim(methodArg(eaft)), env))))), methodRest(eaft))), env).
     If substringBefore(expr, " . matchAll (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . matchAll (") is equal to false:
         Let mabef be substringBefore(expr, " . matchAll (").
@@ -9239,7 +9240,7 @@
 ## To execWhile (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
-    Let cond be trim(substringBefore(substringAfter(stmt, "("), ")")).
+    Let cond be trim(balancedArg(concat(substringAfter(stmt, "("), ""), 1, 0, "")).
     Let body be loopBody(concat(stmt, "")).
     If boolOf(jsEvalIn(cond, env)):
         Let afterBody be runBlockStr(body, env).
@@ -11460,6 +11461,45 @@
     If groups is equal to "":
         Return full.
     Return concat(concat(full, tagArrSep ()), groups).
+
+# `re.exec(str)` returns the match array `[full, ...groups]` (or null). A GLOBAL/sticky regex is stateful:
+# it starts matching at the regex object's `lastIndex`, and on success advances lastIndex past the match
+# (a zero-width match advances by one to avoid an infinite loop) so a `while ((m = re.exec(s)))` walk
+# yields successive matches; a miss resets lastIndex to 0 and returns null. A non-global regex ignores
+# and never touches lastIndex.
+## To reLastIdx (re: Text) -> Int:
+    Let v be objGet(concat(re, ""), "__regex_lastindex").
+    If v is equal to "undefined":
+        Return 0.
+    Return parseInt(materialize(v)).
+
+## To reExecArr (pat: Text, text: Text, start: Int, flags: Text) -> Text:
+    Let full be concat(tagStr (), encodeStr(strSliceLoop(concat(text, ""), start, reMatchEnd(pat, concat(text, ""), start) - 1, ""))).
+    Let groups be capEncodeInner(capExtract(pat, concat(text, ""), start)).
+    If groups is equal to "":
+        Return newArr(concat(concat(tagArr (), full), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), concat(concat(full, tagArrSep ()), groups)), tagArrEnd ())).
+
+## To reExecResult (re: Text, text: Text) -> Text:
+    Let pat be decodeStr(materialize(objGet(concat(re, ""), "__regex_src"))).
+    Let flags be materialize(objGet(concat(re, ""), "__regex_flags")).
+    Let ci be reApplyCi(concat(flags, "")).
+    If hasSep(concat(flags, ""), "g") is equal to false:
+        If hasSep(concat(flags, ""), "y") is equal to false:
+            Let start0 be reSearchStart(pat, concat(text, "")).
+            If start0 is equal to 0:
+                Return "null".
+            Return reExecArr(pat, concat(text, ""), start0, flags).
+    Let start be reSearchFrom(pat, concat(text, ""), reLastIdx(concat(re, "")) + 1).
+    If start is equal to 0:
+        Let d0 be objSet(concat(re, ""), "__regex_lastindex", "0").
+        Return "null".
+    Let mend be reMatchEnd(pat, concat(text, ""), start).
+    If mend is greater than start:
+        Let dset be objSet(concat(re, ""), "__regex_lastindex", toText(mend - 1)).
+        Return reExecArr(pat, concat(text, ""), start, flags).
+    Let dsetz be objSet(concat(re, ""), "__regex_lastindex", toText(start)).
+    Return reExecArr(pat, concat(text, ""), start, flags).
 
 # `.matchAll` (and its `[...m.matchAll(re)]` spread / for-of): an array whose elements are each a match
 # array `[full, ...groups]` — one per successive match, walking left-to-right past each (a zero-width match
