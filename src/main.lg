@@ -1766,7 +1766,9 @@
         Return acc.
     Let arg be trim(item i of args).
     If startsWith(arg, "..."):
-        Let elems be joinComma(arrElements(jsEvalIn(trim(substringAfter(arg, "...")), concat(env, ""))), 1, "").
+        Let elems be joinComma(iterElements(jsEvalIn(trim(substringAfter(arg, "...")), concat(env, ""))), 1, "").
+        If concat(elems, "") is equal to "":
+            Return expandSpreadLoop(args, i + 1, env, acc).
         If acc is equal to "":
             Return expandSpreadLoop(args, i + 1, env, elems).
         Return expandSpreadLoop(args, i + 1, env, concat(concat(acc, ","), elems)).
