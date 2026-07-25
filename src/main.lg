@@ -3603,10 +3603,7 @@
     If radixLit(concat(t, "")):
         Return jsNumberText(concat(t, "")).
     If sciTok(concat(t, "")):
-        Let sv be jsParseFloat(concat(t, "")).
-        If sciSafe(concat(sv, "")):
-            Return sv.
-        Return "NaN".
+        Return concat(t, "").
     Return t.
 
 ## To coerceNumToks (toks: Seq of Text, i: Int, acc: Text) -> Text:
@@ -3641,10 +3638,83 @@
     Return divByZero(toks, i + 1).
 
 # A numeric token carrying a decimal point (a float literal).
-## To floatTok (t: Text) -> Bool:
-    If substringBefore(t, ".") is equal to t:
+# A numeric token needs the IEEE-754 (f64) path, not the exact-integer path, when it has a decimal point,
+# uses e/E exponent notation, or is an integer too large for exact representation (> 15 digits, past 2^53) —
+# f64 gives JS-correct rounding (9999999999999999 → 10000000000000000) and exponential toString (1e21 →
+# 1e+21) instead of crashing the i64 parse or printing a mis-scaled value.
+## To numHasExp (t: Text) -> Bool:
+    If hasHexPrefix(concat(t, "")):
         Return false.
-    Return true.
+    If substringBefore(concat(t, ""), "e") is not equal to concat(t, ""):
+        Return true.
+    If substringBefore(concat(t, ""), "E") is not equal to concat(t, ""):
+        Return true.
+    Return false.
+
+## To numIsBigInt (t: Text) -> Bool:
+    Let tt be trim(concat(t, "")).
+    If startsWith(concat(tt, ""), "-"):
+        Return numIsBigInt(substringAfter(concat(tt, ""), "-")).
+    If isIntStr(concat(tt, "")) is equal to false:
+        Return false.
+    Return charLen(concat(tt, "")) is greater than 15.
+
+## To floatTok (t: Text) -> Bool:
+    If substringBefore(concat(t, ""), ".") is not equal to concat(t, ""):
+        Return true.
+    If numHasExp(concat(t, "")):
+        Return true.
+    If numIsBigInt(concat(t, "")):
+        Return true.
+    Return false.
+
+# JS Number.toString(10): a plain decimal string is reformatted to exponential when its magnitude is
+# >= 1e21 (an integer with more than 21 digits) or < 1e-6 (a 0.00000… fraction with >= 6 leading zeros) —
+# 1e21 → "1e+21", 1.5e300 → "1.5e+300", 1e-7 → "1e-7". The native jsArithF64 prints the raw decimal;
+# this rescales it to match Node. Everything in between (and already-exponential input) is left unchanged.
+## To jsStripTrailZeros (d: Text) -> Text:
+    Let n be charLen(concat(d, "")).
+    If n is less than or equal to 1:
+        Return concat(d, "").
+    If item n of d is equal to "0":
+        Return jsStripTrailZeros(strSliceLoop(concat(d, ""), 1, n - 1, "")).
+    Return concat(d, "").
+
+## To jsMantissaFmt (sig: Text) -> Text:
+    If charLen(concat(sig, "")) is less than or equal to 1:
+        Return concat(sig, "").
+    Return concat(concat(item 1 of sig, "."), strSliceLoop(concat(sig, ""), 2, charLen(concat(sig, "")), "")).
+
+## To jsLeadZeros (frac: Text, i: Int, acc: Int) -> Int:
+    If i is greater than charLen(concat(frac, "")):
+        Return acc.
+    If item i of frac is equal to "0":
+        Return jsLeadZeros(concat(frac, ""), i + 1, acc + 1).
+    Return acc.
+
+## To jsNumFormat (s: Text) -> Text:
+    Let t be trim(concat(s, "")).
+    If startsWith(concat(t, ""), "-"):
+        Return concat("-", jsNumFormat(substringAfter(concat(t, ""), "-"))).
+    If numHasExp(concat(t, "")):
+        Return concat(t, "").
+    If substringBefore(concat(t, ""), ".") is not equal to concat(t, ""):
+        Let ip be substringBefore(concat(t, ""), ".").
+        If ip is not equal to "0":
+            Return concat(t, "").
+        Let frac be substringAfter(concat(t, ""), ".").
+        Let lz be jsLeadZeros(concat(frac, ""), 1, 0).
+        If lz is less than 6:
+            Return concat(t, "").
+        If lz is greater than or equal to charLen(concat(frac, "")):
+            Return concat(t, "").
+        Let sig be jsStripTrailZeros(strSliceLoop(concat(frac, ""), lz + 1, charLen(concat(frac, "")), "")).
+        Return concat(concat(jsMantissaFmt(concat(sig, "")), "e-"), toText(lz + 1)).
+    Let n be charLen(concat(t, "")).
+    If n is greater than 21:
+        Let sig2 be jsStripTrailZeros(concat(t, "")).
+        Return concat(concat(jsMantissaFmt(concat(sig2, "")), "e+"), toText(n - 1)).
+    Return concat(t, "").
 
 # The exponent part of scientific notation: an optionally-`+`-signed integer (isIntStr already allows a
 # leading `-`).
@@ -3743,7 +3813,7 @@
     If arithBadTok(split(concat(coerced, ""), " "), 1):
         Return "NaN".
     If needsFloat(split(concat(coerced, ""), " "), 1):
-        Let fr be jsArithF64(concat(coerced, "")).
+        Let fr be jsNumFormat(jsArithF64(concat(coerced, ""))).
         If fr is equal to "-0":
             Return "0".
         Return fr.
