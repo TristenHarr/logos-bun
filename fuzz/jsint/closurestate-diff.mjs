@@ -20,14 +20,17 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 100), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const a = 1 + ri(6), b = 1 + ri(9), k = ri(8);
+    const a = 1 + ri(6), b = 1 + ri(9), k = ri(11);
     if (k === 0) return `let count=0;const inc=()=>count++;${"inc();".repeat(a)}console.log(count)`;
     if (k === 1) return `let done=false;const f=()=>{done=true};f();console.log(String(done))`;
     if (k === 2) return `let c=0;const add=x=>{c+=x};[${Array.from({length:a},(_,i)=>i+1).join(",")}].forEach(add);console.log(c)`;
     if (k === 3) return `let n=${b + 5};const dec=()=>{n--};${"dec();".repeat(a)}console.log(n)`;
     if (k === 4) return `const counter=(()=>{let c=0;return{inc:()=>++c,get:()=>c}})();${"counter.inc();".repeat(a)}console.log(counter.get())`;
     if (k === 5) return `let s="";const app=x=>{s+=x};[${Array.from({length:a},(_,i)=>i).join(",")}].forEach(app);console.log(s)`;
-    if (k === 6) return `const add=(x,y)=>x+y;console.log(add(${a},${b}))`;                 // regression: real params
+    if (k === 6) return `const mk=(x)=>{let c=x;return()=>c++};const f=mk(${b});console.log(f(),f())`;      // factory: param→mutated local
+    if (k === 7) return `function makeAdder(base){let total=base;return n=>{total+=n;return total}}const g=makeAdder(${b});console.log(g(${a}),g(${a}))`;
+    if (k === 8) return `const counter=(init=0)=>{let c=init;return{next:()=>c++}};const it=counter(${b});console.log(it.next(),it.next())`;
+    if (k === 9) return `const add=(x,y)=>x+y;console.log(add(${a},${b}))`;                 // regression: real params
     return `const fib=n=>n<2?n:fib(n-1)+fib(n-2);console.log(fib(${5 + ri(6)}))`;             // regression: recursion
   };
   let checked = 0;

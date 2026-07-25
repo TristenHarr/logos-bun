@@ -8436,6 +8436,8 @@
     If hasSep(concat(t, ""), " ") is equal to false:
         If startsWith(concat(t, ""), chr(34)):
             Return true.
+        If isSimpleName(concat(t, "")):
+            Return true.
     Return false.
 
 ## To scalarDeclName (s: Text) -> Text:
