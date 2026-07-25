@@ -1275,7 +1275,7 @@
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let baseEnv be envSet(env, "this", concat(thisVal, "")).
-    Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, baseEnv, baseEnv).
+    Let localEnv be bindParams(patFields(paramStr), patFields(argsText), 1, env, baseEnv).
     Let withArgs be argsBind(concat(body, ""), concat(argsText, ""), concat(localEnv, ""), baseEnv).
     Let doneEnv be runBlockStr(body, withArgs).
     Let propagated be maybePropagateThrow(concat(doneEnv, "")).
