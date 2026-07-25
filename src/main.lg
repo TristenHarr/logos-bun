@@ -8969,6 +8969,32 @@
 ## To normJs (s: Text, i: Int, inStr: Bool, acc: Text) -> Text:
     Return normJsN(concat(s, ""), i, inStr, acc, charLen(concat(s, ""))).
 
+# Encode one decoded character (from a \x/\u escape) exactly as normJsN encodes a literal character
+# INSIDE a string, so a structural byte (space/brackets/braces/parens/quote/backslash/newline) becomes
+# its marker rather than a raw token that would break parsing. Ordinary characters pass through.
+## To encStrChar (c: Text) -> Text:
+    If c is equal to " ":
+        Return encSpace ().
+    If c is equal to chr(91):
+        Return encBrkL ().
+    If c is equal to chr(93):
+        Return encBrkR ().
+    If c is equal to chr(123):
+        Return encBraceL ().
+    If c is equal to chr(125):
+        Return encBraceR ().
+    If c is equal to chr(40):
+        Return encParenL ().
+    If c is equal to chr(41):
+        Return encParenR ().
+    If c is equal to chr(34):
+        Return encQuote ().
+    If c is equal to chr(92):
+        Return encBackslash ().
+    If c is equal to chr(10):
+        Return encNewline ().
+    Return concat(c, "").
+
 ## To normJsN (s: Text, i: Int, inStr: Bool, acc: Text, len: Int) -> Text:
     If i is greater than len:
         Return acc.
@@ -8987,6 +9013,16 @@
                     Return normJsN(s, i + 2, inStr, concat(acc, encNewline ()), len).
                 If nx is equal to "t":
                     Return normJsN(s, i + 2, inStr, concat(acc, chr(9)), len).
+                If nx is equal to "r":
+                    Return normJsN(s, i + 2, inStr, concat(acc, chr(13)), len).
+                If nx is equal to "x":
+                    If i + 3 is less than or equal to len:
+                        Let hx be strSliceLoop(concat(s, ""), i + 2, i + 3, "").
+                        Return normJsN(s, i + 4, inStr, concat(acc, encStrChar(chr(radixFold(concat(hx, ""), 1, 16, 0)))), len).
+                If nx is equal to "u":
+                    If i + 5 is less than or equal to len:
+                        Let hu be strSliceLoop(concat(s, ""), i + 2, i + 5, "").
+                        Return normJsN(s, i + 6, inStr, concat(acc, encStrChar(chr(radixFold(concat(hu, ""), 1, 16, 0)))), len).
                 Return normJsN(s, i + 2, inStr, concat(acc, nx), len).
             Return normJsN(s, i + 1, inStr, concat(acc, c), len).
         If c is equal to " ":
