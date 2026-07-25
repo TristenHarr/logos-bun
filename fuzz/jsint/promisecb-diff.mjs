@@ -19,7 +19,7 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 120), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const a = ri(20), b = ri(20), c = ri(20), k = ri(9);
+    const a = ri(20), b = ri(20), c = ri(20), k = ri(16);
     if (k === 0) return `Promise.all([Promise.resolve(${a}),Promise.resolve(${b})]).then(([x,y])=>console.log(x+y))`;
     if (k === 1) return `Promise.resolve([${a},${b},${c}]).then(([p,q,r])=>console.log(p*100+q*10+r))`;
     if (k === 2) return `Promise.resolve({m:${a},n:${b}}).then(({m,n})=>console.log(m-n))`;
@@ -28,6 +28,13 @@ if (OURS) {
     if (k === 5) return `Promise.all([${a},${b}].map(x=>Promise.resolve(x*2))).then(([x,y])=>console.log(x,y))`;
     if (k === 6) return `async function m(){const[x,y]=await Promise.all([Promise.resolve(${a}),Promise.resolve(${b})]);console.log(x+y)}m()`;
     if (k === 7) return `Promise.resolve(${a}).then(x=>console.log(x*2))`;                 // regression: plain param
+    if (k === 8) return `async function f(){return ${a}}f().then(v=>console.log(v*2))`;    // async-return chaining
+    if (k === 9) return `Promise.reject(${a}).then(()=>{},e=>console.log("r:"+e))`;         // two-arg then onRejected
+    if (k === 10) return `Promise.resolve(${a}).then(x=>{throw x+${b}}).catch(e=>console.log("c:"+e))`; // throw in then
+    if (k === 11) return `async function f(){try{await Promise.reject(${a})}catch(e){console.log("await-c:"+e)}}f()`; // await reject
+    if (k === 12) return `Promise.resolve(${a}).then(x=>Promise.resolve(x+${b})).then(v=>console.log(v))`; // flatten settled
+    if (k === 13) return `Promise.resolve(${a}).then(x=>Promise.resolve(x).then(y=>y+${b})).then(v=>console.log(v))`; // flatten pending
+    if (k === 14) return `Promise.resolve(${a}).then(x=>x+1).catch(()=>-1).then(x=>console.log(x))`; // catch pass-through
     return `Promise.resolve([${a}]).then(([first,...rest])=>console.log(first,rest.length))`;
   };
   let checked = 0;

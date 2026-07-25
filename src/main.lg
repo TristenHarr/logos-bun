@@ -1380,7 +1380,11 @@
     Let params be patFields(fnParams(concat(fnVal, ""))).
     Let body be fnBody(concat(fnVal, "")).
     Let localEnv be bindCbParam(params, concat(value, ""), env).
-    Return envGet(runBlockStr(body, localEnv), "__ret").
+    Let doneEnv be runBlockStr(body, localEnv).
+    If hasThrow(concat(doneEnv, "")):
+        Let te be throwSet(envGet(concat(doneEnv, ""), "__throw")).
+        Return "undefined".
+    Return envGet(concat(doneEnv, ""), "__ret").
 
 # Promise.resolve(v): v if it is already a promise, else a fulfilled promise of v.
 ## To promiseResolveOf (pv: Text) -> Text:
@@ -1412,6 +1416,9 @@
 ## To awaitValue (v: Text) -> Text:
     If isPromise(v):
         Let d be drainMicrotasks("", "").
+        If materialize(objGet(concat(v, ""), "__pstate")) is equal to "rejected":
+            Let te be throwSet(objGet(concat(v, ""), "__pvalue")).
+            Return "undefined".
         Return objGet(concat(v, ""), "__pvalue").
     Return concat(v, "").
 
@@ -1499,18 +1506,38 @@
     Let r0 be objSet(objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "onF", concat(onF, "")), "onR", concat(onR, "")), "onFin", concat(onFin, "")).
     Return arrPush(objGet(concat(pval, ""), "__preactions"), concat(objSet(concat(r0, ""), "res", concat(tagStr (), refId(concat(resultP, "")))), "")).
 
-## To promiseThen (pval: Text, f: Text, env: Text) -> Text:
+# p.then(onF) / p.then(onF, onR). A pending promise registers both reactions; a settled one enqueues
+# the matching handler (or, when the handler for the current state is absent, propagates the state to
+# the result promise). A non-promise receiver (e.g. the raw value returned by a stripped-async function)
+# is treated as already-fulfilled, so its onF still runs.
+## To promiseThen2 (pval: Text, onF: Text, onR: Text, env: Text) -> Text:
     If isPromise(pval):
         Let resultP be newPromise("pending", "undefined").
         If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "fulfilled":
-            Let d be enqueueJob(f, objGet(concat(pval, ""), "__pvalue"), refId(concat(resultP, ""))).
+            If startsWith(onF, chr(1)):
+                Let d be enqueueJob(onF, objGet(concat(pval, ""), "__pvalue"), refId(concat(resultP, ""))).
+                Return resultP.
+            Let dp be settlePromise(resultP, "fulfilled", objGet(concat(pval, ""), "__pvalue")).
             Return resultP.
         If materialize(objGet(concat(pval, ""), "__pstate")) is equal to "rejected":
+            If startsWith(onR, chr(1)):
+                Let dr be enqueueJob(onR, objGet(concat(pval, ""), "__pvalue"), refId(concat(resultP, ""))).
+                Return resultP.
             Let d be settlePromise(resultP, "rejected", objGet(concat(pval, ""), "__pvalue")).
             Return resultP.
-        Let dReg be registerReaction(pval, f, "", "", resultP).
+        Let dReg be registerReaction(pval, onF, onR, "", resultP).
         Return resultP.
-    Return newPromise("fulfilled", concat(pval, "")).
+    Return promiseThen2(newPromise("fulfilled", concat(pval, "")), onF, onR, env).
+
+## To promiseThen (pval: Text, f: Text, env: Text) -> Text:
+    Return promiseThen2(concat(pval, ""), concat(f, ""), "", env).
+
+# The onRejected handler of a two-argument `.then(onF, onR)` — a function value, or "" when absent
+# (single-argument then), which promiseThen2 treats as "propagate the rejection".
+## To thenOnRej (s: Text, env: Text) -> Text:
+    If trim(s) is equal to "":
+        Return "".
+    Return fnArgValRaw(trim(s), env).
 
 ## To promiseCatch (pval: Text, f: Text, env: Text) -> Text:
     If isPromise(pval):
@@ -1618,6 +1645,17 @@
         Return guard.
     Let job be concat(tagRef (), jid).
     Let result be callWith1(objGet(concat(job, ""), "fn"), objGet(concat(job, ""), "val"), concat(env, "")).
+    If throwPending() is equal to "1":
+        Let tv be throwGet().
+        Let tc be throwClear().
+        Let dRej be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), "rejected", tv).
+        Return drainMicrotasks(concat(guard, "x"), env).
+    If isPromise(result):
+        If materialize(objGet(concat(result, ""), "__pstate")) is equal to "pending":
+            Let dReg be registerReaction(concat(result, ""), "", "", "", concat(tagRef (), materialize(objGet(concat(job, ""), "res")))).
+            Return drainMicrotasks(concat(guard, "x"), env).
+        Let dAdopt be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), materialize(objGet(concat(result, ""), "__pstate")), objGet(concat(result, ""), "__pvalue")).
+        Return drainMicrotasks(concat(guard, "x"), env).
     Let discard be settlePromise(concat(tagRef (), materialize(objGet(concat(job, ""), "res"))), "fulfilled", result).
     Return drainMicrotasks(concat(guard, "x"), env).
 
@@ -6101,7 +6139,10 @@
         Let bef be substringBefore(expr, " . then (").
         Let aft be substringAfter(expr, " . then (").
         Let pval be jsEvalIn(recvExpr(concat(bef, "")), env).
-        Let thenP be promiseThen(pval, fnArgValRaw(trim(methodArg(aft)), env), env).
+        Let thenArgs be splitArgs2(trim(methodArg(aft))).
+        Let onFv be fnArgValRaw(trim(item 1 of thenArgs), env).
+        Let onRv be thenOnRej(trim(item 2 of thenArgs), env).
+        Let thenP be promiseThen2(pval, onFv, onRv, env).
         Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), thenP), methodRest(aft))), env).
     If substringBefore(expr, " . catch (") is not equal to expr:
         Let bef be substringBefore(expr, " . catch (").
