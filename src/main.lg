@@ -5892,6 +5892,15 @@
             If minner is equal to "":
                 Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), "null"), methodRest(maft))), env).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), newArr(concat(concat(tagArr (), minner), tagArrEnd ()))), methodRest(maft))), env).
+    If substringBefore(expr, " . search (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . search (") is equal to false:
+        Let sbef be substringBefore(expr, " . search (").
+        Let saft be substringAfter(expr, " . search (").
+        Let sre be jsEvalIn(trim(methodArg(saft)), env).
+        Let stext be decodeStr(materialize(jsEvalIn(recvExpr(concat(sbef, "")), env))).
+        If isRegex(concat(sre, "")):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(sbef, "")), " "), toText(reSearchIndex(decodeStr(materialize(objGet(concat(sre, ""), "__regex_src"))), concat(stext, ""), materialize(objGet(concat(sre, ""), "__regex_flags"))))), methodRest(saft))), env).
+        Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(sbef, "")), " "), toText(reSearchIndex(decodeStr(materialize(concat(sre, ""))), concat(stext, ""), ""))), methodRest(saft))), env).
     If substringBefore(expr, "new Promise (") is not equal to expr:
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
@@ -10546,6 +10555,15 @@
 
 ## To reSearchStart (pat: Text, text: Text) -> Int:
     Return reSearchFrom(pat, text, 1).
+
+# String.prototype.search: the 0-based index of the first match (reSearchStart is 1-based, 0 for none),
+# or -1 when there is no match. Honors the `i` flag through the shared reApplyCi CI latch.
+## To reSearchIndex (pat: Text, text: Text, flags: Text) -> Int:
+    Let ci be reApplyCi(concat(flags, "")).
+    Let start be reSearchStart(concat(pat, ""), concat(text, "")).
+    If start is equal to 0:
+        Return 0 - 1.
+    Return start - 1.
 
 ## To reMatchEnd (pat: Text, text: Text, start: Int) -> Int:
     Return mh(pat, 1, text, start).
