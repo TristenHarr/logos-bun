@@ -9329,6 +9329,8 @@
                 If item (i + 1) of s is equal to chr(123):
                     Return desugarTemplatesN(s, i + 2, 2, 1, concat(acc, concat(chr(34), " + (")), len).
             Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, c), len).
+        If c is equal to chr(34):
+            Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, concat(chr(92), chr(34))), len).
         Return desugarTemplatesN(s, i + 1, 1, 0, concat(acc, c), len).
     If mode is equal to 3:
         If c is equal to chr(34):
