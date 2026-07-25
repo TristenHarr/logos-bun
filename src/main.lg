@@ -8627,14 +8627,79 @@
         Return boxNames(boxOne(concat(flat, ""), concat(nm, "")), names, i + 1).
     Return boxNames(concat(flat, ""), names, i + 1).
 
+# An array/object-literal-initialized declaration `let X = [ … ]` / `= { … }` whose var is a simple
+# name — a candidate for boxing ONLY if it is later REASSIGNED (an immutable-update `stack=[...stack,x]`),
+# never a plain scalar. objInitDeclName returns X for such a declaration, else "".
+## To objInitDeclName (s: Text) -> Text:
+    Let kw be declKw(trim(concat(s, ""))).
+    If kw is equal to "":
+        Return "".
+    Let rest be trim(substringAfter(trim(concat(s, "")), kw)).
+    If hasTopSep(concat(rest, ""), " = ") is equal to false:
+        Return "".
+    Let nm be trim(substringBefore(concat(rest, ""), " = ")).
+    If isSimpleName(concat(nm, "")) is equal to false:
+        Return "".
+    Let init be trim(substringAfter(concat(rest, ""), " = ")).
+    If startsWith(concat(init, ""), chr(91)):
+        Return nm.
+    If startsWith(concat(init, ""), chr(123)):
+        Return nm.
+    Return "".
+
+# A BARE reassignment of `name` — a `name =` (not `==`) where name is not preceded by `.`/let/const/var
+# (so it's a reassignment, not a member write, a comparison, or the declaration). This is what a boxed
+# array/object var needs (its heap-cell keeps the new value); a member write `name[k]=`/`name.x=` does NOT.
+## To hasBareReassign (toks: Seq of Text, i: Int, name: Text) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If concat(item i of toks, "") is equal to concat(name, ""):
+        If i + 1 is less than or equal to length of toks:
+            If concat(item (i + 1) of toks, "") is equal to "=":
+                If i is equal to 1:
+                    Return true.
+                Let prev be concat(item (i - 1) of toks, "").
+                If prev is not equal to ".":
+                    If prev is not equal to "let":
+                        If prev is not equal to "const":
+                            If prev is not equal to "var":
+                                Return true.
+    Return hasBareReassign(toks, i + 1, concat(name, "")).
+
+# `name` immediately followed by `[` anywhere — computed access (read or write). A boxed var's `name[k]`
+# would need to become `name.v[k]`, a nested computed target the write path mishandles, so such a var is
+# NOT boxed (its member writes persist via the heap ref unboxed; only a lost bare-reassignment is the cost).
+## To hasBracketAfter (toks: Seq of Text, i: Int, name: Text) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    If concat(item i of toks, "") is equal to concat(name, ""):
+        If i + 1 is less than or equal to length of toks:
+            If item (i + 1) of toks is equal to chr(91):
+                Return true.
+    Return hasBracketAfter(toks, i + 1, concat(name, "")).
+
+# Array/object-init var names that are REASSIGNED (bare) and never bracket-accessed — safe to box so the
+# reassignment persists. flatStr is threaded as Text and re-split per check (a second reused Seq param
+# would trip the monomorphizer — BUG-33).
+## To objReassignNames (stmts: Seq of Text, i: Int, flatStr: Text, acc: Text) -> Text:
+    If i is greater than length of stmts:
+        Return trim(acc).
+    Let nm be objInitDeclName(concat(item i of stmts, "")).
+    If nm is not equal to "":
+        If hasBareReassign(split(concat(flatStr, ""), " "), 1, concat(nm, "")):
+            If hasBracketAfter(split(concat(flatStr, ""), " "), 1, concat(nm, "")) is equal to false:
+                Return objReassignNames(stmts, i + 1, concat(flatStr, ""), concat(concat(acc, " "), nm)).
+    Return objReassignNames(stmts, i + 1, concat(flatStr, ""), concat(acc, "")).
+
 ## To boxCaptured (flat: Text) -> Text:
     If hasClosureMarker(concat(flat, "")) is equal to false:
         Return concat(flat, "").
-    Let stmts be split(concat(flat, ""), chr(10)).
-    Let names be scalarDeclNames(stmts, 1, "").
-    If names is equal to "":
+    Let names be scalarDeclNames(split(concat(flat, ""), chr(10)), 1, "").
+    Let objNames be objReassignNames(split(concat(flat, ""), chr(10)), 1, concat(flat, ""), "").
+    Let allNames be trim(concat(concat(names, " "), concat(" ", objNames))).
+    If allNames is equal to "":
         Return concat(flat, "").
-    Return boxNames(concat(flat, ""), split(concat(names, ""), " "), 1).
+    Return boxNames(concat(flat, ""), split(concat(allNames, ""), " "), 1).
 
 ## To runBlockStr (body: Text, env: Text) -> Text:
     Let flat be boxCaptured(splitTop(body, 1, 0, "")).
