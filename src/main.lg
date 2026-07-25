@@ -1297,6 +1297,10 @@
     Let getter be objGet(concat(recv, ""), concat("__get_", prop)).
     If startsWith(getter, chr(1)):
         Return callMethod(getter, "", concat(recv, ""), "").
+    Let proto be objGet(concat(recv, ""), "__proto__").
+    If proto is not equal to "undefined":
+        If isObjRef(concat(proto, "")):
+            Return getMember(concat(proto, ""), concat(prop, "")).
     Return direct.
 
 ## To callSetter (fnVal: Text, thisVal: Text, value: Text, env: Text) -> Text:
@@ -2366,6 +2370,15 @@
 # prototype members as ordinary object props with these prefixes, but they must never surface through
 # Object.keys/values/entries (or for-in) as if they were user data. A real user key never collides (it
 # would have to be literally `__get_x`/`__msuper_C_m`).
+# Object.create(proto): a fresh object whose prototype is `proto` — stored as a `__proto__` link that
+# getMember walks when a property is absent locally. `Object.create(null)` (or a non-object arg) yields a
+# bare object with no prototype. `__proto__` is an internal key (the `__proto_` prefix), so it never shows
+# up in Object.keys / JSON.stringify.
+## To objCreate (proto: Text) -> Text:
+    If isObjRef(concat(proto, "")):
+        Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__proto__", concat(proto, "")).
+    Return newObjRef(concat(tagObj (), tagObjEnd ())).
+
 ## To isInternalKey (k: Text) -> Bool:
     If startsWith(concat(k, ""), "__msuper_"):
         Return true.
@@ -6275,6 +6288,12 @@
         Let aft be substringAfter(expr, "Object . assign (").
         Let rst be methodRest(aft).
         Return resolveMethods(trim(concat(concat(bef, objAssign(methodArg(aft), env)), rst)), env).
+    If substringBefore(expr, "Object . create (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . create (") is equal to false:
+        Let bef be substringBefore(expr, "Object . create (").
+        Let aft be substringAfter(expr, "Object . create (").
+        Let rst be methodRest(aft).
+        Return resolveMethods(trim(concat(concat(bef, objCreate(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . freeze (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . freeze (") is equal to false:
         Let bef be substringBefore(expr, "Object . freeze (").
