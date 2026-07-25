@@ -2828,6 +2828,125 @@
         Return jsEvalIn(concat(concat(argExpr, ""), " . toJSON ( )"), env).
     Return concat(rawV, "").
 
+# An object entry is `KEY <tagObjKV> VALUE`; these split it. The JSON reviver/replacer walks below
+# reuse these to rebuild an object one entry at a time.
+## To entryKeyOf (entry: Text) -> Text:
+    Return substringBefore(concat(entry, ""), tagObjKV ()).
+
+## To entryValOf (entry: Text) -> Text:
+    Return substringAfter(concat(entry, ""), tagObjKV ()).
+
+# JSON.parse reviver (2nd arg): a bottom-up walk — children are revived first, then reviver(key, value)
+# is called on the current node (key = its property name, "" at the root). A reviver returning undefined
+# drops that property. jsonRevive dispatches by kind; the Arr/Obj loops rebuild the container.
+## To jsonReviveArr (els: Seq of Text, i: Int, reviver: Text, acc: Text, env: Text) -> Text:
+    If i is greater than length of els:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let rv be jsonRevive(toText(i - 1), item i of els, concat(reviver, ""), env).
+    If acc is equal to "":
+        Return jsonReviveArr(els, i + 1, reviver, concat(rv, ""), env).
+    Return jsonReviveArr(els, i + 1, reviver, concat(concat(acc, tagArrSep ()), rv), env).
+
+## To jsonReviveObj (entries: Seq of Text, i: Int, reviver: Text, acc: Text, env: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let k be entryKeyOf(item i of entries).
+    Let rv be jsonRevive(concat(k, ""), entryValOf(item i of entries), concat(reviver, ""), env).
+    If rv is equal to "undefined":
+        Return jsonReviveObj(entries, i + 1, reviver, acc, env).
+    Return jsonReviveObj(entries, i + 1, reviver, objSet(concat(acc, ""), concat(k, ""), concat(rv, "")), env).
+
+## To jsonRevive (key: Text, val: Text, reviver: Text, env: Text) -> Text:
+    If isArrRef(concat(val, "")):
+        Let ra be jsonReviveArr(arrElements(concat(val, "")), 1, concat(reviver, ""), "", env).
+        Return callFn2(concat(reviver, ""), concat(tagStr (), concat(key, "")), concat(ra, ""), env).
+    If isObjRef(concat(val, "")):
+        Let ro be jsonReviveObj(objEntrySeqPublic(concat(val, "")), 1, concat(reviver, ""), newObjRef(concat(tagObj (), tagObjEnd ())), env).
+        Return callFn2(concat(reviver, ""), concat(tagStr (), concat(key, "")), concat(ro, ""), env).
+    Return callFn2(concat(reviver, ""), concat(tagStr (), concat(key, "")), concat(val, ""), env).
+
+# JSON.stringify FUNCTION replacer (2nd arg): a top-down walk — replacer(key, value) transforms the node
+# first, then its children (in the RESULT) are transformed. The transformed tree is then serialized.
+## To jsonReplaceArr (els: Seq of Text, i: Int, rep: Text, acc: Text, env: Text) -> Text:
+    If i is greater than length of els:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let rv be jsonReplace(toText(i - 1), item i of els, concat(rep, ""), env).
+    If acc is equal to "":
+        Return jsonReplaceArr(els, i + 1, rep, concat(rv, ""), env).
+    Return jsonReplaceArr(els, i + 1, rep, concat(concat(acc, tagArrSep ()), rv), env).
+
+## To jsonReplaceObj (entries: Seq of Text, i: Int, rep: Text, acc: Text, env: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let k be entryKeyOf(item i of entries).
+    Let rv be jsonReplace(concat(k, ""), entryValOf(item i of entries), concat(rep, ""), env).
+    Return jsonReplaceObj(entries, i + 1, rep, objSet(concat(acc, ""), concat(k, ""), concat(rv, "")), env).
+
+## To jsonReplace (key: Text, val: Text, rep: Text, env: Text) -> Text:
+    Let rv be callFn2(concat(rep, ""), concat(tagStr (), concat(key, "")), concat(val, ""), env).
+    If isArrRef(concat(rv, "")):
+        Return jsonReplaceArr(arrElements(concat(rv, "")), 1, concat(rep, ""), "", env).
+    If isDateObj(concat(rv, "")):
+        Return concat(rv, "").
+    If isObjRef(concat(rv, "")):
+        Return jsonReplaceObj(objEntrySeqPublic(concat(rv, "")), 1, concat(rep, ""), newObjRef(concat(tagObj (), tagObjEnd ())), env).
+    Return concat(rv, "").
+
+# JSON.stringify ARRAY replacer (2nd arg): an allowlist of property names — only those keys survive in
+# objects (at every depth); arrays keep every element. The allowlist is threaded as the raw array VALUE
+# (allowVal: Text) and re-split fresh in allowHasKey, so the walk functions carry only one Seq param (a
+# second reused Seq would trip the monomorphizer — see BUG-33). jsonAllowVal walks the tree.
+## To allowHasKeyN (allowEls: Seq of Text, i: Int, key: Text) -> Bool:
+    If i is greater than length of allowEls:
+        Return false.
+    If decodeStr(materialize(item i of allowEls)) is equal to concat(key, ""):
+        Return true.
+    Return allowHasKeyN(allowEls, i + 1, concat(key, "")).
+
+## To allowHasKey (allowVal: Text, key: Text) -> Bool:
+    Return allowHasKeyN(arrElements(concat(allowVal, "")), 1, concat(key, "")).
+
+## To jsonAllowArr (els: Seq of Text, i: Int, allowVal: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let rv be jsonAllowVal(item i of els, concat(allowVal, "")).
+    If acc is equal to "":
+        Return jsonAllowArr(els, i + 1, concat(allowVal, ""), concat(rv, "")).
+    Return jsonAllowArr(els, i + 1, concat(allowVal, ""), concat(concat(acc, tagArrSep ()), rv)).
+
+## To jsonAllowObj (entries: Seq of Text, i: Int, allowVal: Text, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let k be entryKeyOf(item i of entries).
+    If allowHasKey(concat(allowVal, ""), concat(k, "")):
+        Let av be jsonAllowVal(entryValOf(item i of entries), concat(allowVal, "")).
+        Return jsonAllowObj(entries, i + 1, concat(allowVal, ""), objSet(concat(acc, ""), concat(k, ""), concat(av, ""))).
+    Return jsonAllowObj(entries, i + 1, concat(allowVal, ""), acc).
+
+## To jsonAllowVal (val: Text, allowVal: Text) -> Text:
+    If isArrRef(concat(val, "")):
+        Return jsonAllowArr(arrElements(concat(val, "")), 1, concat(allowVal, ""), "").
+    If isDateObj(concat(val, "")):
+        Return concat(val, "").
+    If isObjRef(concat(val, "")):
+        Return jsonAllowObj(objEntrySeqPublic(concat(val, "")), 1, concat(allowVal, ""), newObjRef(concat(tagObj (), tagObjEnd ()))).
+    Return concat(val, "").
+
+# Dispatch a JSON.stringify replacer (2nd arg): a function transforms every value top-down (jsonReplace),
+# an array is an allowlist of property names (jsonAllowVal); anything else (absent/null/number) is a
+# no-op and the value serializes unchanged.
+## To jsonApplyReplacer (val: Text, sargs: Seq of Text, env: Text) -> Text:
+    If length of sargs is less than 2:
+        Return concat(val, "").
+    If trim(item 2 of sargs) is equal to "":
+        Return concat(val, "").
+    Let rep be jsEvalIn(trim(item 2 of sargs), env).
+    If startsWith(concat(rep, ""), chr(1)):
+        Return jsonReplace("", concat(val, ""), concat(rep, ""), env).
+    If isArrRef(concat(rep, "")):
+        Return jsonAllowVal(concat(val, ""), concat(rep, "")).
+    Return concat(val, "").
+
 # Pretty-printing stringify — the third JSON.stringify argument (a per-level indent). `gap` is one
 # indent unit (encoded whitespace), `pad` the accumulated indent at the current depth. Objects/arrays
 # place each member on its own line at pad+gap and a colon is followed by one space; empty {} / [] stay
@@ -6335,10 +6454,15 @@
         Let aft be substringAfter(expr, "JSON . parse (").
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
-        Let jraw be materialize(jsEvalIn(trim(argStr), env)).
+        Let pargs be splitArgsN(concat(argStr, "")).
+        Let jraw be materialize(jsEvalIn(trim(item 1 of pargs), env)).
         If jsonValid(concat(jraw, "")) is equal to false:
             Return resolveMethods(trim(concat(concat(bef, throwSet(newError("SyntaxError", concat(tagStr (), "Unexpected token in JSON")))), rst)), env).
-        Return resolveMethods(trim(concat(concat(bef, jsonParse(replaceAll(concat(jraw, ""), chr(34), encQuote ()))), rst)), env).
+        Let parsed be jsonParse(replaceAll(concat(jraw, ""), chr(34), encQuote ())).
+        If length of pargs is greater than 1:
+            If trim(item 2 of pargs) is not equal to "":
+                Return resolveMethods(trim(concat(concat(bef, jsonRevive("", concat(parsed, ""), fnArgValRaw(trim(item 2 of pargs), env), env)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, parsed), rst)), env).
     If substringBefore(expr, "JSON . stringify (") is not equal to expr:
       If markerInBody(concat(expr, ""), "JSON . stringify (") is equal to false:
         Let bef be substringBefore(expr, "JSON . stringify (").
@@ -6347,7 +6471,8 @@
         Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let sargs be splitArgsN(concat(argStr, "")).
         Let arg1 be trim(item 1 of sargs).
-        Let valV be jsonValueOf(concat(arg1, ""), concat(jsEvalIn(concat(arg1, ""), env), ""), env).
+        Let valRaw be jsonValueOf(concat(arg1, ""), concat(jsEvalIn(concat(arg1, ""), env), ""), env).
+        Let valV be jsonApplyReplacer(concat(valRaw, ""), sargs, env).
         If length of sargs is greater than 2:
             If trim(item 3 of sargs) is not equal to "":
                 Let gap be indentGap(jsEvalIn(trim(item 3 of sargs), env)).
