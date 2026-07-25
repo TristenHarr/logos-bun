@@ -819,6 +819,27 @@
         Return false.
     Return true.
 
+# Relational operators (< > <= >=) are LEFT-associative: `3 > 2 > 1` is `(3 > 2) > 1` = `true > 1` = false.
+# jsEvalCmp used to split the whole chain and compare only the first two operands, dropping the rest.
+# relFold threads the running boolean result leftward through the operands (relApply picks the test), so
+# an N-operand same-operator chain folds correctly; a NaN operand makes that step false, as in JS.
+## To relApply (op: Text, c: Int) -> Text:
+    If op is equal to "<":
+        Return cmpResult(c is less than 0).
+    If op is equal to ">":
+        Return cmpResult(c is greater than 0).
+    If op is equal to "<=":
+        Return cmpResult(c is less than or equal to 0).
+    Return cmpResult(c is greater than or equal to 0).
+
+## To relFold (parts: Seq of Text, i: Int, op: Text, acc: Text) -> Text:
+    If i is greater than length of parts:
+        Return acc.
+    Let b be evalValue(trim(item i of parts)).
+    If relIsNaN(concat(acc, ""), concat(b, "")):
+        Return relFold(parts, i + 1, concat(op, ""), "false").
+    Return relFold(parts, i + 1, concat(op, ""), relApply(concat(op, ""), relCmp(concat(acc, ""), concat(b, "")))).
+
 ## To jsEvalCmp (expr: Text) -> Text:
     If startsWith(trim(expr), "! "):
         Return notOf(jsEvalCmp(trim(substringAfter(trim(expr), "! ")))).
@@ -826,14 +847,10 @@
         Return toText(jsBnot(bitOperandInt(jsEvalCmp(trim(substringAfter(trim(expr), "~ ")))))).
     If hasSep(expr, " <= "):
         Let parts be split(expr, " <= ").
-        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "false".
-        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than or equal to 0).
+        Return relFold(parts, 2, "<=", evalValue(trim(item 1 of parts))).
     If hasSep(expr, " >= "):
         Let parts be split(expr, " >= ").
-        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "false".
-        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than or equal to 0).
+        Return relFold(parts, 2, ">=", evalValue(trim(item 1 of parts))).
     If hasSep(expr, " === "):
         Let parts be split(expr, " === ").
         Let sa be evalValue(item 1 of parts).
@@ -860,14 +877,10 @@
         Return notOf(looseEqVal(evalValue(item 1 of parts), evalValue(item 2 of parts))).
     If hasSep(expr, " < "):
         Let parts be split(expr, " < ").
-        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "false".
-        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is less than 0).
+        Return relFold(parts, 2, "<", evalValue(trim(item 1 of parts))).
     If hasSep(expr, " > "):
         Let parts be split(expr, " > ").
-        If relIsNaN(evalValue(item 1 of parts), evalValue(item 2 of parts)):
-            Return "false".
-        Return cmpResult(relCmp(evalValue(item 1 of parts), evalValue(item 2 of parts)) is greater than 0).
+        Return relFold(parts, 2, ">", evalValue(trim(item 1 of parts))).
     If hasSep(expr, " in "):
         Let iparts be split(expr, " in ").
         Let iobj be evalValue(trim(item 2 of iparts)).
