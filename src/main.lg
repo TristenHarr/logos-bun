@@ -1136,6 +1136,27 @@
     Let el be argAt(args, i, callerEnv).
     Return restArgs(args, i + 1, callerEnv, appendEl(acc, el)).
 
+# A destructuring parameter may carry an OUTER default — `{a=1,b=2} = {}`, `[a,b] = [1,2]`. The `=` signs
+# INSIDE the pattern (`{a = 1}`) sit at brace/bracket depth ≥ 1; only the outer default `=` sits at depth
+# 0. This returns that outer `=` position (0 if none) so bindParams can peel the default off before
+# handing the bare pattern to destructureObj/destructureArr.
+## To patDefEqIdx (s: Text, i: Int, depth: Int, len: Int) -> Int:
+    If i is greater than len:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to chr(123):
+        Return patDefEqIdx(concat(s, ""), i + 1, depth + 1, len).
+    If c is equal to chr(91):
+        Return patDefEqIdx(concat(s, ""), i + 1, depth + 1, len).
+    If c is equal to chr(125):
+        Return patDefEqIdx(concat(s, ""), i + 1, depth - 1, len).
+    If c is equal to chr(93):
+        Return patDefEqIdx(concat(s, ""), i + 1, depth - 1, len).
+    If depth is equal to 0:
+        If c is equal to "=":
+            Return i.
+    Return patDefEqIdx(concat(s, ""), i + 1, depth, len).
+
 ## To bindParams (params: Seq of Text, args: Seq of Text, i: Int, callerEnv: Text, acc: Text) -> Text:
     If i is greater than length of params:
         Return acc.
@@ -1147,8 +1168,18 @@
         Return bindParams(params, args, i + 1, callerEnv, envSet(acc, trim(substringAfter(pname, "...")), restVal)).
     Let aval be argAt(args, i, callerEnv).
     If startsWith(pname, chr(123)):
+        Let deq be patDefEqIdx(concat(pname, ""), 1, 0, charLen(concat(pname, ""))).
+        If deq is greater than 0:
+            Let pat be trim(strSliceLoop(concat(pname, ""), 1, deq - 1, "")).
+            Let dfl be trim(strSliceLoop(concat(pname, ""), deq + 1, charLen(concat(pname, "")), "")).
+            Return bindParams(params, args, i + 1, callerEnv, destructureObj(concat(pat, ""), defaultOr(concat(aval, ""), concat(dfl, ""), concat(acc, "")), acc)).
         Return bindParams(params, args, i + 1, callerEnv, destructureObj(pname, aval, acc)).
     If startsWith(pname, chr(91)):
+        Let deq be patDefEqIdx(concat(pname, ""), 1, 0, charLen(concat(pname, ""))).
+        If deq is greater than 0:
+            Let pat be trim(strSliceLoop(concat(pname, ""), 1, deq - 1, "")).
+            Let dfl be trim(strSliceLoop(concat(pname, ""), deq + 1, charLen(concat(pname, "")), "")).
+            Return bindParams(params, args, i + 1, callerEnv, destructureArr(concat(pat, ""), defaultOr(concat(aval, ""), concat(dfl, ""), concat(acc, "")), acc)).
         Return bindParams(params, args, i + 1, callerEnv, destructureArr(pname, aval, acc)).
     If hasSep(pname, " = "):
         Let dpn be trim(substringBefore(pname, " = ")).
