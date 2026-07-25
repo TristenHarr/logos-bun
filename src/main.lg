@@ -10615,7 +10615,8 @@
         Let head be concat(concat(concat(concat("function ", cname), " ( "), implicitCtorParams(parent, concat(cparams, ""), concat(cbody, ""))), " ) ").
         Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(cname, parent, implicitCtorBody(parent, concat(cparams, ""), concat(cbody, "")), methods, fields))), " "), chr(125)).
         Let staticObjInit be concat(concat(concat("__staticobj_", cname), " = "), concat(concat(chr(123), " "), concat(chr(125), " ; "))).
-        Return concat(concat(staticObjInit, statics), fnDef).
+        Let nameDefault be concat(concat(concat(concat("__static_", cname), "_name = "), concat(concat(chr(34), cname), chr(34))), " ; ").
+        Return concat(concat(concat(nameDefault, staticObjInit), statics), fnDef).
     If startsWith(b, ";"):
         Return classWalk(cname, parent, trim(substringAfter(b, ";")), cparams, cbody, methods, statics, fields).
     Let name be item 1 of split(b, " ").
