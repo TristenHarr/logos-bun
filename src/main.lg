@@ -1361,10 +1361,25 @@
     Let d3 be enqueueReactions(arrElements(objGet(concat(pref, ""), "__preactions")), 1, concat(state, ""), concat(value, "")).
     Return concat(pref, "").
 
+# Bind a promise/microtask callback's single parameter to the already-evaluated resolved value. The
+# parameter may be a plain name, an array pattern `[a,b]`, or an object pattern `{a,b}` — so a
+# `.then(([a,b]) => …)` / `.then(({x}) => …)` destructures the resolved value like any other call.
+## To bindCbParam (params: Seq of Text, value: Text, env: Text) -> Text:
+    If length of params is less than 1:
+        Return env.
+    Let p be trim(item 1 of params).
+    If p is equal to "":
+        Return env.
+    If startsWith(p, chr(91)):
+        Return destructureArr(concat(p, ""), concat(value, ""), env).
+    If startsWith(p, chr(123)):
+        Return destructureObj(concat(p, ""), concat(value, ""), env).
+    Return envSet(env, p, concat(value, "")).
+
 ## To callWith1 (fnVal: Text, value: Text, env: Text) -> Text:
-    Let paramStr be fnParams(concat(fnVal, "")).
+    Let params be patFields(fnParams(concat(fnVal, ""))).
     Let body be fnBody(concat(fnVal, "")).
-    Let localEnv be envSet(env, trim(paramStr), concat(value, "")).
+    Let localEnv be bindCbParam(params, concat(value, ""), env).
     Return envGet(runBlockStr(body, localEnv), "__ret").
 
 # Promise.resolve(v): v if it is already a promise, else a fulfilled promise of v.
@@ -1554,6 +1569,40 @@
     If rej is not equal to "__none__":
         Return newPromise("rejected", rej).
     Return newPromise("fulfilled", allValues(arrElements(concat(arrval, "")), 1, "")).
+
+# Promise.race([...]): drain, then settle with the FIRST element's outcome (in our synchronous drain
+# model every element is settled after the drain, so the first in order is the first to settle) — a
+# fulfilled first element fulfills, a rejected one rejects. A non-promise element is its own value.
+## To promiseRace (arrval: Text, env: Text) -> Text:
+    Let d be drainMicrotasks("", concat(env, "")).
+    Let elems be arrElements(concat(arrval, "")).
+    If length of elems is less than 1:
+        Return newPromise("pending", "undefined").
+    Let first be item 1 of elems.
+    If isPromise(first):
+        Return newPromise(materialize(objGet(concat(first, ""), "__pstate")), objGet(concat(first, ""), "__pvalue")).
+    Return newPromise("fulfilled", concat(first, "")).
+
+# Promise.allSettled([...]): drain, then fulfill (never rejects) with an array of outcome descriptors —
+# `{status:"fulfilled", value}` for a resolved element, `{status:"rejected", reason}` for a rejected one.
+## To settledEntry (p: Text) -> Text:
+    If isPromise(p):
+        If materialize(objGet(concat(p, ""), "__pstate")) is equal to "rejected":
+            Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "status", concat(tagStr (), "rejected")), "reason", objGet(concat(p, ""), "__pvalue")).
+        Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "status", concat(tagStr (), "fulfilled")), "value", objGet(concat(p, ""), "__pvalue")).
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "status", concat(tagStr (), "fulfilled")), "value", concat(p, "")).
+
+## To settledValues (proms: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of proms:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let v be settledEntry(item i of proms).
+    If acc is equal to "":
+        Return settledValues(proms, i + 1, v).
+    Return settledValues(proms, i + 1, concat(concat(acc, tagArrSep ()), v)).
+
+## To promiseAllSettled (arrval: Text, env: Text) -> Text:
+    Let d be drainMicrotasks("", concat(env, "")).
+    Return newPromise("fulfilled", settledValues(arrElements(concat(arrval, "")), 1, "")).
 
 # Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
 # callback on its captured value and settles the job's result promise (whose own `.then`
@@ -6023,11 +6072,21 @@
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
         Return resolveMethods(trim(concat(concat(bef, newPromiseExec(fnArgVal(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
+    If substringBefore(expr, "Promise . allSettled (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . allSettled (") is equal to false:
+        Let bef be substringBefore(expr, "Promise . allSettled (").
+        Let aft be substringAfter(expr, "Promise . allSettled (").
+        Return resolveMethods(trim(concat(concat(bef, promiseAllSettled(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . all (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Promise . all (") is equal to false:
         Let bef be substringBefore(expr, "Promise . all (").
         Let aft be substringAfter(expr, "Promise . all (").
         Return resolveMethods(trim(concat(concat(bef, promiseAll(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
+    If substringBefore(expr, "Promise . race (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . race (") is equal to false:
+        Let bef be substringBefore(expr, "Promise . race (").
+        Let aft be substringAfter(expr, "Promise . race (").
+        Return resolveMethods(trim(concat(concat(bef, promiseRace(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . resolve (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Promise . resolve (") is equal to false:
         Let bef be substringBefore(expr, "Promise . resolve (").
