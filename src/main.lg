@@ -3605,6 +3605,17 @@
         Return length of arrElements(v).
     Return charLen(materialize(litToStr(v))).
 
+# Read a property for object-destructuring: `length` off an array/string gives its length (arrays/strings
+# have no stored `length` property, so a plain objGet returns undefined) — `const {length}=arr`. Every
+# other key is an ordinary objGet.
+## To destructGet (objval: Text, key: Text) -> Text:
+    If concat(key, "") is equal to "length":
+        If isArrRef(concat(objval, "")):
+            Return toText(propLength(concat(objval, ""))).
+        If startsWith(concat(objval, ""), tagStr ()):
+            Return toText(propLength(concat(objval, ""))).
+    Return objGet(concat(objval, ""), concat(key, "")).
+
 ## To resolveProps (expr: Text) -> Text:
     If substringBefore(expr, " . length") is equal to expr:
         Return expr.
@@ -7978,7 +7989,7 @@
             Let dvn be trim(substringAfter(lhsPart, ":")).
             Let dval be defaultOr(objGet(concat(objval, ""), dk), defExpr, concat(env, "")).
             Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, dvn, dval)).
-        Let bval be defaultOr(objGet(concat(objval, ""), concat(lhsPart, "")), defExpr, concat(env, "")).
+        Let bval be defaultOr(destructGet(concat(objval, ""), concat(lhsPart, "")), defExpr, concat(env, "")).
         Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, lhsPart, bval)).
     If hasSep(field, ":"):
         Let k be trim(substringBefore(field, ":")).
@@ -7987,8 +7998,8 @@
             Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), destructureObj(concat(vn, ""), objGet(concat(objval, ""), k), concat(env, ""))).
         If startsWith(vn, chr(91)):
             Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), destructureArr(concat(vn, ""), objGet(concat(objval, ""), k), concat(env, ""))).
-        Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, vn, objGet(concat(objval, ""), k))).
-    Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, concat(field, ""), objGet(concat(objval, ""), field))).
+        Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, vn, destructGet(concat(objval, ""), concat(k, "")))).
+    Return destructObjLoop(fields, i + 1, concat(objval, ""), consumedAppend(concat(consumed, ""), concat(field, "")), envSet(env, concat(field, ""), destructGet(concat(objval, ""), concat(field, "")))).
 
 ## To destructArrLoop (fields: Seq of Text, i: Int, arrval: Text, env: Text) -> Text:
     If i is greater than length of fields:
