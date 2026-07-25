@@ -3777,14 +3777,10 @@
     Let msP be dpNum(concat(argStr, ""), 7, env, 0).
     Return toText(((((daysFromCivil(y, mo + 1, d) * 86400000) + (h * 3600000)) + (mi * 60000)) + (sec * 1000)) + msP).
 
-# Parse an ISO date-only string "YYYY-MM-DD" to epoch-ms (UTC midnight), reusing daysFromCivil (which
-# takes a 1-indexed month, matching the ISO field). A string carrying a time part ("…T…") is left as
-# NaN for now — the local-vs-UTC rule for datetime strings needs its own handling. Non-date strings
-# (no two dashes / non-numeric fields) are NaN, matching `new Date("nope")`.
-## To parseDateStr (s: Text) -> Text:
-    If substringBefore(concat(s, ""), "T") is not equal to concat(s, ""):
-        Return "NaN".
-    Let dparts be split(concat(s, ""), "-").
+# Epoch-ms (UTC midnight) for an ISO date-only "YYYY-MM-DD", reusing daysFromCivil (1-indexed month,
+# matching the ISO field). NaN for a non-date (fewer than three fields / non-numeric).
+## To parseDateOnly (d0: Text) -> Text:
+    Let dparts be split(concat(d0, ""), "-").
     If length of dparts is less than 3:
         Return "NaN".
     If isIntStr(concat(item 1 of dparts, "")) is equal to false:
@@ -3793,10 +3789,54 @@
         Return "NaN".
     If isIntStr(concat(item 3 of dparts, "")) is equal to false:
         Return "NaN".
-    Let y be parseInt(item 1 of dparts).
-    Let mo be parseInt(item 2 of dparts).
-    Let d be parseInt(item 3 of dparts).
-    Return toText(daysFromCivil(y, mo, d) * 86400000).
+    Return toText(daysFromCivil(parseInt(item 1 of dparts), parseInt(item 2 of dparts), parseInt(item 3 of dparts)) * 86400000).
+
+# Milliseconds contributed by an ISO time part "HH:MM:SS(.sss)?" (fields default to 0). The seconds
+# field may carry a fractional ".sss" that becomes the millisecond component.
+## To parseTimeMs (tp: Text) -> Int:
+    Let tps be split(concat(tp, ""), ":").
+    Let h be parseInt(item 1 of tps).
+    Let mi be dtField(tps, 2).
+    Let secRaw be dtFieldRaw(tps, 3).
+    Let sec be parseInt(substringBefore(concat(secRaw, ""), ".")).
+    Let msPart be substringAfter(concat(secRaw, ""), ".").
+    Let ms be dtMs(concat(msPart, ""), concat(secRaw, "")).
+    Return (((h * 3600000) + (mi * 60000)) + (sec * 1000)) + ms.
+
+## To dtField (tps: Seq of Text, i: Int) -> Int:
+    If i is greater than length of tps:
+        Return 0.
+    Return parseInt(substringBefore(concat(item i of tps, ""), ".")).
+
+## To dtFieldRaw (tps: Seq of Text, i: Int) -> Text:
+    If i is greater than length of tps:
+        Return "0".
+    Return concat(item i of tps, "").
+
+# The millisecond value from a fractional-seconds string, padded/truncated to exactly 3 digits ("5"→500,
+# "05"→50, "1234"→123). "" (no fraction present, so secRaw has no ".") yields 0.
+## To dtMs (frac: Text, secRaw: Text) -> Int:
+    If concat(frac, "") is equal to concat(secRaw, ""):
+        Return 0.
+    If concat(frac, "") is equal to "":
+        Return 0.
+    Let padded be strSliceLoop(concat(concat(frac, ""), "000"), 1, 3, "").
+    Return parseInt(concat(padded, "")).
+
+# Parse an ISO string to epoch-ms. Date-only "YYYY-MM-DD" is UTC midnight; a datetime is honored only
+# when it carries the "Z" (UTC) suffix — a local (no-offset) datetime keeps the JS local/UTC rule we do
+# not model yet, so it stays NaN. Non-date strings are NaN, matching `new Date("nope")`.
+## To parseDateStr (s: Text) -> Text:
+    Let dpart be substringBefore(concat(s, ""), "T").
+    If concat(dpart, "") is equal to concat(s, ""):
+        Return parseDateOnly(concat(s, "")).
+    If strEndsWith(concat(s, ""), "Z") is equal to false:
+        Return "NaN".
+    Let dayMs be parseDateOnly(concat(dpart, "")).
+    If concat(dayMs, "") is equal to "NaN":
+        Return "NaN".
+    Let tpart be substringBefore(substringAfter(concat(s, ""), "T"), "Z").
+    Return toText(parseInt(concat(dayMs, "")) + parseTimeMs(concat(tpart, ""))).
 
 ## To isDateObj (v: Text) -> Bool:
     If isObjRef(v):
