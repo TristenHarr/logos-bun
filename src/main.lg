@@ -9436,12 +9436,26 @@
         Return encNewline ().
     Return concat(c, "").
 
+# A string literal glued to a preceding identifier/keyword — `of"abc"`, `return"x"`, `typeof"x"`,
+# `case"y":` (all valid minified JS) — needs a separating space so the keyword tokenizes apart from the
+# string; without it a for-of header `c of"abc"` never splits on ` of `. Only fires when the char before
+# the opening quote is an identifier char (a bare `x"y"` is a syntax error in JS anyway).
+## To strLeadSep (acc: Text) -> Text:
+    Let n be charLen(concat(acc, "")).
+    If n is less than 1:
+        Return "".
+    If rxIsIdentChar(item n of acc):
+        Return " ".
+    Return "".
+
 ## To normJsN (s: Text, i: Int, inStr: Bool, acc: Text, len: Int) -> Text:
     If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return normJsN(s, i + 1, inStr is equal to false, concat(acc, c), len).
+        If inStr:
+            Return normJsN(s, i + 1, false, concat(acc, c), len).
+        Return normJsN(s, i + 1, true, concat(concat(acc, strLeadSep(concat(acc, ""))), c), len).
     If inStr:
         If c is equal to chr(92):
             If i is less than len:
