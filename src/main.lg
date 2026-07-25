@@ -7375,6 +7375,11 @@
         Let nxt be concat(item (i + 1) of toks, "").
         Let nxt2 be concat(item (i + 2) of toks, "").
         If nxt is equal to ".":
+            Let so be envGet(concat(env, ""), concat("__staticobj_", cur)).
+            If isObjRef(concat(so, "")):
+                Let fv be objGet(concat(so, ""), concat(nxt2, "")).
+                If fv is not equal to "undefined":
+                    Return resolveStaticProps(toks, i + 3, env, concat(concat(acc, " "), concat(fv, ""))).
             Let sv be envGet(concat(env, ""), concat(concat(concat("__static_", cur), "_"), nxt2)).
             If sv is not equal to "":
                 Return resolveStaticProps(toks, i + 3, env, concat(concat(acc, " "), sv)).
@@ -7398,6 +7403,18 @@
             Let k be concat(concat(concat("__static_", a), "_"), b).
             If envGet(concat(env, ""), concat(k, "")) is not equal to "":
                 Return k.
+    Return "".
+
+# For a static-field assignment target `Class . field`, the name of the per-class static heap object
+# (`__staticobj_<Class>`) when it exists in env, else "". A static field WRITE routes to that object
+# (objSet) so it persists (C.count++ in a method/ctor), rather than to a per-call env scalar.
+## To staticObjName (lhs: Text, env: Text) -> Text:
+    Let toks be split(concat(lhs, ""), " ").
+    If length of toks is equal to 3:
+        If concat(item 2 of toks, "") is equal to ".":
+            Let so be concat("__staticobj_", concat(item 1 of toks, "")).
+            If isObjRef(envGet(concat(env, ""), concat(so, ""))):
+                Return so.
     Return "".
 
 # Depth decrement clamped at 0. The toolchain monomorphizes a recursive scan on its constant int args,
@@ -9369,6 +9386,9 @@
             Let chainRhs be trim(substringAfter(s, " = ")).
             Let e2 be execStmt(concat(chainRhs, ""), env).
             Return execStmt(concat(concat(lhs, " = "), trim(substringBefore(concat(chainRhs, ""), " = "))), e2).
+        Let sob be staticObjName(concat(lhs, ""), concat(env, "")).
+        If sob is not equal to "":
+            Return execStmt(concat(concat(concat(concat(sob, " . "), item 3 of split(concat(lhs, ""), " ")), " = "), substringAfter(s, " = ")), env).
         Let sfk be staticFieldKey(concat(lhs, ""), concat(env, "")).
         If sfk is not equal to "":
             Return bindAssign(concat(concat(sfk, " = "), substringAfter(s, " = ")), env).
@@ -10594,7 +10614,8 @@
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), implicitCtorParams(parent, concat(cparams, ""), concat(cbody, ""))), " ) ").
         Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(cname, parent, implicitCtorBody(parent, concat(cparams, ""), concat(cbody, "")), methods, fields))), " "), chr(125)).
-        Return concat(statics, fnDef).
+        Let staticObjInit be concat(concat(concat("__staticobj_", cname), " = "), concat(concat(chr(123), " "), concat(chr(125), " ; "))).
+        Return concat(concat(staticObjInit, statics), fnDef).
     If startsWith(b, ";"):
         Return classWalk(cname, parent, trim(substringAfter(b, ";")), cparams, cbody, methods, statics, fields).
     Let name be item 1 of split(b, " ").
