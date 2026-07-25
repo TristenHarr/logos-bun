@@ -7937,30 +7937,30 @@
 # `name` used as a closure PARAMETER (`name =>` or a member of a parenthesised parameter list) — a distinct
 # binding that shadows the outer scalar, so boxing must be skipped to avoid rewriting the inner name.
 # The index of the ")" matching the "(" that opens just after `i` (depth starts at 1); 0 if unbalanced.
-## To fwdParenClose (toks: Seq of Text, i: Int, depth: Int) -> Int:
+## To fwdParenClose (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
     If i is greater than length of toks:
         Return 0.
     Let c be item i of toks.
     If c is equal to "(":
-        Return fwdParenClose(toks, i + 1, depth + 1).
+        Return fwdParenClose(toks, i + 1, depth + 1, concat(g, c)).
     If c is equal to ")":
         If depth is equal to 1:
             Return i.
-        Return fwdParenClose(toks, i + 1, depth - 1).
-    Return fwdParenClose(toks, i + 1, depth).
+        Return fwdParenClose(toks, i + 1, depth - 1, concat(g, c)).
+    Return fwdParenClose(toks, i + 1, depth, concat(g, c)).
 
 # Scanning back from inside a parenthesized group, the index of the "(" that encloses it (0 if none).
-## To backParenOpen (toks: Seq of Text, i: Int, depth: Int) -> Int:
+## To backParenOpen (toks: Seq of Text, i: Int, depth: Int, g: Text) -> Int:
     If i is less than 1:
         Return 0.
     Let c be item i of toks.
     If c is equal to ")":
-        Return backParenOpen(toks, i - 1, depth + 1).
+        Return backParenOpen(toks, i - 1, depth + 1, concat(g, c)).
     If c is equal to "(":
         If depth is equal to 0:
             Return i.
-        Return backParenOpen(toks, i - 1, depth - 1).
-    Return backParenOpen(toks, i - 1, depth).
+        Return backParenOpen(toks, i - 1, depth - 1, concat(g, c)).
+    Return backParenOpen(toks, i - 1, depth, concat(g, c)).
 
 # Is the "(" at index `oi` a PARAMETER-list opener rather than a call / grouping / if-while condition?
 # Two forms: `function (` (preceded by the function keyword) or an arrow — its matching `)` is followed
@@ -7970,7 +7970,7 @@
     If oi is greater than 1:
         If item (oi - 1) of toks is equal to "function":
             Return true.
-    Let ci be fwdParenClose(split(concat(s, ""), " "), oi + 1, 1).
+    Let ci be fwdParenClose(split(concat(s, ""), " "), oi + 1, 1, "").
     If ci is greater than 0:
         If ci is less than length of toks:
             If item (ci + 1) of toks is equal to "=>":
@@ -7994,7 +7994,7 @@
             If prev is equal to ",":
                 If i is less than length of toks:
                     If paramBoundary(item (i + 1) of toks):
-                        Let oi be backParenOpen(split(concat(s, ""), " "), i - 1, 0).
+                        Let oi be backParenOpen(split(concat(s, ""), " "), i - 1, 0, "").
                         If oi is greater than 0:
                             If isParamOpener(concat(s, ""), oi):
                                 Return true.
@@ -8351,6 +8351,14 @@
 # bogus top-level `=` across the whole call (the outer `arr.forEach` looks like a member target), so we
 # leave the statement alone and let the callback handler run the body. Only a TOP-LEVEL member compound
 # (`o.c++`, `a[i] += 1`) is rewritten here.
+# Rewrite a member-target compound assignment `o.x OP= rhs` to `o.x = o.x op ( rhs )`. The RHS is
+# PARENTHESISED so its operators keep precedence — `o.total += a + b` must be `o.total + (a + b)`, not
+# `(o.total + a) + b`.
+## To augMember (s: Text, opstr: Text, op: Text) -> Text:
+    Let lhs be trim(substringBefore(concat(s, ""), concat(opstr, ""))).
+    Let rhs be trim(substringAfter(concat(s, ""), concat(opstr, ""))).
+    Return concat(concat(concat(concat(concat(concat(concat(lhs, ""), " = "), concat(lhs, "")), " "), concat(op, "")), " ( "), concat(concat(rhs, ""), " )")).
+
 ## To memberCompoundRewrite (s: Text) -> Text:
     If hasSep(s, "++"):
         If markerInBody(concat(s, ""), "++") is equal to false:
@@ -8363,59 +8371,59 @@
     If hasSep(s, " += "):
         If markerInBody(concat(s, ""), " += ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " += "))):
-                Return concat(concat(trim(substringBefore(s, " += ")), " = "), concat(concat(trim(substringBefore(s, " += ")), " + "), trim(substringAfter(s, " += ")))).
+                Return augMember(concat(s, ""), " += ", "+").
     If hasSep(s, " -= "):
         If markerInBody(concat(s, ""), " -= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " -= "))):
-                Return concat(concat(trim(substringBefore(s, " -= ")), " = "), concat(concat(trim(substringBefore(s, " -= ")), " - "), trim(substringAfter(s, " -= ")))).
+                Return augMember(concat(s, ""), " -= ", "-").
     If hasSep(s, " **= "):
         If markerInBody(concat(s, ""), " **= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " **= "))):
-                Return concat(concat(trim(substringBefore(s, " **= ")), " = "), concat(concat(trim(substringBefore(s, " **= ")), " ** "), trim(substringAfter(s, " **= ")))).
+                Return augMember(concat(s, ""), " **= ", "**").
     If hasSep(s, " *= "):
         If markerInBody(concat(s, ""), " *= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " *= "))):
-                Return concat(concat(trim(substringBefore(s, " *= ")), " = "), concat(concat(trim(substringBefore(s, " *= ")), " * "), trim(substringAfter(s, " *= ")))).
+                Return augMember(concat(s, ""), " *= ", "*").
     If hasSep(s, " /= "):
         If markerInBody(concat(s, ""), " /= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " /= "))):
-                Return concat(concat(trim(substringBefore(s, " /= ")), " = "), concat(concat(trim(substringBefore(s, " /= ")), " / "), trim(substringAfter(s, " /= ")))).
+                Return augMember(concat(s, ""), " /= ", "/").
     If hasSep(s, " %= "):
         If markerInBody(concat(s, ""), " %= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " %= "))):
-                Return concat(concat(trim(substringBefore(s, " %= ")), " = "), concat(concat(trim(substringBefore(s, " %= ")), " % "), trim(substringAfter(s, " %= ")))).
+                Return augMember(concat(s, ""), " %= ", "%").
     If hasSep(s, " &= "):
         If markerInBody(concat(s, ""), " &= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " &= "))):
-                Return concat(concat(trim(substringBefore(s, " &= ")), " = "), concat(concat(trim(substringBefore(s, " &= ")), " & "), trim(substringAfter(s, " &= ")))).
+                Return augMember(concat(s, ""), " &= ", "&").
     If hasSep(s, " |= "):
         If markerInBody(concat(s, ""), " |= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " |= "))):
-                Return concat(concat(trim(substringBefore(s, " |= ")), " = "), concat(concat(trim(substringBefore(s, " |= ")), " | "), trim(substringAfter(s, " |= ")))).
+                Return augMember(concat(s, ""), " |= ", "|").
     If hasSep(s, " ^= "):
         If markerInBody(concat(s, ""), " ^= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " ^= "))):
-                Return concat(concat(trim(substringBefore(s, " ^= ")), " = "), concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), trim(substringAfter(s, " ^= ")))).
+                Return augMember(concat(s, ""), " ^= ", "^").
     If hasSep(s, " <<= "):
         If markerInBody(concat(s, ""), " <<= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " <<= "))):
-                Return concat(concat(trim(substringBefore(s, " <<= ")), " = "), concat(concat(trim(substringBefore(s, " <<= ")), " << "), trim(substringAfter(s, " <<= ")))).
+                Return augMember(concat(s, ""), " <<= ", "<<").
     If hasSep(s, " >>= "):
         If markerInBody(concat(s, ""), " >>= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " >>= "))):
-                Return concat(concat(trim(substringBefore(s, " >>= ")), " = "), concat(concat(trim(substringBefore(s, " >>= ")), " >> "), trim(substringAfter(s, " >>= ")))).
+                Return augMember(concat(s, ""), " >>= ", ">>").
     If hasSep(s, " ||= "):
         If markerInBody(concat(s, ""), " ||= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " ||= "))):
-                Return concat(concat(trim(substringBefore(s, " ||= ")), " = "), concat(concat(trim(substringBefore(s, " ||= ")), " || "), trim(substringAfter(s, " ||= ")))).
+                Return augMember(concat(s, ""), " ||= ", "||").
     If hasSep(s, " &&= "):
         If markerInBody(concat(s, ""), " &&= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " &&= "))):
-                Return concat(concat(trim(substringBefore(s, " &&= ")), " = "), concat(concat(trim(substringBefore(s, " &&= ")), " && "), trim(substringAfter(s, " &&= ")))).
+                Return augMember(concat(s, ""), " &&= ", "&&").
     If hasSep(s, " ??= "):
         If markerInBody(concat(s, ""), " ??= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " ??= "))):
-                Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
+                Return augMember(concat(s, ""), " ??= ", "??").
     Return "".
 
 # Compound assignment in EXPRESSION position (`return x += 5`, `[x += 1]`, `y = (x ??= d)`). Unlike
@@ -8642,6 +8650,16 @@
         Return deleteDot(concat(target, ""), ntok, di, env).
     Return env.
 
+# A bare-variable compound assignment as a STATEMENT: `x OP= rhs` → assign `x = x op ( rhs )`. The RHS is
+# PARENTHESISED so its own operators keep their precedence — without it `s += a + b` would flatten to
+# `(s + a) + b`, turning a numeric add into a string concat when `s` is a string. The `( rhs )` also lets
+# the logical assigns (`||=`/`&&=`/`??=`) ride jsEvalIn's lazy short-circuit.
+## To augBare (s: Text, opstr: Text, op: Text, env: Text) -> Text:
+    Let lhs be trim(substringBefore(concat(s, ""), concat(opstr, ""))).
+    Let rhs be substringAfter(concat(s, ""), concat(opstr, "")).
+    Let expr be concat(concat(concat(concat(concat(concat(lhs, ""), " "), concat(op, "")), " ( "), concat(rhs, "")), " )").
+    Return envSet(env, concat(lhs, ""), jsEvalIn(concat(expr, ""), env)).
+
 ## To execStmt (stmt: Text, env: Text) -> Text:
     Let s be trim(stmt).
     If isLabeledLoop(concat(s, "")):
@@ -8799,33 +8817,33 @@
     If hasTopSep(mcr, " = "):
         Return execStmt(mcr, env).
     If hasTopSep(s, " += "):
-        Return envSet(env, trim(substringBefore(s, " += ")), jsEvalIn(concat(concat(trim(substringBefore(s, " += ")), " + "), substringAfter(s, " += ")), env)).
+        Return augBare(concat(s, ""), " += ", "+", env).
     If hasTopSep(s, " -= "):
-        Return envSet(env, trim(substringBefore(s, " -= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " -= ")), " - "), substringAfter(s, " -= ")), env)).
+        Return augBare(concat(s, ""), " -= ", "-", env).
     If hasTopSep(s, " **= "):
-        Return envSet(env, trim(substringBefore(s, " **= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " **= ")), " ** "), substringAfter(s, " **= ")), env)).
+        Return augBare(concat(s, ""), " **= ", "**", env).
     If hasTopSep(s, " *= "):
-        Return envSet(env, trim(substringBefore(s, " *= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " *= ")), " * "), substringAfter(s, " *= ")), env)).
+        Return augBare(concat(s, ""), " *= ", "*", env).
     If hasTopSep(s, " /= "):
-        Return envSet(env, trim(substringBefore(s, " /= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " /= ")), " / "), substringAfter(s, " /= ")), env)).
+        Return augBare(concat(s, ""), " /= ", "/", env).
     If hasTopSep(s, " %= "):
-        Return envSet(env, trim(substringBefore(s, " %= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " %= ")), " % "), substringAfter(s, " %= ")), env)).
+        Return augBare(concat(s, ""), " %= ", "%", env).
     If hasTopSep(s, " <<= "):
-        Return envSet(env, trim(substringBefore(s, " <<= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " <<= ")), " << "), substringAfter(s, " <<= ")), env)).
+        Return augBare(concat(s, ""), " <<= ", "<<", env).
     If hasTopSep(s, " >>= "):
-        Return envSet(env, trim(substringBefore(s, " >>= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " >>= ")), " >> "), substringAfter(s, " >>= ")), env)).
+        Return augBare(concat(s, ""), " >>= ", ">>", env).
     If hasTopSep(s, " &= "):
-        Return envSet(env, trim(substringBefore(s, " &= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " &= ")), " & "), substringAfter(s, " &= ")), env)).
+        Return augBare(concat(s, ""), " &= ", "&", env).
     If hasTopSep(s, " |= "):
-        Return envSet(env, trim(substringBefore(s, " |= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " |= ")), " | "), substringAfter(s, " |= ")), env)).
+        Return augBare(concat(s, ""), " |= ", "|", env).
     If hasTopSep(s, " ^= "):
-        Return envSet(env, trim(substringBefore(s, " ^= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ^= ")), " ^ "), substringAfter(s, " ^= ")), env)).
+        Return augBare(concat(s, ""), " ^= ", "^", env).
     If hasTopSep(s, " ||= "):
-        Return envSet(env, trim(substringBefore(s, " ||= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ||= ")), " || "), substringAfter(s, " ||= ")), env)).
+        Return augBare(concat(s, ""), " ||= ", "||", env).
     If hasTopSep(s, " &&= "):
-        Return envSet(env, trim(substringBefore(s, " &&= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " &&= ")), " && "), substringAfter(s, " &&= ")), env)).
+        Return augBare(concat(s, ""), " &&= ", "&&", env).
     If hasTopSep(s, " ??= "):
-        Return envSet(env, trim(substringBefore(s, " ??= ")), jsEvalIn(concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), substringAfter(s, " ??= ")), env)).
+        Return augBare(concat(s, ""), " ??= ", "??", env).
     If hasTopSep(s, " = "):
         Let lhs be trim(substringBefore(s, " = ")).
         If hasTopSep(trim(substringAfter(s, " = ")), " = "):
