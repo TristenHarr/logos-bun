@@ -6208,6 +6208,10 @@
         Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . NEGATIVE_INFINITY"), "-Infinity"), substringAfter(expr, "Number . NEGATIVE_INFINITY"))), env).
     If substringBefore(expr, "Number . EPSILON") is not equal to expr:
         Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . EPSILON"), "0.0000000000000002220446049250313"), substringAfter(expr, "Number . EPSILON"))), env).
+    If substringBefore(expr, "Number . MAX_VALUE") is not equal to expr:
+        Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . MAX_VALUE"), "1.7976931348623157e+308"), substringAfter(expr, "Number . MAX_VALUE"))), env).
+    If substringBefore(expr, "Number . MIN_VALUE") is not equal to expr:
+        Return resolveMethods(trim(concat(concat(substringBefore(expr, "Number . MIN_VALUE"), "5e-324"), substringAfter(expr, "Number . MIN_VALUE"))), env).
     If substringBefore(expr, "Array . from (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Array . from (") is equal to false:
         Let bef be substringBefore(expr, "Array . from (").
