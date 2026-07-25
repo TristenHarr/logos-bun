@@ -7572,7 +7572,7 @@
         If boolOf(concat(lav, "")) is equal to false:
             Return lav.
         Return jsEvalIn(joinRange(tks, andIdx + 1, length of tks, ""), env).
-    Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(te, env), env), " "), 1, ""), env).
+    Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(resolveOptCall(concat(te, ""), env), env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
 # Balanced `[ … ]` contents (like braceBody, for brackets) — used to consume an optional index group.
@@ -7606,6 +7606,41 @@
         Return trim(strSliceLoop(concat(ap, ""), (charLen(concat(ip, ""))) + 2, length of ap, "")).
     Let toks be split(concat(t, ""), " ").
     Return joinRange(toks, 2, length of toks, "").
+
+# The index of the first `?.` token that begins an optional CALL — a `?.` immediately followed by an
+# identifier and a `(`. Optional member (`?. a`) and index (`?. [k]`) tokens are skipped (resolveOptChain
+# handles those); only a call needs early handling because method-call dispatch (resolveMethods) runs
+# before resolveOptChain and would otherwise never see the call.
+## To optCallPos (toks: Seq of Text, i: Int) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    If item i of toks is equal to "?.":
+        If i + 2 is less than or equal to length of toks:
+            If isSimpleName(concat(item (i + 1) of toks, "")):
+                If item (i + 2) of toks is equal to chr(40):
+                    Return i.
+    Return optCallPos(toks, i + 1).
+
+# Resolve optional CALLS `recv ?. method ( args )` before ordinary method dispatch: evaluate the receiver
+# ONCE (jsEvalIn resolves any nested optional members in it), then either short-circuit to undefined
+# (nullish receiver — the balanced call group is consumed) or splice the evaluated receiver back as a
+# plain `<recv> . method ( args )` so resolveMethods runs the call. Left-to-right, recursively.
+## To resolveOptCall (expr: Text, env: Text) -> Text:
+    Let toks be split(concat(expr, ""), " ").
+    Let pos be optCallPos(toks, 1).
+    If pos is equal to 0:
+        Return concat(expr, "").
+    Let before be joinRange(toks, 1, pos - 1, "").
+    Let mname be item (pos + 1) of toks.
+    Let afterCall be joinRange(toks, pos + 2, length of toks, "").
+    Let recv be jsEvalIn(recvExpr(concat(before, "")), env).
+    Let prefix be recvPrefix(concat(before, "")).
+    If isNullish(concat(recv, "")):
+        Let ac be substringAfter(concat(afterCall, ""), chr(40)).
+        Let ai be balancedArg(concat(ac, ""), 1, 0, "").
+        Let restAfter be trim(strSliceLoop(concat(ac, ""), (charLen(concat(ai, ""))) + 2, length of ac, "")).
+        Return resolveOptCall(trim(concat(concat(prefix, " undefined "), restAfter)), env).
+    Return resolveOptCall(trim(concat(concat(concat(before, " . "), mname), concat(" ", afterCall))), env).
 
 # Optional chaining `a ?. b` / `a ?. [k]` / `a ?. (args)`: if the receiver is null/undefined the whole
 # access is undefined (the access group is consumed, short-circuiting); otherwise it behaves like the
@@ -10122,6 +10157,9 @@
         Return recvStart(btoks, openIdx - 1).
     If i is greater than 1:
         If item (i - 1) of btoks is equal to ".":
+            Return recvStart(btoks, i - 2).
+    If i is greater than 1:
+        If item (i - 1) of btoks is equal to "?.":
             Return recvStart(btoks, i - 2).
     If i is greater than 1:
         If item (i - 1) of btoks is equal to "new":
