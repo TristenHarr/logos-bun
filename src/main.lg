@@ -8870,7 +8870,7 @@
     Return runProgram(stmts, i + 1, execStmt(stmt, env)).
 
 ## To jsRun (program: Text) -> Text:
-    Let flat be splitTop(program, 1, 0, "").
+    Let flat be boxCaptured(splitTop(program, 1, 0, "")).
     Let v be runProgram(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, "")).
     Let drained be drainMicrotasks("", "").
     Return v.
