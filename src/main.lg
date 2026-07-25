@@ -6102,13 +6102,13 @@
         Let bef be substringBefore(expr, "String . fromCharCode (").
         Let aft be substringAfter(expr, "String . fromCharCode (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(expandSpreadArgs(methodArg(aft), env)), 1, env, "")), rst)), env).
     If substringBefore(expr, "String . fromCodePoint (") is not equal to expr:
       If markerInBody(concat(expr, ""), "String . fromCodePoint (") is equal to false:
         Let bef be substringBefore(expr, "String . fromCodePoint (").
         Let aft be substringAfter(expr, "String . fromCodePoint (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(methodArg(aft)), 1, env, "")), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, fromCharCodeLoop(splitArgsN(expandSpreadArgs(methodArg(aft), env)), 1, env, "")), rst)), env).
     If substringBefore(expr, "Object . keys (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . keys (") is equal to false:
         Let bef be substringBefore(expr, "Object . keys (").
@@ -6425,9 +6425,9 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         If isArrRef(concat(raw, "")):
-            Let allInner be arrConcatArgs(concatPiece(concat(raw, "")), splitArgsN(concat(argStr, "")), 1, env).
+            Let allInner be arrConcatArgs(concatPiece(concat(raw, "")), splitArgsN(expandSpreadArgs(concat(argStr, ""), env)), 1, env).
             Return resolveMethods(trim(concat(concat(concat(prefix, " "), newArr(concat(concat(tagArr (), allInner), tagArrEnd ()))), rst)), env).
-        Let joined be strConcatArgs(materialize(concat(raw, "")), splitArgsN(concat(argStr, "")), 1, env).
+        Let joined be strConcatArgs(materialize(concat(raw, "")), splitArgsN(expandSpreadArgs(concat(argStr, ""), env)), 1, env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), concat(tagStr (), joined)), rst)), env).
     If lm is equal to " . at (":
         Let bef be substringBefore(expr, " . at (").
