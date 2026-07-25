@@ -4513,7 +4513,7 @@
 ## To arrOf (argStr: Text, env: Text) -> Text:
     If trim(concat(argStr, "")) is equal to "":
         Return newArr(concat(tagArr (), tagArrEnd ())).
-    Return newArr(concat(concat(tagArr (), arrOfLoop(patFields(argStr), 1, env, "")), tagArrEnd ())).
+    Return newArr(concat(concat(tagArr (), arrOfLoop(patFields(expandSpreadArgs(concat(argStr, ""), env)), 1, env, "")), tagArrEnd ())).
 
 ## To arrUndefLoop (n: Int, i: Int, acc: Text) -> Text:
     If i is greater than n:
@@ -5978,7 +5978,7 @@
         Let bef be substringBefore(expr, "Math . hypot (").
         Let aft be substringAfter(expr, "Math . hypot (").
         Let rst be methodRest(aft).
-        Let args be splitArgs2(methodArg(aft)).
+        Let args be splitArgs2(expandSpreadArgs(methodArg(aft), env)).
         Return resolveMethods(trim(concat(concat(bef, jsMath2("hypot", materialize(jsEvalIn(trim(item 1 of args), env)), materialize(jsEvalIn(trim(item 2 of args), env)))), rst)), env).
     If substringBefore(expr, "Math . imul (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Math . imul (") is equal to false:
@@ -6425,7 +6425,7 @@
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
         If isArrRef(raw):
-            Let pushed be arrPushAll(concat(raw, ""), splitArgsN(concat(argStr, "")), 1, env).
+            Let pushed be arrPushAll(concat(raw, ""), splitArgsN(expandSpreadArgs(concat(argStr, ""), env)), 1, env).
             Return resolveMethods(trim(concat(concat(concat(prefix, " "), toText(length of arrElements(pushed))), rst)), env).
     If lm is equal to " . forEach (":
         Let bef be substringBefore(expr, " . forEach (").
@@ -6623,7 +6623,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let removed be arrSplice(concat(raw, ""), methodArg(aft), env).
+        Let removed be arrSplice(concat(raw, ""), expandSpreadArgs(methodArg(aft), env), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), removed), rst)), env).
     If lm is equal to " . shift (":
         Let bef be substringBefore(expr, " . shift (").
@@ -6641,7 +6641,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Let newlen be arrUnshift(concat(raw, ""), methodArg(aft), env).
+        Let newlen be arrUnshift(concat(raw, ""), expandSpreadArgs(methodArg(aft), env), env).
         Return resolveMethods(trim(concat(concat(concat(prefix, " "), newlen), rst)), env).
     If lm is equal to " . pop (":
         Let bef be substringBefore(expr, " . pop (").
@@ -8479,7 +8479,7 @@
                 Let pv be trim(substringBefore(s, " . push (")).
                 If isArrRef(jsEvalIn(concat(pv, ""), concat(env, ""))):
                     Let pa be balancedArg(substringAfter(s, " . push ("), 1, 0, "").
-                    Return assignTarget(concat(pv, ""), arrPushAll(jsEvalIn(concat(pv, ""), concat(env, "")), splitArgsN(concat(pa, "")), 1, env), env).
+                    Return assignTarget(concat(pv, ""), arrPushAll(jsEvalIn(concat(pv, ""), concat(env, "")), splitArgsN(expandSpreadArgs(concat(pa, ""), env)), 1, env), env).
     If hasSep(s, " . pop ("):
         If hasTopSep(s, " = ") is equal to false:
             If markerInBody(concat(s, ""), " . pop (") is equal to false:
@@ -11035,14 +11035,14 @@
     Return consoleFmt(args, i + 1, env, concat(concat(acc, " "), piece)).
 
 ## To doConsoleLog (logArg: Text, env: Text) -> Text:
-    Let formatted be decodeStr(consoleFmt(patFields(logArg), 1, env, "")).
+    Let formatted be decodeStr(consoleFmt(patFields(expandSpreadArgs(concat(logArg, ""), env)), 1, env, "")).
     If throwPending() is equal to "1":
         Return env.
     puts(concat(formatted, chr(10))).
     Return env.
 
 ## To doConsoleErr (logArg: Text, env: Text) -> Text:
-    eputs(decodeStr(consoleFmt(patFields(logArg), 1, env, ""))).
+    eputs(decodeStr(consoleFmt(patFields(expandSpreadArgs(concat(logArg, ""), env)), 1, env, ""))).
     Return env.
 
 ## To doExit (arg: Text, env: Text) -> Text:
