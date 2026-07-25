@@ -5083,24 +5083,15 @@
 ## To methodRest (aft: Text) -> Text:
     Return strSliceLoop(aft, (charLen(balancedArg(aft, 1, 0, ""))) + 2, length of aft, "").
 
-## To topCommaIdx (s: Text, i: Int, depth: Int, g: Text) -> Int:
-    If i is greater than length of s:
-        Return 0.
-    Let c be item i of s.
-    If c is equal to "(":
-        Return topCommaIdx(s, i + 1, depth + 1, concat(g, c)).
-    If c is equal to ")":
-        Return topCommaIdx(s, i + 1, depth - 1, concat(g, c)).
-    If c is equal to ",":
-        If depth is equal to 0:
-            Return i.
-    Return topCommaIdx(s, i + 1, depth, concat(g, c)).
-
+# Split a two-argument list at its FIRST top-level comma. Reuses the same string/bracket/brace/paren-
+# aware scanner splitArgsN uses (commaDepthSplit), so a comma that is string CONTENT — `","` as the
+# search of replace(",",x) / replaceAll — is no longer mistaken for the argument separator. arg2 keeps
+# any further commas verbatim (these are all two-arg methods, so in practice there are none).
 ## To splitArgs2 (argStr: Text) -> Seq of Text:
-    Let idx be topCommaIdx(argStr, 1, 0, "").
-    If idx is equal to 0:
+    Let marked be commaDepthSplit(concat(argStr, ""), 1, 0, 0, "", charLen(concat(argStr, ""))).
+    If substringBefore(concat(marked, ""), chr(10)) is equal to concat(marked, ""):
         Return [argStr, ""].
-    Return [strSliceLoop(argStr, 1, idx - 1, ""), strSliceLoop(argStr, idx + 1, length of argStr, "")].
+    Return [substringBefore(concat(marked, ""), chr(10)), replaceAll(substringAfter(concat(marked, ""), chr(10)), chr(10), ",")].
 
 ## To commaDepthSplit (s: Text, i: Int, depth: Int, inStr: Int, g: Text, len: Int) -> Text:
     If i is greater than len:
