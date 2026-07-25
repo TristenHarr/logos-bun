@@ -3713,3 +3713,23 @@ modelling); `JSON.parse` of a TEMPLATE-LITERAL argument fails for ASCII too (pre
 (non-letters in the same block) are correctly left unchanged. ASCII path untouched. Full sweep green
 (262/262, seeds 1-2). Remaining case-mapping gap is only the non-Latin-1 scripts (Greek/Cyrillic/…), which
 need the full Unicode case-folding table — a much larger data set, deferred.
+
+---
+
+## Session 2026-07-25 — 11 engine fixes (fuzzers 281→293) + one deep bug root-caused
+
+Continued the probe→fix→6-seed-fuzz→full-sweep→gate→push loop. All shipped, gate-green, pushed:
+
+1. **top-level scalar-closure boxing** (`3c2eac0`) — `let c=0;const inc=()=>c++;inc();inc();c` stayed 0 at top level; `jsRun` now applies the same `boxCaptured` pass function bodies use.
+2. **spread into fromCharCode/concat** (`af82655`) — `String.fromCharCode(...[72,105])`, `.concat(...[[4],[5]])`.
+3. **real ES iterator protocol** (`bbc8edf`) — array/Map/Set `.keys()/.values()/.entries()` return a generator-shaped iterator (`makeArrIter`) so `.next()`/spread/for-of/Array.from all work; Set gained keys/values/entries; fixed a chained-`.next().value.method()` double-advance + inline `[...[1,2,3].keys()]` (`...` added to `isStopTok`).
+4. **logical `!` truthiness** (`fff5f81`) — `!""`/`!NaN` were false; `notOf` now negates `boolOf` (one truthiness oracle).
+5. **Object.assign spread sources** (`af57a6e`) — `Object.assign({},...sources)`.
+6. **spread into the rest of the variadic-builtin family** (`5a476c8`) — Array.of/Math.hypot/push/unshift/splice/console.log.
+7. **String.prototype.search(regexp|string)** (`33fa589`) — was unimplemented (NaN).
+8. **comma in a string arg no longer mis-splits two-arg methods** (`122116a`) — `replaceAll(",","-")`; `splitArgs2` reuses the string-aware `commaDepthSplit`.
+9. **compound assignment as an expression** (`2f66839`) — `return x+=5`, `y=(x??=d)`, member-target `o.n+=3`.
+10. **relational operators left-associative** (`96a1687`) — `3>2>1` = `(3>2)>1` = false.
+11. **destructuring parameter with an outer default** (`7d0e05a`) — the ubiquitous `function f({a=1,b=2}={}){}` options idiom.
+
+**★ Highest-value bug found + root-caused, DEFERRED:** a nested closure that captures AND CALLS a function-valued parameter (`compose=(f,g)=>x=>f(g(x))`, `curry`, `wrap`, `memoize`, `hof(fn){return a=>fn(a)}`) returns `undefined` — breaks a huge swath of real functional JS. Root cause: function values are opaque `chr1 encFn(param) chr1 encFn(body)` tokens; `encFn`/`decFn` are ASYMMETRIC on ctrl chars (encFn only maps source chars and leaves existing ctrl chars alone, but decFn decodes ALL of them), so a token baked into a re-encoded body gets an extra `decFn` per nesting level → over-decoded. Works at one level, fails when captured into a returned parameterized closure. Proper fix (focused session): make encFn/decFn a truly reversible escaping, or heap-store captured function values by handle. Also open (deep): infinite/lazy generators (`while(true){yield}` — the eager `__gen_values` model collects all yields upfront). The common-code surface is otherwise excellent — large real-world-pattern batches (string processing, data transforms, classes, reducers, destructuring) now show 0 diffs.
