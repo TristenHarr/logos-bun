@@ -7307,8 +7307,31 @@
 ## To envSet (env: Text, name: Text, val: Text) -> Text:
     Return concat(concat(concat(concat(name, "="), replaceAll(concat(val, ""), ";", chr(12))), ";"), env).
 
+# A function value is an opaque token `chr1 encFn(param) chr1 encFn(body)`; encFn maps the structural
+# source chars (space {}()[],;) to the control bytes 12/16-23 so the token survives space-delimited
+# tokenization and substitution. When one function value is CAPTURED into another (a closure returning a
+# closure that calls a captured fn — compose/curry/wrap/memoize), its body — already full of those
+# control bytes — is baked into the outer body and re-encoded; the outer decFn would otherwise decode the
+# INNER token's bytes too (its chr16 → a real space), splitting the token so resolveCalls no longer sees
+# it as callable. So encFn first ESCAPES any pre-existing control bytes (and the escape byte chr9 itself)
+# with a chr9 prefix; decFn only un-escapes exactly what this level added, leaving nested tokens intact at
+# any nesting depth. The escape byte never survives a full round-trip, so stored single-level tokens are
+# byte-identical to before (and decFn keeps its fast replaceAll path when no escape is present).
+## To encFnEscape (s: Text) -> Text:
+    Let g0 be replaceAll(s, chr(9), concat(chr(9), chr(9))).
+    Let g1 be replaceAll(g0, chr(12), concat(chr(9), chr(12))).
+    Let g2 be replaceAll(g1, chr(16), concat(chr(9), chr(16))).
+    Let g3 be replaceAll(g2, chr(17), concat(chr(9), chr(17))).
+    Let g4 be replaceAll(g3, chr(18), concat(chr(9), chr(18))).
+    Let g5 be replaceAll(g4, chr(19), concat(chr(9), chr(19))).
+    Let g6 be replaceAll(g5, chr(20), concat(chr(9), chr(20))).
+    Let g7 be replaceAll(g6, chr(21), concat(chr(9), chr(21))).
+    Let g8 be replaceAll(g7, chr(22), concat(chr(9), chr(22))).
+    Return replaceAll(g8, chr(23), concat(chr(9), chr(23))).
+
 ## To encFn (s: Text) -> Text:
-    Let x1 be replaceAll(s, " ", chr(16)).
+    Let esc be encFnEscape(concat(s, "")).
+    Let x1 be replaceAll(esc, " ", chr(16)).
     Let x2 be replaceAll(x1, chr(123), chr(17)).
     Let x3 be replaceAll(x2, chr(125), chr(18)).
     Let x4 be replaceAll(x3, "(", chr(19)).
@@ -7318,7 +7341,38 @@
     Let x8 be replaceAll(x7, ",", chr(23)).
     Return replaceAll(x8, ";", chr(12)).
 
+## To decFnScan (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(9):
+        If i is less than len:
+            Let nxt be item (i + 1) of s.
+            Return decFnScan(s, i + 2, concat(acc, nxt), len).
+        Return concat(acc, c).
+    If c is equal to chr(16):
+        Return decFnScan(s, i + 1, concat(acc, " "), len).
+    If c is equal to chr(17):
+        Return decFnScan(s, i + 1, concat(acc, chr(123)), len).
+    If c is equal to chr(18):
+        Return decFnScan(s, i + 1, concat(acc, chr(125)), len).
+    If c is equal to chr(19):
+        Return decFnScan(s, i + 1, concat(acc, "("), len).
+    If c is equal to chr(20):
+        Return decFnScan(s, i + 1, concat(acc, ")"), len).
+    If c is equal to chr(21):
+        Return decFnScan(s, i + 1, concat(acc, chr(91)), len).
+    If c is equal to chr(22):
+        Return decFnScan(s, i + 1, concat(acc, chr(93)), len).
+    If c is equal to chr(23):
+        Return decFnScan(s, i + 1, concat(acc, ","), len).
+    If c is equal to chr(12):
+        Return decFnScan(s, i + 1, concat(acc, ";"), len).
+    Return decFnScan(s, i + 1, concat(acc, c), len).
+
 ## To decFn (s: Text) -> Text:
+    If hasSep(concat(s, ""), chr(9)):
+        Return decFnScan(concat(s, ""), 1, "", charLen(concat(s, ""))).
     Let x1 be replaceAll(s, chr(16), " ").
     Let x2 be replaceAll(x1, chr(17), chr(123)).
     Let x3 be replaceAll(x2, chr(18), chr(125)).
