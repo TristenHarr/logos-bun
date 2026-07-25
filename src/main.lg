@@ -9142,6 +9142,11 @@
             Return assignTarget("this . message", jsEvalIn(concat(firstArg, ""), en), en).
         Let ran be callMethod(envGet(concat(env, ""), concat(pname, "")), sargs, envGet(concat(env, ""), "this"), env).
         Return env.
+    If startsWith(s, "__inherit_super__ "):
+        Let itoks be split(trim(substringAfter(s, "__inherit_super__ ")), " ").
+        Let irecv be envGet(concat(env, ""), "this").
+        Let idone be inheritSuperLoop(objEntrySeq(concat(irecv, "")), 1, concat(concat("__msuper_", item 1 of itoks), "_"), concat(concat("__msuper_", item 2 of itoks), "_"), concat(irecv, "")).
+        Return env.
     If startsWith(s, "console . log ("):
         Return doConsoleLog(balancedArg(substringAfter(s, "console . log ("), 1, 0, ""), env).
     If startsWith(s, "console . info ("):
@@ -10423,7 +10428,23 @@
 # (args)` and run FIRST — it invokes the parent constructor with THIS, populating inherited
 # fields+methods — then the child's own method assignments (which override the parent's), then
 # the rest of the child ctor body.
-## To superFirst (parent: Text, cbody: Text, methods: Text, fields: Text) -> Text:
+# After a derived class's super() runs, its own `super.method` calls target `__msuper_<Parent>_<method>`
+# — but an INTERMEDIATE parent that does NOT override the method never created that binding (it inherited
+# the method), so the call resolved to undefined. This copies every `__msuper_<Parent>_X` the parent chain
+# installed on `this` into the `__msuper_<Self>_X` namespace, before Self's own methods overwrite the ones
+# it actually overrides — so `super.method` walks past non-overriding ancestors. Runs on a snapshot of the
+# instance's entries, so the newly-added keys don't re-trigger.
+## To inheritSuperLoop (entries: Seq of Text, i: Int, srcPrefix: Text, dstPrefix: Text, recv: Text) -> Text:
+    If i is greater than length of entries:
+        Return concat(recv, "").
+    Let k be entryKeyOf(item i of entries).
+    If startsWith(concat(k, ""), concat(srcPrefix, "")):
+        Let dstKey be concat(concat(dstPrefix, ""), substringAfter(concat(k, ""), concat(srcPrefix, ""))).
+        Let updated be objSet(concat(recv, ""), concat(dstKey, ""), entryValOf(item i of entries)).
+        Return inheritSuperLoop(entries, i + 1, concat(srcPrefix, ""), concat(dstPrefix, ""), concat(updated, "")).
+    Return inheritSuperLoop(entries, i + 1, concat(srcPrefix, ""), concat(dstPrefix, ""), concat(recv, "")).
+
+## To superFirst (cname: Text, parent: Text, cbody: Text, methods: Text, fields: Text) -> Text:
     If parent is equal to "":
         Return concat(concat(methods, fields), cbody).
     Let afterOpen be substringAfter(cbody, chr(40)).
@@ -10431,7 +10452,8 @@
     Let afterClose be strSliceLoop(afterOpen, (charLen(concat(sargs, ""))) + 2, length of afterOpen, "").
     Let restBody be trim(substringAfter(concat(afterClose, ""), ";")).
     Let superCall be concat(concat(concat(concat("__super__ ", parent), " ( "), sargs), " ) ; ").
-    Return concat(concat(concat(superCall, methods), fields), restBody).
+    Let inherit be concat(concat(concat(concat("__inherit_super__ ", parent), " "), cname), " ; ").
+    Return concat(concat(concat(concat(superCall, inherit), methods), fields), restBody).
 
 # A `static m(){…}` member binds `__static_<Class>_m = function(…){…}` at class-definition time
 # (it belongs to the class, not instances) — dispatched by resolveCalls when the receiver of a
@@ -10491,7 +10513,7 @@
     Let b be trim(body).
     If b is equal to "":
         Let head be concat(concat(concat(concat("function ", cname), " ( "), implicitCtorParams(parent, concat(cparams, ""), concat(cbody, ""))), " ) ").
-        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(parent, implicitCtorBody(parent, concat(cparams, ""), concat(cbody, "")), methods, fields))), " "), chr(125)).
+        Let fnDef be concat(concat(concat(concat(head, chr(123)), concat(" ", superFirst(cname, parent, implicitCtorBody(parent, concat(cparams, ""), concat(cbody, "")), methods, fields))), " "), chr(125)).
         Return concat(statics, fnDef).
     If startsWith(b, ";"):
         Return classWalk(cname, parent, trim(substringAfter(b, ";")), cparams, cbody, methods, statics, fields).
