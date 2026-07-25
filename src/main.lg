@@ -7640,6 +7640,10 @@
         Let ai be balancedArg(concat(ac, ""), 1, 0, "").
         Let restAfter be trim(strSliceLoop(concat(ac, ""), (charLen(concat(ai, ""))) + 2, length of ac, "")).
         Return resolveOptCall(trim(concat(concat(prefix, " undefined "), restAfter)), env).
+    If isArrRef(concat(recv, "")):
+        Return concat(expr, "").
+    If startsWith(concat(recv, ""), tagStr ()):
+        Return concat(expr, "").
     Return resolveOptCall(trim(concat(concat(concat(before, " . "), mname), concat(" ", afterCall))), env).
 
 # Optional chaining `a ?. b` / `a ?. [k]` / `a ?. (args)`: if the receiver is null/undefined the whole
