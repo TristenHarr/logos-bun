@@ -1376,6 +1376,12 @@
         Return objGet(concat(v, ""), "__gen_values") is not equal to "undefined".
     Return false.
 
+# A real ES iterator object over a fixed backing array: the same shape a generator uses
+# (__gen_values + a __gen_idx cursor), so .next() (genNext), spread and for-of (iterElements)
+# all consume it for free. Array/Map/Set .keys()/.values()/.entries() hand back one of these.
+## To makeArrIter (items: Text) -> Text:
+    Return objSet(objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__gen_values", concat(items, "")), "__gen_idx", "0").
+
 # The elements to iterate for for-of / spread: an array's own elements, or a generator's collected
 # yields.
 ## To strToCharArrLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
@@ -2501,6 +2507,24 @@
 
 ## To arrEntriesArr (arrval: Text) -> Text:
     Return newArr(concat(concat(tagArr (), arrEntriesLoop2(arrElements(arrval), 1, "")), tagArrEnd ())).
+
+# A Set's entries() yields [value, value] pairs (its key === its value); keys()/values() yield the
+# bare values. These build the backing arrays that makeArrIter wraps.
+## To setEntriesLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let el be item i of els.
+    Let pair be newArr(concat(concat(tagArr (), concat(concat(concat(el, ""), tagArrSep ()), concat(el, ""))), tagArrEnd ())).
+    If i is equal to 1:
+        Return setEntriesLoop(els, i + 1, pair).
+    Return setEntriesLoop(els, i + 1, concat(concat(acc, tagArrSep ()), pair)).
+
+## To setEntriesArr (setval: Text) -> Text:
+    Return newArr(concat(concat(tagArr (), setEntriesLoop(arrElements(objGet(concat(setval, ""), "__set_vals")), 1, "")), tagArrEnd ())).
+
+## To setValsArr (setval: Text) -> Text:
+    Let els be arrElements(objGet(concat(setval, ""), "__set_vals")).
+    Return newArr(concat(concat(tagArr (), joinChr6(els, 1, length of els, "")), tagArrEnd ())).
 
 ## To objDefineProp (o: Text, key: Text, desc: Text) -> Text:
     Let v be objGet(concat(desc, ""), "value").
@@ -5654,6 +5678,11 @@
         Let rw be protoCallRewrite(concat(expr, "")).
         If rw is not equal to concat(expr, ""):
             Return resolveMethods(concat(rw, ""), env).
+    If substringBefore(expr, " . next (") is not equal to expr:
+        Let gbef be substringBefore(expr, " . next (").
+        Let grecv be jsEvalIn(recvExpr(concat(gbef, "")), env).
+        If isGenerator(grecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(gbef, "")), " "), genNext(grecv)), methodRest(substringAfter(expr, " . next (")))), env).
     Let lmm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lmm) is not equal to expr:
         Let urecv be jsEvalIn(recvExpr(concat(substringBefore(expr, lmm), "")), concat(env, "")).
@@ -5760,27 +5789,33 @@
         Let aft be substringAfter(expr, " . keys (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_keys")), 1, length of arrElements(objGet(concat(recv, ""), "__map_keys")), "")), tagArrEnd ()))), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_keys")), 1, length of arrElements(objGet(concat(recv, ""), "__map_keys")), "")), tagArrEnd ())))), methodRest(aft))), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(setValsArr(concat(recv, "")))), methodRest(aft))), env).
         If isArrRef(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), arrKeysArr(recv)), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(arrKeysArr(recv))), methodRest(aft))), env).
     If substringBefore(expr, " . values (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . values (") is equal to false:
         Let bef be substringBefore(expr, " . values (").
         Let aft be substringAfter(expr, " . values (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_vals")), 1, length of arrElements(objGet(concat(recv, ""), "__map_vals")), "")), tagArrEnd ()))), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(newArr(concat(concat(tagArr (), joinChr6(arrElements(objGet(concat(recv, ""), "__map_vals")), 1, length of arrElements(objGet(concat(recv, ""), "__map_vals")), "")), tagArrEnd ())))), methodRest(aft))), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(setValsArr(concat(recv, "")))), methodRest(aft))), env).
         If isArrRef(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), concat(recv, "")), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(concat(recv, ""))), methodRest(aft))), env).
     If substringBefore(expr, " . entries (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . entries (") is equal to false:
         Let bef be substringBefore(expr, " . entries (").
         Let aft be substringAfter(expr, " . entries (").
         Let recv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If isMap(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), mapEntriesArr(concat(recv, ""))), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(mapEntriesArr(concat(recv, "")))), methodRest(aft))), env).
+        If isSet(recv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(setEntriesArr(concat(recv, "")))), methodRest(aft))), env).
         If isArrRef(recv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), arrEntriesArr(recv)), methodRest(aft))), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bef, "")), " "), makeArrIter(arrEntriesArr(recv))), methodRest(aft))), env).
     If substringBefore(expr, " . get (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . get (") is equal to false:
         Let bef be substringBefore(expr, " . get (").
@@ -5866,11 +5901,6 @@
         Let bef be substringBefore(expr, "new Promise (").
         Let aft be substringAfter(expr, "new Promise (").
         Return resolveMethods(trim(concat(concat(bef, newPromiseExec(fnArgVal(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
-    If substringBefore(expr, " . next (") is not equal to expr:
-        Let gbef be substringBefore(expr, " . next (").
-        Let grecv be jsEvalIn(recvExpr(concat(gbef, "")), env).
-        If isGenerator(grecv):
-            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(gbef, "")), " "), genNext(grecv)), methodRest(substringAfter(expr, " . next (")))), env).
     If substringBefore(expr, "Promise . all (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Promise . all (") is equal to false:
         Let bef be substringBefore(expr, "Promise . all (").
@@ -9212,7 +9242,7 @@
     Return matchGroupLeft(toks, i - 1, depth, concat(g, c)).
 
 ## To isStopTok (c: Text) -> Bool:
-    Let stops be ["+", "-", "*", "/", "%", "<", ">", "=", "!", "?", ":", ",", ";", "(", ".", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "++", "--", "=>", "===", "!==", "&", "|"].
+    Let stops be ["+", "-", "*", "/", "%", "<", ">", "=", "!", "?", ":", ",", ";", "(", ".", "...", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "++", "--", "=>", "===", "!==", "&", "|"].
     If stops contains c:
         Return true.
     If c is equal to chr(91):
