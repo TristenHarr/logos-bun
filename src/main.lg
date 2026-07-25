@@ -7885,6 +7885,27 @@
 
 # The name declared by a top-level `let`/`var` scalar statement whose initializer is a plain numeric literal
 # — else "" (not a boxable scalar: destructuring, non-numeric init, or not a declaration).
+# A captured scalar is boxable iff its initializer is a PRIMITIVE literal — a number, a boolean, null,
+# undefined, or a bare string literal. Objects/arrays/functions/expressions are excluded: they are already
+# heap references (or reassignment-carrying values) that must not be double-wrapped. Restricting to numbers
+# used to drop the common outer-flag idiom (`let done=false; …; done=true` inside a closure) on the floor.
+## To isBoxableInit (init: Text) -> Bool:
+    Let t be trim(concat(init, "")).
+    If isNumericStr(concat(t, "")):
+        Return true.
+    If t is equal to "true":
+        Return true.
+    If t is equal to "false":
+        Return true.
+    If t is equal to "null":
+        Return true.
+    If t is equal to "undefined":
+        Return true.
+    If hasSep(concat(t, ""), " ") is equal to false:
+        If startsWith(concat(t, ""), chr(34)):
+            Return true.
+    Return false.
+
 ## To scalarDeclName (s: Text) -> Text:
     Let kw be declKw(trim(concat(s, ""))).
     If kw is equal to "":
@@ -7895,7 +7916,7 @@
     Let nm be trim(substringBefore(concat(rest, ""), " = ")).
     If isSimpleName(concat(nm, "")) is equal to false:
         Return "".
-    If isNumericStr(trim(substringAfter(concat(rest, ""), " = "))):
+    If isBoxableInit(trim(substringAfter(concat(rest, ""), " = "))):
         Return nm.
     Return "".
 
@@ -7909,7 +7930,48 @@
 
 # `name` used as a closure PARAMETER (`name =>` or a member of a parenthesised parameter list) — a distinct
 # binding that shadows the outer scalar, so boxing must be skipped to avoid rewriting the inner name.
-## To paramScan (toks: Seq of Text, i: Int, name: Text) -> Bool:
+# The index of the ")" matching the "(" that opens just after `i` (depth starts at 1); 0 if unbalanced.
+## To fwdParenClose (toks: Seq of Text, i: Int, depth: Int) -> Int:
+    If i is greater than length of toks:
+        Return 0.
+    Let c be item i of toks.
+    If c is equal to "(":
+        Return fwdParenClose(toks, i + 1, depth + 1).
+    If c is equal to ")":
+        If depth is equal to 1:
+            Return i.
+        Return fwdParenClose(toks, i + 1, depth - 1).
+    Return fwdParenClose(toks, i + 1, depth).
+
+# Scanning back from inside a parenthesized group, the index of the "(" that encloses it (0 if none).
+## To backParenOpen (toks: Seq of Text, i: Int, depth: Int) -> Int:
+    If i is less than 1:
+        Return 0.
+    Let c be item i of toks.
+    If c is equal to ")":
+        Return backParenOpen(toks, i - 1, depth + 1).
+    If c is equal to "(":
+        If depth is equal to 0:
+            Return i.
+        Return backParenOpen(toks, i - 1, depth - 1).
+    Return backParenOpen(toks, i - 1, depth).
+
+# Is the "(" at index `oi` a PARAMETER-list opener rather than a call / grouping / if-while condition?
+# Two forms: `function (` (preceded by the function keyword) or an arrow — its matching `)` is followed
+# by `=>`. A call `f(x)`, `if(x)`, `String(x)` fails both, so its argument is never mistaken for a param.
+## To isParamOpener (s: Text, oi: Int) -> Bool:
+    Let toks be split(concat(s, ""), " ").
+    If oi is greater than 1:
+        If item (oi - 1) of toks is equal to "function":
+            Return true.
+    Let ci be fwdParenClose(split(concat(s, ""), " "), oi + 1, 1).
+    If ci is greater than 0:
+        If ci is less than length of toks:
+            If item (ci + 1) of toks is equal to "=>":
+                Return true.
+    Return false.
+
+## To paramScan (toks: Seq of Text, s: Text, i: Int, name: Text) -> Bool:
     If i is greater than length of toks:
         Return false.
     If item i of toks is equal to concat(name, ""):
@@ -7921,12 +7983,16 @@
             If prev is equal to "(":
                 If i is less than length of toks:
                     If paramBoundary(item (i + 1) of toks):
-                        Return true.
+                        If isParamOpener(concat(s, ""), i - 1):
+                            Return true.
             If prev is equal to ",":
                 If i is less than length of toks:
                     If paramBoundary(item (i + 1) of toks):
-                        Return true.
-    Return paramScan(toks, i + 1, concat(name, "")).
+                        Let oi be backParenOpen(split(concat(s, ""), " "), i - 1, 0).
+                        If oi is greater than 0:
+                            If isParamOpener(concat(s, ""), oi):
+                                Return true.
+    Return paramScan(toks, concat(s, ""), i + 1, concat(name, "")).
 
 ## To paramBoundary (t: Text) -> Bool:
     If t is equal to ")":
@@ -7936,7 +8002,7 @@
     Return false.
 
 ## To usedAsParam (flat: Text, name: Text) -> Bool:
-    Return paramScan(split(concat(flat, ""), " "), 1, concat(name, "")).
+    Return paramScan(split(concat(flat, ""), " "), concat(flat, ""), 1, concat(name, "")).
 
 # `name` declared more than once (a nested re-declaration shadows) — count `let`/`var`/`const name ` starts.
 ## To declaredTwice (flat: Text, name: Text) -> Bool:
