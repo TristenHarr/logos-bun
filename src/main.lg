@@ -5121,6 +5121,16 @@
     Let names be ["Number", "String", "Boolean", "isNaN", "isFinite", "parseFloat"].
     Return names contains name.
 
+# A bare reference to a one-argument built-in METHOD (Math.sqrt, Number.isInteger) used as a callback:
+# a normalized `Math . x` / `Number . x` of exactly three tokens (namespace, dot, method — no call/args).
+# synthGlobalCb wraps it as (__cbx) => Namespace.method(__cbx), so it rides the ordinary closure path.
+## To isDottedBuiltinFn (s: Text) -> Bool:
+    If startsWith(trim(concat(s, "")), "Math . "):
+        Return length of split(trim(concat(s, "")), " ") is equal to 3.
+    If startsWith(trim(concat(s, "")), "Number . "):
+        Return length of split(trim(concat(s, "")), " ") is equal to 3.
+    Return false.
+
 # Synthesize the closure `(__cbx) => <name>(__cbx)` so a bare global-fn callback rides the ordinary
 # closure-application path (callFnIdx/callFn) like any user arrow.
 ## To synthGlobalCb (name: Text) -> Text:
@@ -5144,6 +5154,8 @@
     If isFnLiteral(s):
         Return funcValueOf(s).
     If isUnaryGlobalFn(trim(concat(s, ""))):
+        Return synthGlobalCb(trim(concat(s, ""))).
+    If isDottedBuiltinFn(concat(s, "")):
         Return synthGlobalCb(trim(concat(s, ""))).
     Return jsEvalIn(s, env).
 
