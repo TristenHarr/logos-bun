@@ -9401,6 +9401,8 @@
                 If isFnLiteral(trim(substringAfter(s, " = "))):
                     Return envSet(env, protoKey(concat(lhs, "")), funcValueOf(substitute(trim(substringAfter(s, " = ")), env))).
                 Return envSet(env, protoKey(concat(lhs, "")), jsEvalIn(substringAfter(s, " = "), env)).
+            If isFnLiteral(trim(substringAfter(s, " = "))):
+                Return assignTarget(lhs, fnArgValRaw(trim(substringAfter(s, " = ")), env), env).
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
         If hasSep(lhs, chr(91)):
             Return assignTarget(lhs, jsEvalIn(substringAfter(s, " = "), concat(env, "")), env).
