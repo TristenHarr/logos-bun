@@ -7201,6 +7201,12 @@
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
     Let asgn be stripParenWrap(concat(te, "")).
+    If hasSep(concat(asgn, ""), " , "):
+        Let seqToks be split(concat(asgn, ""), " ").
+        Let seqIdx be topBinIdx(seqToks, 1, 0, ",").
+        If seqIdx is greater than 0:
+            Let seqHead be jsEvalIn(joinRange(seqToks, 1, seqIdx - 1, ""), env).
+            Return jsEvalIn(joinRange(seqToks, seqIdx + 1, length of seqToks, ""), env).
     Let cmpd be exprCompoundRewrite(concat(asgn, "")).
     If cmpd is not equal to "":
         Return jsEvalIn(concat(cmpd, ""), env).
