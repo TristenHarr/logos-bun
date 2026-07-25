@@ -8446,6 +8446,8 @@
         Return "".
     Let rest be trim(substringAfter(trim(concat(s, "")), kw)).
     If hasTopSep(concat(rest, ""), " = ") is equal to false:
+        If isSimpleName(concat(rest, "")):
+            Return trim(concat(rest, "")).
         Return "".
     Let nm be trim(substringBefore(concat(rest, ""), " = ")).
     If isSimpleName(concat(nm, "")) is equal to false:
@@ -8587,12 +8589,14 @@
         Return false.
     Let rest be trim(substringAfter(trim(concat(stmt, "")), kw)).
     If hasTopSep(concat(rest, ""), " = ") is equal to false:
-        Return false.
+        Return trim(concat(rest, "")) is equal to concat(name, "").
     Return trim(substringBefore(concat(rest, ""), " = ")) is equal to concat(name, "").
 
 ## To boxDecl (stmt: Text, name: Text) -> Text:
     Let kw be declKw(trim(concat(stmt, ""))).
     Let rest be trim(substringAfter(trim(concat(stmt, "")), kw)).
+    If hasTopSep(concat(rest, ""), " = ") is equal to false:
+        Return concat(kw, concat(name, concat(" = ", concat(chr(123), concat(" v : undefined ", chr(125)))))).
     Let init be trim(substringAfter(concat(rest, ""), " = ")).
     Return concat(kw, concat(name, concat(" = ", concat(chr(123), concat(" v : ", concat(init, concat(" ", chr(125)))))))).
 
