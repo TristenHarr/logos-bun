@@ -8101,28 +8101,30 @@
     Let inner be substringAfter(stmt, "(").
     Let condRaw be balancedArg(concat(inner, ""), 1, 0, "").
     Let cond be trim(condRaw).
+    Let av be condAsgVar(concat(cond, "")).
+    Let cenv be condStep(concat(cond, ""), concat(av, ""), env).
     Let afterCond be trim(strSliceLoop(inner, (charLen(concat(condRaw, ""))) + 2, length of inner, "")).
     If startsWith(afterCond, chr(123)):
         Let thenBlock be braceBody(substringAfter(afterCond, chr(123)), 1, 0, "").
-        If boolOf(jsEvalIn(cond, env)):
-            Return runBlockStr(thenBlock, env).
+        If boolOf(condTruth(concat(cond, ""), concat(av, ""), cenv)):
+            Return runBlockStr(thenBlock, cenv).
         Let afterClose be trim(substringAfter(substringAfter(afterCond, chr(123)), chr(125))).
         If startsWith(afterClose, "else"):
             Let afterElse be trim(substringAfter(afterClose, "else")).
             If startsWith(afterElse, "if "):
-                Return execIf(afterElse, env).
+                Return execIf(afterElse, cenv).
             Let elseBlock be braceBody(substringAfter(afterElse, chr(123)), 1, 0, "").
-            Return runBlockStr(elseBlock, env).
-        Return env.
+            Return runBlockStr(elseBlock, cenv).
+        Return cenv.
     Let consequent be stripTrailSemi(trim(substringBefore(afterCond, " else "))).
-    If boolOf(jsEvalIn(cond, env)):
-        Return execStmt(consequent, env).
+    If boolOf(condTruth(concat(cond, ""), concat(av, ""), cenv)):
+        Return execStmt(consequent, cenv).
     If substringBefore(afterCond, " else ") is not equal to afterCond:
         Let elsePart be stripTrailSemi(trim(substringAfter(afterCond, " else "))).
         If startsWith(elsePart, "if "):
-            Return execIf(elsePart, env).
-        Return execStmt(elsePart, env).
-    Return env.
+            Return execIf(elsePart, cenv).
+        Return execStmt(elsePart, cenv).
+    Return cenv.
 
 ## To braceBody (s: Text, i: Int, depth: Int, acc: Text) -> Text:
     Return braceBodyN(concat(s, ""), i, depth, acc, charLen(concat(s, ""))).
@@ -9237,13 +9239,74 @@
         Return braceBody(substringAfter(afterClose, chr(123)), 1, 0, "").
     Return trim(afterClose).
 
+# A while/if condition that is a bare scalar assignment `VAR = RHS` (VAR a simple name, `=` at the top
+# level — `while (m = re.exec(s))`, `if (x = f())`) must run the assignment as a STATEMENT so the write
+# persists (an expression-position bare-scalar write is dropped, since expression evaluation cannot
+# thread the env back) and then test VAR. condAssignVar returns VAR for such a condition else ""; a
+# member target (o.x = …) persists on its own and a nested/parenthesized assignment ((m=x) !== null) has
+# no top-level `=`, so both stay on the ordinary jsEvalIn path (condStep/condTruth are then no-ops).
+## To condAssignVar (cond: Text) -> Text:
+    Let toks be split(concat(cond, ""), " ").
+    Let eqIdx be firstTopAssignIdx(toks, 1, 0, "").
+    If eqIdx is less than 2:
+        Return "".
+    Let lhs be trim(joinRange(toks, 1, eqIdx - 1, "")).
+    If isSimpleName(concat(lhs, "")):
+        Return lhs.
+    Return "".
+
+# The bare-scalar assignment inside a leading parenthesized group — `( VAR = RHS ) OP …`, as in
+# `while ((m = re.exec(s)) !== null)` or `while ((i = i + 1) <= 3)`. condParenInner returns the group's
+# contents when the condition opens with `(`, else ""; condAsgVar reports the assigned VAR for either the
+# top-level or the leading-paren form.
+## To condParenInner (cond: Text) -> Text:
+    Let c be trim(concat(cond, "")).
+    If startsWith(concat(c, ""), "(") is equal to false:
+        Return "".
+    Return trim(balancedArg(concat(substringAfter(concat(c, ""), "("), ""), 1, 0, "")).
+
+## To condAsgVar (cond: Text) -> Text:
+    Let v1 be condAssignVar(concat(cond, "")).
+    If v1 is not equal to "":
+        Return v1.
+    Return condAssignVar(condParenInner(concat(cond, ""))).
+
+# The assignment statement to run so its scalar write persists: the whole condition for the top-level
+# form, or just the parenthesized group's contents for the leading-paren form.
+## To condAsgStmt (cond: Text) -> Text:
+    If condAssignVar(concat(cond, "")) is not equal to "":
+        Return concat(cond, "").
+    Return condParenInner(concat(cond, "")).
+
+# The condition rewritten with the assignment reduced to its variable, for the truth test — `VAR` for the
+# top-level form, `( VAR ) OP …` (the rest after the group preserved) for the leading-paren form.
+## To condAsgRewrite (cond: Text, av: Text) -> Text:
+    If condAssignVar(concat(cond, "")) is not equal to "":
+        Return concat(av, "").
+    Let after be concat(substringAfter(trim(concat(cond, "")), "("), "").
+    Let inner be balancedArg(concat(after, ""), 1, 0, "").
+    Let rest be trim(strSliceLoop(concat(after, ""), (charLen(concat(inner, ""))) + 2, length of after, "")).
+    Return trim(concat(concat(concat(concat("( ", av), " ) "), rest), "")).
+
+## To condStep (cond: Text, av: Text, env: Text) -> Text:
+    If av is equal to "":
+        Return env.
+    Return execStmt(condAsgStmt(concat(cond, "")), env).
+
+## To condTruth (cond: Text, av: Text, env: Text) -> Text:
+    If av is equal to "":
+        Return jsEvalIn(concat(cond, ""), env).
+    Return jsEvalIn(condAsgRewrite(concat(cond, ""), concat(av, "")), env).
+
 ## To execWhile (stmt: Text, lbl: Text, env: Text) -> Text:
     If hasHalt(env):
         Return env.
     Let cond be trim(balancedArg(concat(substringAfter(stmt, "("), ""), 1, 0, "")).
     Let body be loopBody(concat(stmt, "")).
-    If boolOf(jsEvalIn(cond, env)):
-        Let afterBody be runBlockStr(body, env).
+    Let av be condAsgVar(concat(cond, "")).
+    Let cenv be condStep(concat(cond, ""), concat(av, ""), env).
+    If boolOf(condTruth(concat(cond, ""), concat(av, ""), cenv)):
+        Let afterBody be runBlockStr(body, cenv).
         If hasHalt(afterBody):
             Return afterBody.
         If hasBreak(afterBody):
@@ -9255,7 +9318,7 @@
                 Return execWhile(stmt, lbl, clearContinue(afterBody)).
             Return afterBody.
         Return execWhile(stmt, lbl, afterBody).
-    Return env.
+    Return cenv.
 
 ## To clearContIf (env: Text) -> Text:
     If hasContinue(env):
