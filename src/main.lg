@@ -9713,6 +9713,160 @@
         Return desugarArrows(buildArrow(joinRange(lt, 1, openIdx - 1, ""), joinRange(lt, openIdx + 1, nL - 1, ""), right)).
     Return desugarArrows(buildArrow(joinRange(lt, 1, nL - 1, ""), lastL, right)).
 
+# Tagged templates: `tag`...`` calls `tag(strings, ...values)` where strings is the array of cooked
+# quasis. This PRE-PASS (runs before desugarTemplates) rewrites `tag`a${x}b`` → `tag([ "a" , "b" ] , ( x ))`
+# and `String.raw`a${x}b`` → `( "a" + ( x ) + "b" )` with the quasis kept RAW (backslashes doubled so
+# normJs preserves them). A backtick preceded by a NON-keyword identifier/member is a tag; anything else
+# (a bare/keyword-preceded template) is left for desugarTemplates.
+
+# Keywords that can precede a template WITHOUT being its tag (so `return`x`` is a returned template).
+## To isTagKeyword (w: Text) -> Bool:
+    Let kws be ["return", "typeof", "void", "delete", "instanceof", "yield", "await", "case", "do", "else", "new", "throw", "in", "of"].
+    Return kws contains concat(w, "").
+
+# Walk back from the last char of a tag (index i) over identifier chars and dots to the tag's start.
+## To tagStartIdx (s: Text, i: Int) -> Int:
+    If i is less than 1:
+        Return 1.
+    Let c be item i of s.
+    If rxIsIdentChar(c):
+        Return tagStartIdx(concat(s, ""), i - 1).
+    If c is equal to ".":
+        Return tagStartIdx(concat(s, ""), i - 1).
+    Return i + 1.
+
+# From just after an opening backtick, the index of its matching close backtick (0 if none). `${` (and any
+# `{` inside it) raise the brace depth; a backtick only closes at depth 0.
+## To btickClose (s: Text, i: Int, bdepth: Int, len: Int) -> Int:
+    If i is greater than len:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to chr(96):
+        If bdepth is equal to 0:
+            Return i.
+        Return btickClose(concat(s, ""), i + 1, bdepth, len).
+    If c is equal to "$":
+        If i is less than len:
+            If item (i + 1) of s is equal to chr(123):
+                Return btickClose(concat(s, ""), i + 2, bdepth + 1, len).
+    If c is equal to chr(123):
+        If bdepth is greater than 0:
+            Return btickClose(concat(s, ""), i + 1, bdepth + 1, len).
+    If c is equal to chr(125):
+        If bdepth is greater than 0:
+            Return btickClose(concat(s, ""), i + 1, bdepth - 1, len).
+    Return btickClose(concat(s, ""), i + 1, bdepth, len).
+
+# Index of the first TAGGED opening backtick (0 if none). Skips chr34 strings and whole untagged templates
+# so an interior/closing backtick is never mistaken for a tag.
+## To firstTaggedBtick (s: Text, i: Int, inStr: Int, len: Int) -> Int:
+    If i is greater than len:
+        Return 0.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        If inStr is equal to 0:
+            Return firstTaggedBtick(concat(s, ""), i + 1, 1, len).
+        Return firstTaggedBtick(concat(s, ""), i + 1, 0, len).
+    If inStr is equal to 1:
+        Return firstTaggedBtick(concat(s, ""), i + 1, 1, len).
+    If c is equal to chr(96):
+        If i is greater than 1:
+            If rxIsIdentChar(item (i - 1) of s):
+                Let tagw be strSliceLoop(concat(s, ""), tagStartIdx(concat(s, ""), i - 1), i - 1, "").
+                If isTagKeyword(concat(tagw, "")) is equal to false:
+                    Return i.
+        Let ce be btickClose(concat(s, ""), i + 1, 0, len).
+        If ce is equal to 0:
+            Return 0.
+        Return firstTaggedBtick(concat(s, ""), ce + 1, inStr, len).
+    Return firstTaggedBtick(concat(s, ""), i + 1, inStr, len).
+
+## To tqAppend (acc: Text, piece: Text) -> Text:
+    If concat(acc, "") is equal to "":
+        Return concat(piece, "").
+    Return concat(concat(concat(acc, ""), " , "), concat(piece, "")).
+
+# A quasi emitted as a chr34 string literal for the COOKED strings array: escape a literal quote and turn
+# a real newline into \n, then let normJs process the template escapes (\n, \t, \xHH) as usual.
+## To tqQuote (q: Text) -> Text:
+    Let e1 be replaceAll(concat(q, ""), chr(34), concat(chr(92), chr(34))).
+    Let e2 be replaceAll(concat(e1, ""), chr(10), concat(chr(92), "n")).
+    Return concat(concat(chr(34), concat(e2, "")), chr(34)).
+
+# A RAW quasi (for String.raw): keep backslashes literal by DOUBLING them so normJs's \-processing leaves
+# one behind; escape quotes and newlines too.
+## To tqQuoteRaw (q: Text) -> Text:
+    Let e0 be replaceAll(concat(q, ""), chr(92), concat(chr(92), chr(92))).
+    Let e1 be replaceAll(concat(e0, ""), chr(34), concat(chr(92), chr(34))).
+    Let e2 be replaceAll(concat(e1, ""), chr(10), concat(chr(92), "n")).
+    Return concat(concat(chr(34), concat(e2, "")), chr(34)).
+
+# Walk a template body into a tag call's arg list: `[ "q0" , "q1" , … ] , ( e0 ) , ( e1 ) , …`. mode 0 =
+# accumulating a quasi, mode 1 = accumulating an interpolated expression (edepth tracks its braces).
+## To tagBodyWalk (body: Text, i: Int, mode: Int, edepth: Int, qacc: Text, eacc: Text, quasis: Text, exprs: Text, len: Int) -> Text:
+    If i is greater than len:
+        Let q2 be tqAppend(concat(quasis, ""), tqQuote(concat(qacc, ""))).
+        If concat(exprs, "") is equal to "":
+            Return concat(concat("[ ", concat(q2, "")), " ]").
+        Return concat(concat(concat(concat("[ ", concat(q2, "")), " ] , "), concat(exprs, "")), "").
+    Let c be item i of body.
+    If mode is equal to 0:
+        If c is equal to "$":
+            If i is less than len:
+                If item (i + 1) of body is equal to chr(123):
+                    Let q2 be tqAppend(concat(quasis, ""), tqQuote(concat(qacc, ""))).
+                    Return tagBodyWalk(body, i + 2, 1, 1, "", "", q2, concat(exprs, ""), len).
+            Return tagBodyWalk(body, i + 1, 0, 0, concat(qacc, c), "", concat(quasis, ""), concat(exprs, ""), len).
+        Return tagBodyWalk(body, i + 1, 0, 0, concat(qacc, c), "", concat(quasis, ""), concat(exprs, ""), len).
+    If c is equal to chr(123):
+        Return tagBodyWalk(body, i + 1, 1, edepth + 1, concat(qacc, ""), concat(eacc, c), concat(quasis, ""), concat(exprs, ""), len).
+    If c is equal to chr(125):
+        If edepth is equal to 1:
+            Let e2 be tqAppend(concat(exprs, ""), concat(concat(" ( ", concat(eacc, "")), " ) ")).
+            Return tagBodyWalk(body, i + 1, 0, 0, "", "", concat(quasis, ""), e2, len).
+        Return tagBodyWalk(body, i + 1, 1, edepth - 1, concat(qacc, ""), concat(eacc, c), concat(quasis, ""), concat(exprs, ""), len).
+    Return tagBodyWalk(body, i + 1, 1, edepth, concat(qacc, ""), concat(eacc, c), concat(quasis, ""), concat(exprs, ""), len).
+
+# String.raw`…` → a concatenation of RAW quasis and interpolated values: `( "raw0" + ( e0 ) + "raw1" … )`.
+## To rawBodyWalk (body: Text, i: Int, mode: Int, edepth: Int, qacc: Text, eacc: Text, out: Text, len: Int) -> Text:
+    If i is greater than len:
+        Return concat(concat(concat("( ", concat(out, "")), tqQuoteRaw(concat(qacc, ""))), " )").
+    Let c be item i of body.
+    If mode is equal to 0:
+        If c is equal to "$":
+            If i is less than len:
+                If item (i + 1) of body is equal to chr(123):
+                    Return rawBodyWalk(body, i + 2, 1, 1, "", "", concat(concat(concat(out, ""), tqQuoteRaw(concat(qacc, ""))), " + "), len).
+            Return rawBodyWalk(body, i + 1, 0, 0, concat(qacc, c), "", concat(out, ""), len).
+        Return rawBodyWalk(body, i + 1, 0, 0, concat(qacc, c), "", concat(out, ""), len).
+    If c is equal to chr(123):
+        Return rawBodyWalk(body, i + 1, 1, edepth + 1, concat(qacc, ""), concat(eacc, c), concat(out, ""), len).
+    If c is equal to chr(125):
+        If edepth is equal to 1:
+            Return rawBodyWalk(body, i + 1, 0, 0, "", "", concat(concat(concat(out, ""), concat(concat("( ", concat(eacc, "")), " ) + ")), ""), len).
+        Return rawBodyWalk(body, i + 1, 1, edepth - 1, concat(qacc, ""), concat(eacc, c), concat(out, ""), len).
+    Return rawBodyWalk(body, i + 1, 1, edepth, concat(qacc, ""), concat(eacc, c), concat(out, ""), len).
+
+## To desugarTaggedTemplates (s: Text) -> Text:
+    Let n be charLen(concat(s, "")).
+    Let bi be firstTaggedBtick(concat(s, ""), 1, 0, n).
+    If bi is equal to 0:
+        Return concat(s, "").
+    Let ce be btickClose(concat(s, ""), bi + 1, 0, n).
+    If ce is equal to 0:
+        Return concat(s, "").
+    Let ts be tagStartIdx(concat(s, ""), bi - 1).
+    Let tag be strSliceLoop(concat(s, ""), ts, bi - 1, "").
+    Let before be strSliceLoop(concat(s, ""), 1, ts - 1, "").
+    Let body be strSliceLoop(concat(s, ""), bi + 1, ce - 1, "").
+    Let after be strSliceLoop(concat(s, ""), ce + 1, n, "").
+    If concat(tag, "") is equal to "String.raw":
+        Let raw be rawBodyWalk(concat(body, ""), 1, 0, 0, "", "", "", charLen(concat(body, ""))).
+        Return desugarTaggedTemplates(concat(concat(concat(before, " "), concat(raw, "")), concat(after, ""))).
+    Let args be tagBodyWalk(concat(body, ""), 1, 0, 0, "", "", "", "", charLen(concat(body, ""))).
+    Let callTxt be concat(concat(concat(concat(concat(before, " "), concat(tag, "")), " ( "), concat(args, "")), " ) ").
+    Return desugarTaggedTemplates(concat(concat(callTxt, ""), concat(after, ""))).
+
 ## To desugarTemplates (s: Text, i: Int, mode: Int, depth: Int, acc: Text) -> Text:
     Return desugarTemplatesN(concat(s, ""), i, mode, depth, acc, charLen(concat(s, ""))).
 
@@ -10461,7 +10615,8 @@
 ## To normalizeJs (s: Text) -> Text:
     Let sq be classBodySemis(convertQuotes(stripNumSeps(s))).
     Let rx be desugarRegexLits(sq, 1, "", false, "", "").
-    Let templated be desugarTemplates(rx, 1, 0, 0, "").
+    Let tagged be desugarTaggedTemplates(concat(rx, "")).
+    Let templated be desugarTemplates(tagged, 1, 0, 0, "").
     Let normed be joinNonEmpty(split(normJs(templated, 1, false, ""), " "), 1, "").
     Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed))))), " "), 1, "").
 
