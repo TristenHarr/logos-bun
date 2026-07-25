@@ -7174,6 +7174,30 @@
         Return true.
     Return eqIdx is less than qIdx.
 
+# The index of the first TOP-LEVEL (paren/bracket/brace depth 0) occurrence of a binary operator token
+# (`||`, `??`, `&&`) — for lazy short-circuit evaluation in jsEvalIn. The operator is always its own
+# space-delimited token (string contents are a single token), so no string-depth tracking is needed.
+## To topBinIdx (tks: Seq of Text, i: Int, depth: Int, op: Text) -> Int:
+    If i is greater than length of tks:
+        Return 0.
+    Let t be item i of tks.
+    If t is equal to "(":
+        Return topBinIdx(tks, i + 1, depth + 1, op).
+    If t is equal to chr(91):
+        Return topBinIdx(tks, i + 1, depth + 1, op).
+    If t is equal to chr(123):
+        Return topBinIdx(tks, i + 1, depth + 1, op).
+    If t is equal to ")":
+        Return topBinIdx(tks, i + 1, depth - 1, op).
+    If t is equal to chr(93):
+        Return topBinIdx(tks, i + 1, depth - 1, op).
+    If t is equal to chr(125):
+        Return topBinIdx(tks, i + 1, depth - 1, op).
+    If depth is equal to 0:
+        If t is equal to op:
+            Return i.
+    Return topBinIdx(tks, i + 1, depth, op).
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
     Let asgn be stripParenWrap(concat(te, "")).
@@ -7205,6 +7229,24 @@
             If boolOf(jsEvalIn(cond, env)):
                 Return jsEvalIn(tb, env).
             Return jsEvalIn(fb, env).
+    Let orIdx be topBinIdx(tks, 1, 0, "||").
+    If orIdx is greater than 0:
+        Let lov be jsEvalIn(joinRange(tks, 1, orIdx - 1, ""), env).
+        If boolOf(concat(lov, "")):
+            Return lov.
+        Return jsEvalIn(joinRange(tks, orIdx + 1, length of tks, ""), env).
+    Let ncIdx be topBinIdx(tks, 1, 0, "??").
+    If ncIdx is greater than 0:
+        Let lnv be jsEvalIn(joinRange(tks, 1, ncIdx - 1, ""), env).
+        If isNullish(concat(lnv, "")):
+            Return jsEvalIn(joinRange(tks, ncIdx + 1, length of tks, ""), env).
+        Return lnv.
+    Let andIdx be topBinIdx(tks, 1, 0, "&&").
+    If andIdx is greater than 0:
+        Let lav be jsEvalIn(joinRange(tks, 1, andIdx - 1, ""), env).
+        If boolOf(concat(lav, "")) is equal to false:
+            Return lav.
+        Return jsEvalIn(joinRange(tks, andIdx + 1, length of tks, ""), env).
     Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(te, env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
