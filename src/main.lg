@@ -7575,22 +7575,56 @@
     Let subd be substitute(joinNonEmpty(split(resolveCalls(resolveMethods(te, env), env), " "), 1, ""), env).
     Return evalResolved(subd).
 
-# Optional chaining `a ?. b`: if the receiver is null/undefined the whole access is
-# undefined (and `undefined ?. x` stays undefined, short-circuiting the rest of the
-# chain); otherwise it behaves like `.` — so we rewrite `?.` to `.` and let the normal
-# member/index resolution take over on the next fixpoint pass.
+# Balanced `[ … ]` contents (like braceBody, for brackets) — used to consume an optional index group.
+## To bracketBody (s: Text, i: Int, depth: Int, acc: Text) -> Text:
+    Return bracketBodyN(concat(s, ""), i, depth, acc, charLen(concat(s, ""))).
+
+## To bracketBodyN (s: Text, i: Int, depth: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(91):
+        Return bracketBodyN(s, i + 1, depth + 1, concat(acc, c), len).
+    If c is equal to chr(93):
+        If depth is equal to 0:
+            Return acc.
+        Return bracketBodyN(s, i + 1, depth - 1, concat(acc, c), len).
+    Return bracketBodyN(s, i + 1, depth, concat(acc, c), len).
+
+# The chain remainder after one optional access is consumed — used when the receiver is nullish and the
+# access short-circuits to undefined: skip a balanced `[ … ]` index or `( … )` call, else a single
+# dot-member token.
+## To optChainAfter (tail: Text) -> Text:
+    Let t be trim(concat(tail, "")).
+    If startsWith(concat(t, ""), chr(91)):
+        Let ab be substringAfter(concat(t, ""), chr(91)).
+        Let ib be bracketBody(concat(ab, ""), 1, 0, "").
+        Return trim(strSliceLoop(concat(ab, ""), (charLen(concat(ib, ""))) + 2, length of ab, "")).
+    If startsWith(concat(t, ""), chr(40)):
+        Let ap be substringAfter(concat(t, ""), chr(40)).
+        Let ip be balancedArg(concat(ap, ""), 1, 0, "").
+        Return trim(strSliceLoop(concat(ap, ""), (charLen(concat(ip, ""))) + 2, length of ap, "")).
+    Let toks be split(concat(t, ""), " ").
+    Return joinRange(toks, 2, length of toks, "").
+
+# Optional chaining `a ?. b` / `a ?. [k]` / `a ?. (args)`: if the receiver is null/undefined the whole
+# access is undefined (the access group is consumed, short-circuiting); otherwise it behaves like the
+# plain access — a dot member rewrites `?.` to `.`, but an index or call JUXTAPOSES (no dot: `a [k]` /
+# `a (args)`), and the normal member/index/call resolution takes over on the next fixpoint pass.
 ## To resolveOptChain (expr: Text) -> Text:
     If substringBefore(expr, " ?. ") is equal to expr:
         Return expr.
     Let lhs be substringBefore(expr, " ?. ").
-    Let tail be substringAfter(expr, " ?. ").
+    Let tail be trim(substringAfter(expr, " ?. ")).
     Let lhsToks be split(lhs, " ").
     Let recv be item (length of lhsToks) of lhsToks.
     If isNullish(recv):
-        Let tailToks be split(tail, " ").
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
-        Let restToks be joinRange(tailToks, 2, length of tailToks, "").
-        Return trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks)).
+        Return trim(concat(concat(concat(newPrefix, " undefined "), optChainAfter(concat(tail, ""))), "")).
+    If startsWith(concat(tail, ""), chr(91)):
+        Return concat(concat(lhs, " "), tail).
+    If startsWith(concat(tail, ""), chr(40)):
+        Return concat(concat(lhs, " "), tail).
     Return concat(concat(lhs, " . "), tail).
 
 # The constructor NAME for a value — what `x.constructor.name` reports. An Error (a heap object carrying
@@ -7660,7 +7694,7 @@
     Return resolveCtor(trim(concat(concat(concat(newPrefix, " "), cobj), tail))).
 
 ## To resolveAccess (expr: Text) -> Text:
-    Let once be resolveOptChain(resolveArrays(resolveObjDot(resolveCtor(expr)))).
+    Let once be resolveArrays(resolveOptChain(resolveObjDot(resolveCtor(expr)))).
     If once is equal to expr:
         Return once.
     Return resolveAccess(once).
