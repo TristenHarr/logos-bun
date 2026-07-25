@@ -7133,6 +7133,9 @@
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
     Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
     Let asgn be stripParenWrap(concat(te, "")).
+    Let cmpd be exprCompoundRewrite(concat(asgn, "")).
+    If cmpd is not equal to "":
+        Return jsEvalIn(concat(cmpd, ""), env).
     Let atks be split(concat(asgn, ""), " ").
     Let eqIdx be firstTopAssignIdx(atks, 1, 0, "").
     If eqIdx is greater than 0:
@@ -8201,6 +8204,76 @@
         If markerInBody(concat(s, ""), " ??= ") is equal to false:
             If isMemberTarget(trim(substringBefore(s, " ??= "))):
                 Return concat(concat(trim(substringBefore(s, " ??= ")), " = "), concat(concat(trim(substringBefore(s, " ??= ")), " ?? "), trim(substringAfter(s, " ??= ")))).
+    Return "".
+
+# Compound assignment in EXPRESSION position (`return x += 5`, `[x += 1]`, `y = (x ??= d)`). Unlike
+# memberCompoundRewrite (statement path, member targets only), this rewrites ANY simple target —
+# `LHS OP= RHS` → `LHS = LHS baseop ( RHS )` (parens keep the RHS's precedence, so `x *= a + b` stays
+# `x * (a + b)`) — and the value-returning `=` expression handler then evaluates it. Logical assigns map
+# to `x || (RHS)` / `x && (RHS)` / `x ?? (RHS)`, which yield the correct value. The target must be a bare
+# identifier or a member access (`o.a`, `a[i]`), so a compound op nested inside a call `foo(a += b)` is
+# left for the sub-expression pass. Returns "" when there is no top-level compound assignment.
+## To isSimpleAssignTarget (lhs: Text) -> Bool:
+    If isMemberTarget(concat(lhs, "")):
+        Return true.
+    If trim(concat(lhs, "")) is equal to "":
+        Return false.
+    If hasSep(trim(concat(lhs, "")), " "):
+        Return false.
+    Return true.
+
+## To coRewrite (s: Text, opstr: Text, baseop: Text) -> Text:
+    Let lhs be trim(substringBefore(concat(s, ""), concat(opstr, ""))).
+    If isSimpleAssignTarget(concat(lhs, "")) is equal to false:
+        Return "".
+    Let rhs be trim(substringAfter(concat(s, ""), concat(opstr, ""))).
+    Return concat(concat(concat(concat(concat(concat(concat(concat(lhs, ""), " = "), concat(lhs, "")), " "), concat(baseop, "")), " ( "), concat(rhs, "")), " )").
+
+## To exprCompoundRewrite (s: Text) -> Text:
+    If hasSep(concat(s, ""), "= ") is equal to false:
+        Return "".
+    If hasSep(s, " **= "):
+        If markerInBody(concat(s, ""), " **= ") is equal to false:
+            Return coRewrite(concat(s, ""), " **= ", "**").
+    If hasSep(s, " <<= "):
+        If markerInBody(concat(s, ""), " <<= ") is equal to false:
+            Return coRewrite(concat(s, ""), " <<= ", "<<").
+    If hasSep(s, " >>= "):
+        If markerInBody(concat(s, ""), " >>= ") is equal to false:
+            Return coRewrite(concat(s, ""), " >>= ", ">>").
+    If hasSep(s, " ||= "):
+        If markerInBody(concat(s, ""), " ||= ") is equal to false:
+            Return coRewrite(concat(s, ""), " ||= ", "||").
+    If hasSep(s, " &&= "):
+        If markerInBody(concat(s, ""), " &&= ") is equal to false:
+            Return coRewrite(concat(s, ""), " &&= ", "&&").
+    If hasSep(s, " ??= "):
+        If markerInBody(concat(s, ""), " ??= ") is equal to false:
+            Return coRewrite(concat(s, ""), " ??= ", "??").
+    If hasSep(s, " += "):
+        If markerInBody(concat(s, ""), " += ") is equal to false:
+            Return coRewrite(concat(s, ""), " += ", "+").
+    If hasSep(s, " -= "):
+        If markerInBody(concat(s, ""), " -= ") is equal to false:
+            Return coRewrite(concat(s, ""), " -= ", "-").
+    If hasSep(s, " *= "):
+        If markerInBody(concat(s, ""), " *= ") is equal to false:
+            Return coRewrite(concat(s, ""), " *= ", "*").
+    If hasSep(s, " /= "):
+        If markerInBody(concat(s, ""), " /= ") is equal to false:
+            Return coRewrite(concat(s, ""), " /= ", "/").
+    If hasSep(s, " %= "):
+        If markerInBody(concat(s, ""), " %= ") is equal to false:
+            Return coRewrite(concat(s, ""), " %= ", "%").
+    If hasSep(s, " &= "):
+        If markerInBody(concat(s, ""), " &= ") is equal to false:
+            Return coRewrite(concat(s, ""), " &= ", "&").
+    If hasSep(s, " |= "):
+        If markerInBody(concat(s, ""), " |= ") is equal to false:
+            Return coRewrite(concat(s, ""), " |= ", "|").
+    If hasSep(s, " ^= "):
+        If markerInBody(concat(s, ""), " ^= ") is equal to false:
+            Return coRewrite(concat(s, ""), " ^= ", "^").
     Return "".
 
 ## To objSetPath (objval: Text, segs: Seq of Text, i: Int, v: Text) -> Text:
