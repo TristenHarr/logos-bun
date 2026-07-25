@@ -1,7 +1,8 @@
 // fuzz/jsint/dowhile — `do { body } while ( cond )` runs the body ONCE before testing the guard
-// (so it always executes at least once, even when the guard is false initially). The engine had no
-// `do` handler, so the body never ran. Covers accumulation, guard-false-first, break, and continue
-// (which jumps to the guard). Random programs diffed vs Node.
+// (so it always executes at least once, even when the guard is false initially). Covers accumulation,
+// guard-false-first, break, continue (which jumps to the guard), AND a guard containing parens — a call
+// while(f()) or a grouped test while((i*i)<n) — which the naive first-`)` guard extraction truncated
+// (now balancedArg, like execWhile/execFor). Random programs diffed vs Node.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -24,12 +25,14 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const lim = () => 1 + ri(6);
   const program = () => {
-    const k = ri(6);
+    const k = ri(8);
     if (k === 0) return `let n=0;do{n=n+1}while(n<${lim()});n`;
     if (k === 1) return `let n=${5 + ri(5)};do{n=n+1}while(n<${lim()});n`;         // guard false first, runs once
     if (k === 2) { const L = lim(); return `let s="";let i=0;do{s=s+i;i=i+1}while(i<${L});s`; }
     if (k === 3) { const B = 1 + ri(5); return `let n=0;do{n=n+1;if(n===${B})break}while(n<20);n`; }
     if (k === 4) { const L = 2 + ri(4); return `let c=0;let i=0;do{i=i+1;if(i===2)continue;c=c+i}while(i<${L});c`; }
+    if (k === 5) { const L = lim(); return `let lim=function(){return ${L}};let i=0;do{i=i+1}while(i<lim());i`; } // call in guard
+    if (k === 6) { const L = 1 + ri(4); return `let i=0;do{i=i+1}while((i*i)<${L * L});i`; }                     // grouped guard
     return `let p=1;let i=0;do{i=i+1;p=p*2}while(i<${1 + ri(5)});p`;
   };
   let checked = 0;

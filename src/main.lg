@@ -9332,7 +9332,7 @@
     If hasHalt(env):
         Return env.
     Let body be braceBody(substringAfter(stmt, chr(123)), 1, 0, "").
-    Let cond be trim(substringBefore(substringAfter(substringAfter(stmt, "while"), "("), ")")).
+    Let cond be trim(balancedArg(concat(substringAfter(substringAfter(stmt, "while"), "("), ""), 1, 0, "")).
     Let afterBody be runBlockStr(body, env).
     If hasHalt(afterBody):
         Return afterBody.
@@ -9344,9 +9344,11 @@
         If flagMatchesHere(envGet(afterBody, "__continue"), lbl) is equal to false:
             Return afterBody.
     Let e2 be clearContIf(afterBody).
-    If boolOf(jsEvalIn(cond, e2)):
-        Return execDoWhile(stmt, lbl, e2).
-    Return e2.
+    Let av be condAsgVar(concat(cond, "")).
+    Let e3 be condStep(concat(cond, ""), concat(av, ""), e2).
+    If boolOf(condTruth(concat(cond, ""), concat(av, ""), e3)):
+        Return execDoWhile(stmt, lbl, e3).
+    Return e3.
 
 # An empty for-condition (`for (init;;update)`) is always true — the loop runs until an inner
 # `break`/`return` halts it.
