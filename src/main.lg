@@ -2336,7 +2336,25 @@
         Return true.
     If startsWith(concat(k, ""), "__bargs"):
         Return true.
+    If startsWith(concat(k, ""), "__frozen"):
+        Return true.
     Return false.
+
+# Object.freeze marks an object with a hidden __frozen flag (immutability itself is not yet enforced,
+# but the flag makes Object.isFrozen report correctly); the same reference is returned so identity holds.
+## To objFreeze (v: Text) -> Text:
+    If isObjRef(concat(v, "")):
+        Let m be objSet(concat(v, ""), "__frozen", concat(tagStr (), "1")).
+        Return concat(v, "").
+    Return concat(v, "").
+
+# Object.isFrozen: a primitive is always frozen; an object/array is frozen iff it carries __frozen.
+## To jsIsFrozen (v: Text) -> Bool:
+    If isObjRef(concat(v, "")):
+        Return objGet(concat(v, ""), "__frozen") is not equal to "undefined".
+    If isArrRef(concat(v, "")):
+        Return false.
+    Return true.
 
 ## To dropInternalEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of entries:
@@ -2416,22 +2434,6 @@
     Let idxStr be concat(item 1 of parts, "").
     Let restStr be concat(item 2 of parts, "").
     If concat(idxStr, "") is equal to "":
-        Return split(concat(restStr, ""), chr(10)).
-    Let sortedIdx be sortIdxEntries(split(concat(idxStr, ""), chr(10)), 1, "").
-    If concat(restStr, "") is equal to "":
-        Return split(concat(sortedIdx, ""), chr(10)).
-    Return split(nlJoin(sortedIdx, concat(restStr, "")), chr(10)).
-
-# Like objEntrySeq but reordered to JS enumeration order (index keys ascending, then string keys in
-# insertion order), WITHOUT dropping engine-internal keys — for JSON.stringify, whose key order must
-# match a real engine. objEntrySeq(objVal) is passed fresh so it is never a reused param.
-## To objEntrySeqOrdered (objVal: Text) -> Seq of Text:
-    Let parts be partitionEntries(objEntrySeq(objVal), 1, "", "").
-    Let idxStr be concat(item 1 of parts, "").
-    Let restStr be concat(item 2 of parts, "").
-    If concat(idxStr, "") is equal to "":
-        If concat(restStr, "") is equal to "":
-            Return [] of Text.
         Return split(concat(restStr, ""), chr(10)).
     Let sortedIdx be sortIdxEntries(split(concat(idxStr, ""), chr(10)), 1, "").
     If concat(restStr, "") is equal to "":
@@ -2640,7 +2642,7 @@
     If isArrRef(v):
         Return concat(concat(encBrkL (), jsonArrLoop(arrElements(v), 1, "")), encBrkR ()).
     If isObjRef(v):
-        Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeqOrdered(v), 1, "")), encBraceR ()).
+        Return concat(concat(encBraceL (), jsonObjLoop(objEntrySeqPublic(v), 1, "")), encBraceR ()).
     If isJsonOmit(concat(v, "")):
         Return "undefined".
     Return v.
@@ -2723,7 +2725,7 @@
         Return concat(concat(concat(encBrkL (), body), concat(encNewline (), pad)), encBrkR ()).
     If isObjRef(v):
         Let inner be concat(pad, gap).
-        Let body be jsonIndObjLoop(objEntrySeqOrdered(v), 1, gap, inner, "").
+        Let body be jsonIndObjLoop(objEntrySeqPublic(v), 1, gap, inner, "").
         If body is equal to "":
             Return concat(encBraceL (), encBraceR ()).
         Return concat(concat(concat(encBraceL (), body), concat(encNewline (), pad)), encBraceR ()).
@@ -6197,14 +6199,13 @@
         Let bef be substringBefore(expr, "Object . freeze (").
         Let aft be substringAfter(expr, "Object . freeze (").
         Let rst be methodRest(aft).
-        Return resolveMethods(trim(concat(concat(bef, jsEvalIn(trim(methodArg(aft)), env)), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, objFreeze(jsEvalIn(trim(methodArg(aft)), env))), rst)), env).
     If substringBefore(expr, "Object . isFrozen (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . isFrozen (") is equal to false:
         Let bef be substringBefore(expr, "Object . isFrozen (").
         Let aft be substringAfter(expr, "Object . isFrozen (").
         Let rst be methodRest(aft).
-        Let discard be jsEvalIn(trim(methodArg(aft)), env).
-        Return resolveMethods(trim(concat(concat(bef, "false"), rst)), env).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(jsIsFrozen(concat(jsEvalIn(trim(methodArg(aft)), env), "")))), rst)), env).
     Let lm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lm) is equal to expr:
         Return expr.
