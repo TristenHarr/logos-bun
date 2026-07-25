@@ -8604,6 +8604,9 @@
     Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, di - 1, "")).
     Let name be trim(joinRange(split(concat(target, ""), " "), di + 1, ntok, "")).
     Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    If isObjRef(concat(recv, "")):
+        If jsIsFrozen(concat(recv, "")):
+            Return env.
     If name is equal to "length":
         If isArrRef(concat(recv, "")):
             Return assignWriteback(concat(containerExpr, ""), arrSetLength(concat(recv, ""), safeInt(materialize(concat(value, "")))), env).
@@ -8620,6 +8623,8 @@
     Let keyExpr be trim(joinRange(split(concat(target, ""), " "), bi + 1, ntok - 1, "")).
     Let keyVal be jsEvalIn(concat(keyExpr, ""), concat(env, "")).
     Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    If jsIsFrozen(concat(recv, "")):
+        Return env.
     If isObjRef(recv):
         Return assignWriteback(concat(containerExpr, ""), objSet(recv, materialize(keyVal), value), env).
     Return assignWriteback(concat(containerExpr, ""), arrSetIdx(concat(recv, ""), safeInt(materialize(keyVal)), value), env).
