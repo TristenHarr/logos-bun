@@ -8752,7 +8752,7 @@
 # statement — rather than a function/class EXPRESSION. `let f = function(){}…` has head `let`, so its
 # `}` is expression position (member access), whereas `function g(){}…` / `if(…){}…` end a statement (ASI).
 ## To braceHeadIsStmt (acc: Text) -> Bool:
-    Let st be splitSkipSpaces(acc, lastLineStartAcc(acc, length of acc)).
+    Let st be splitSkipSpaces(acc, lastLineStartAcc(acc, charLen(concat(acc, "")))).
     If splitWordIs(acc, st, "function"):
         Return true.
     If splitWordIs(acc, st, "class"):
@@ -8781,7 +8781,7 @@
 # drives ASI: after a block `}`, a following `[`/`(` begins a NEW statement, whereas after an object /
 # function-expression `}` it is member access / a call.
 ## To braceIsBlock (acc: Text) -> Bool:
-    Let e be lastSigIdxAcc(acc, length of acc).
+    Let e be lastSigIdxAcc(acc, charLen(concat(acc, ""))).
     If e is equal to 0:
         Return true.
     Let c be item e of acc.
@@ -12169,12 +12169,69 @@
         Return stripNumSepsN(s, i + 1, 0, wk, concat(acc, c), len).
     Return stripNumSepsN(s, i + 1, 0, 0, concat(acc, c), len).
 
+# Remove `//` line and `/* */` block comments, respecting string literals ("/'/`), so a keyword inside
+# a comment (`// an error class`) can never reach the keyword desugars (desugarClass et al.) and be
+# mistaken for code. Runs AFTER regex literals are rewritten to `new RegExp("…")`, so a regex `/` is
+# already a string and cannot be misread as a comment; a division `/` (not followed by `/` or `*`) is
+# copied through. A line comment keeps its newline (ASI/line boundary); a block comment becomes a space.
+## To stripComments (s: Text) -> Text:
+    Return stripCommN(concat(s, ""), 1, charLen(concat(s, "")), "").
+
+## To stripCommN (s: Text, i: Int, len: Int, acc: Text) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(34):
+        Return stripCommStr(s, i + 1, len, concat(acc, c), chr(34)).
+    If c is equal to chr(39):
+        Return stripCommStr(s, i + 1, len, concat(acc, c), chr(39)).
+    If c is equal to chr(96):
+        Return stripCommStr(s, i + 1, len, concat(acc, c), chr(96)).
+    If c is equal to "/":
+        If i is less than len:
+            If item (i + 1) of s is equal to "/":
+                Return stripCommLine(s, i + 2, len, acc).
+            If item (i + 1) of s is equal to "*":
+                Return stripCommBlock(s, i + 2, len, acc).
+    Return stripCommN(s, i + 1, len, concat(acc, c)).
+
+## To stripCommStr (s: Text, i: Int, len: Int, acc: Text, delim: Text) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to chr(92):
+        If i is less than len:
+            Let nx be item (i + 1) of s.
+            Return stripCommStr(s, i + 2, len, concat(concat(acc, c), nx), delim).
+        Return stripCommStr(s, i + 1, len, concat(acc, c), delim).
+    If c is equal to concat(delim, ""):
+        Return stripCommN(s, i + 1, len, concat(acc, c)).
+    Return stripCommStr(s, i + 1, len, concat(acc, c), delim).
+
+## To stripCommLine (s: Text, i: Int, len: Int, acc: Text) -> Text:
+    If i is greater than len:
+        Return acc.
+    If item i of s is equal to chr(10):
+        Return stripCommN(s, i + 1, len, concat(acc, chr(10))).
+    Return stripCommLine(s, i + 1, len, acc).
+
+## To stripCommBlock (s: Text, i: Int, len: Int, acc: Text) -> Text:
+    If i is greater than len:
+        Return acc.
+    If item i of s is equal to "*":
+        If i is less than len:
+            If item (i + 1) of s is equal to "/":
+                Return stripCommN(s, i + 2, len, concat(acc, " ")).
+    Return stripCommBlock(s, i + 1, len, acc).
+
 ## To normalizeJs (s: Text) -> Text:
-    Let sq be classBodySemis(convertQuotes(stripNumSeps(s))).
-    Let tagged be desugarTaggedTemplates(concat(sq, "")).
+    Let pre be convertQuotes(stripNumSeps(s)).
+    Let tagged be desugarTaggedTemplates(concat(pre, "")).
     Let templated be desugarTemplates(tagged, 1, 0, 0, "").
     Let rx be desugarRegexLits(templated, 1, "", false, "", "").
-    Let normed be joinNonEmpty(split(normJs(rx, 1, false, ""), " "), 1, "").
+    Let decommented be stripComments(concat(rx, "")).
+    Let sq be classBodySemis(concat(decommented, "")).
+    Let normed be joinNonEmpty(split(normJs(sq, 1, false, ""), " "), 1, "").
     Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarAsync(desugarGenerators(normed)))))), " "), 1, "").
 
 # --- Regex engine (E4): a backtracking matcher in LOGOS ---
