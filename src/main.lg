@@ -6474,6 +6474,11 @@
         Let bef be substringBefore(expr, "Buffer . concat (").
         Let aft be substringAfter(expr, "Buffer . concat (").
         Return resolveMethods(trim(concat(concat(bef, newBuffer(bufConcatContent(arrElements(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env)), 1, ""))), methodRest(aft))), env).
+    If substringBefore(expr, "Buffer . byteLength (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Buffer . byteLength (") is equal to false:
+        Let bef be substringBefore(expr, "Buffer . byteLength (").
+        Let aft be substringAfter(expr, "Buffer . byteLength (").
+        Return resolveMethods(trim(concat(concat(bef, toText(charLen(decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env)))))), methodRest(aft))), env).
     If substringBefore(expr, "new WeakMap (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new WeakMap (") is equal to false:
         Let bef be substringBefore(expr, "new WeakMap (").
@@ -6626,6 +6631,13 @@
         Let tsrecv be jsEvalIn(recvExpr(concat(tsbef, "")), env).
         If isBuffer(tsrecv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(tsbef, "")), " "), bufToStrResult(decodeStr(materialize(objGet(concat(tsrecv, ""), "__buffer"))), methodArg(tsaft), env)), methodRest(tsaft))), env).
+    If substringBefore(expr, " . slice (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . slice (") is equal to false:
+        Let bsbef be substringBefore(expr, " . slice (").
+        Let bsaft be substringAfter(expr, " . slice (").
+        Let bsrecv be jsEvalIn(recvExpr(concat(bsbef, "")), env).
+        If isBuffer(bsrecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(bsbef, "")), " "), bufSliceResult(decodeStr(materialize(objGet(concat(bsrecv, ""), "__buffer"))), methodArg(bsaft), env)), methodRest(bsaft))), env).
     If substringBefore(expr, " . set (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
@@ -14030,6 +14042,21 @@
         Return acc.
     Let c be decodeStr(materialize(objGet(concat(item i of bufs, ""), "__buffer"))).
     Return bufConcatContent(bufs, i + 1, concat(concat(acc, ""), concat(c, ""))).
+
+# `buf.slice(start[, end])` — end defaults to the byte length. Indices are 0-based (end exclusive); the raw
+# bytes are cut with strSliceLoop (1-based, end inclusive), so start+1 .. end.
+## To bufSliceEnd (args: Seq of Text, clen: Int, env: Text) -> Int:
+    If length of args is greater than 1:
+        Return safeInt(materialize(jsEvalIn(trim(item 2 of args), env))).
+    Return clen.
+
+## To bufSliceResult (content: Text, argText: Text, env: Text) -> Text:
+    If trim(concat(argText, "")) is equal to "":
+        Return newBuffer(concat(content, "")).
+    Let args be splitArgsN(concat(argText, "")).
+    Let startP be safeInt(materialize(jsEvalIn(trim(item 1 of args), env))).
+    Let endP be bufSliceEnd(args, charLen(concat(content, "")), env).
+    Return newBuffer(strSliceLoop(concat(content, ""), startP + 1, endP, "")).
 
 # --- node:events (EventEmitter) ---
 # `new EventEmitter()` is a heap object tagged `__emitter`; each event's persistent listeners live in an
