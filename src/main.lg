@@ -4250,10 +4250,22 @@
         Return true.
     Return false.
 
+# `new Error(message)` and the 2-arg `new Error(message, { cause })` form (ES2022). Only the FIRST arg is
+# the message — evaluating the whole arg string would treat `"x", {cause:…}` as a comma-expression and put
+# the options object in `message`. A `cause` from the options object is attached to the error (e.cause).
 ## To buildErrorCall (bef: Text, aft: Text, ename: Text, env: Text) -> Text:
     If trim(methodArg(aft)) is equal to "":
         Return concat(concat(bef, newError(ename, concat(tagStr (), ""))), methodRest(aft)).
-    Return concat(concat(bef, newError(ename, jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft)).
+    Let args be patFields(methodArg(aft)).
+    Let err be newError(ename, jsEvalIn(trim(item 1 of args), env)).
+    If length of args is greater than 1:
+        Let opts be jsEvalIn(trim(item 2 of args), env).
+        If isObjRef(concat(opts, "")):
+            Let cz be objGet(concat(opts, ""), "cause").
+            If cz is not equal to "undefined":
+                Let d be objSet(concat(err, ""), "cause", concat(cz, "")).
+                Return concat(concat(bef, concat(err, "")), methodRest(aft)).
+    Return concat(concat(bef, concat(err, "")), methodRest(aft)).
 
 ## To dateMethod (recv: Text, mname: Text) -> Text:
     Let ms be objGet(concat(recv, ""), "__date_ms").
