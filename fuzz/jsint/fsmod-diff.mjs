@@ -1,8 +1,10 @@
-// fuzz/jsint/fsmod — node:fs synchronous reads: fs.readFileSync(path, "utf8"). The DRIVER (this Node
-// harness) writes each random file into the temp dir; the program under test reads it back via both Node
-// and ours and prints derived values (raw, .length, .split("\n").length, JSON.parse, concatenation of two
-// files). Default import, `node:fs`, and named `{ readFileSync }` forms are exercised. We always pass the
-// "utf8" encoding so both sides return a string (Node returns a Buffer without it). Diffed vs Node.
+// fuzz/jsint/fsmod — node:fs synchronous file IO: readFileSync/writeFileSync/existsSync. The DRIVER
+// seeds each engine's OWN temp dir with random files; the program under test reads them back and prints
+// derived values (raw, .length, .split, JSON.parse, two-file concat), writes-then-reads a roundtrip,
+// checks existsSync before/after a write, and hits ENOENT on a missing file (compared via the exit
+// marker). Default, `node:fs`, and named `{ readFileSync, writeFileSync, existsSync }` forms are all
+// exercised. readFileSync always gets "utf8" so both sides return a string (Node returns a Buffer
+// otherwise). Node and ours run in SEPARATE dirs so write side effects never leak between them.
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -22,30 +24,40 @@ if (OURS) {
   const line = () => Array.from({ length: 1 + ri(4) }, word).join(" ");
   const textContent = () => Array.from({ length: 1 + ri(5) }, line).join("\n");
   const jsonContent = () => JSON.stringify({ a: ri(99), b: [ri(9), ri(9)], name: word() });
-  const program = (files) => {
+  const program = () => {
     const spec = ri(3) === 0 ? "node:fs" : "fs";
-    const k = ri(7);
+    const payload = JSON.stringify(line());
+    const k = ri(11);
     if (k === 0) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8"));`;
     if (k === 1) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8").length);`;
     if (k === 2) return `import fs from "${spec}";\nconst j = JSON.parse(fs.readFileSync("j.json", "utf8"));\nconsole.log(j.a, j.name, j.b[1]);`;
     if (k === 3) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8").split("\\n").length);`;
     if (k === 4) return `import { readFileSync } from "${spec}";\nconsole.log(readFileSync("a.txt", "utf8").toUpperCase());`;
     if (k === 5) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8") + "|" + fs.readFileSync("b.txt", "utf8"));`;
-    return `import fs from "${spec}";\nconst s = fs.readFileSync("a.txt", "utf8").trim();\nconsole.log(s === "" ? "EMPTY" : s.split("\\n")[0]);`;
+    if (k === 6) return `import fs from "${spec}";\nfs.writeFileSync("out.txt", ${payload});\nconsole.log(fs.readFileSync("out.txt", "utf8"));`;   // write->read roundtrip
+    if (k === 7) return `import fs from "${spec}";\nconst o = {v: ${ri(99)}, tag: ${payload}};\nfs.writeFileSync("o.json", JSON.stringify(o));\nconsole.log(JSON.parse(fs.readFileSync("o.json", "utf8")).v);`;
+    if (k === 8) return `import fs from "${spec}";\nconsole.log(fs.existsSync("a.txt"), fs.existsSync("nope.txt"));`;
+    if (k === 9) return `import { writeFileSync, existsSync } from "${spec}";\nconsole.log(existsSync("made.txt"));\nwriteFileSync("made.txt", ${payload});\nconsole.log(existsSync("made.txt"));`;
+    return `import fs from "${spec}";\nconsole.log("before");\nconst s = fs.readFileSync("missing-${ri(999)}.txt", "utf8");\nconsole.log("after", s);`;    // ENOENT throw
   };
+  // Each engine gets its OWN seeded dir: a program's writeFileSync side effects must not leak from the
+  // Node run into ours (they'd share a file, e.g. existsSync-before-write would see the other's write).
+  const seedDir = (dir, a, b, j) => { writeFileSync(join(dir, "a.txt"), a); writeFileSync(join(dir, "b.txt"), b); writeFileSync(join(dir, "j.json"), j); };
   let checked = 0;
   for (let it = 0; it < n; it++) {
-    const dir = mkdtempSync(join(tmpdir(), "fsf-"));
-    writeFileSync(join(dir, "a.txt"), textContent());
-    writeFileSync(join(dir, "b.txt"), textContent());
-    writeFileSync(join(dir, "j.json"), jsonContent());
+    const dirN = mkdtempSync(join(tmpdir(), "fsf-n-"));
+    const dirO = mkdtempSync(join(tmpdir(), "fsf-o-"));
+    const a = textContent(), b = textContent(), j = jsonContent();
+    seedDir(dirN, a, b, j);
+    seedDir(dirO, a, b, j);
     const src = program();
-    writeFileSync(join(dir, "e.js"), src);
-    writeFileSync(join(dir, "e.mjs"), src);
-    const ref = run(NODE, dir, ["e.mjs"]);
-    const got = run(OURS, dir, ["run", "e.js"]);
+    writeFileSync(join(dirN, "e.mjs"), src);
+    writeFileSync(join(dirO, "e.js"), src);
+    const ref = run(NODE, dirN, ["e.mjs"]);
+    const got = run(OURS, dirO, ["run", "e.js"]);
     if (got !== ref) fails.push(`${JSON.stringify(src)}: ours=${JSON.stringify(got)} node=${JSON.stringify(ref)}`);
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dirN, { recursive: true, force: true });
+    rmSync(dirO, { recursive: true, force: true });
     checked++;
   }
   if (!fails.length) console.log(`PASS jsint-fsmod: ${checked} node:fs readFileSync programs agree with Node (seed ${seed})`);

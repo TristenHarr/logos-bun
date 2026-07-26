@@ -19,6 +19,8 @@
 ## To native exitWith (code: Int) -> Unit
 ## To native eputs (s: Text) -> Unit
 ## To native readFile (path: Text) -> Text
+## To native writeFile (path: Text, contents: Text) -> Text
+## To native fileExists (path: Text) -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
 ## To native heapAlloc (content: Text) -> Text
@@ -6195,7 +6197,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13751,16 +13753,26 @@
 
 # --- node:fs (synchronous file IO) ---
 # `fs.readFileSync(path[, encoding])` slurps a whole file to a string via the `readFile` native (the same
-# cwd-relative reader `bun run <file>` uses). Node returns a Buffer when no encoding is given; we always
-# return a string, so callers pass "utf8" (or `.toString()`) to match. A missing file reads as "" here —
-# Node throws ENOENT; that distinction needs a `fileExists` native (shipped alongside writeFileSync).
+# cwd-relative reader `bun run <file>` uses); a genuinely-missing file throws ENOENT (the `fileExists`
+# native tells a missing file from an empty one). Node returns a Buffer when no encoding is given; we
+# always return a string, so callers pass "utf8" (or `.toString()`) to match. `writeFileSync(path,
+# data)` truncates/creates via the `writeFile` native and returns undefined; `existsSync(path)` is the
+# `fileExists` native's boolean.
 ## To fsModCall (method: Text, argText: Text, env: Text) -> Text:
     If trim(concat(argText, "")) is equal to "":
         Return "undefined".
     Let argsL be splitArgsN(concat(argText, "")).
     Let pathV be decodeStr(materialize(jsEvalIn(trim(item 1 of argsL), env))).
     If concat(method, "") is equal to "readFileSync":
+        If fileExists(concat(pathV, "")) is equal to "false":
+            Return throwSet(newError("Error", concat(tagStr (), encodeStr(concat("ENOENT: no such file or directory, open '", concat(pathV, "'")))))).
         Return concat(tagStr (), encodeStr(readFile(concat(pathV, "")))).
+    If concat(method, "") is equal to "writeFileSync":
+        Let contentsV be decodeStr(materialize(jsEvalIn(trim(item 2 of argsL), env))).
+        Let w be writeFile(concat(pathV, ""), concat(contentsV, "")).
+        Return "undefined".
+    If concat(method, "") is equal to "existsSync":
+        Return fileExists(concat(pathV, "")).
     Return "undefined".
 
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
