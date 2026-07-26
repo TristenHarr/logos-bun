@@ -3733,3 +3733,44 @@ Continued the probe→fix→6-seed-fuzz→full-sweep→gate→push loop. All shi
 11. **destructuring parameter with an outer default** (`7d0e05a`) — the ubiquitous `function f({a=1,b=2}={}){}` options idiom.
 
 **★ Highest-value bug found + root-caused, DEFERRED:** a nested closure that captures AND CALLS a function-valued parameter (`compose=(f,g)=>x=>f(g(x))`, `curry`, `wrap`, `memoize`, `hof(fn){return a=>fn(a)}`) returns `undefined` — breaks a huge swath of real functional JS. Root cause: function values are opaque `chr1 encFn(param) chr1 encFn(body)` tokens; `encFn`/`decFn` are ASYMMETRIC on ctrl chars (encFn only maps source chars and leaves existing ctrl chars alone, but decFn decodes ALL of them), so a token baked into a re-encoded body gets an extra `decFn` per nesting level → over-decoded. Works at one level, fails when captured into a returned parameterized closure. Proper fix (focused session): make encFn/decFn a truly reversible escaping, or heap-store captured function values by handle. Also open (deep): infinite/lazy generators (`while(true){yield}` — the eager `__gen_values` model collects all yields upfront). The common-code surface is otherwise excellent — large real-world-pattern batches (string processing, data transforms, classes, reducers, destructuring) now show 0 diffs.
+
+---
+
+## Session 2026-07-26 — node-compat modules (fs/os/URL) + a CRITICAL multi-line-function engine fix
+
+Continued the node-compat build (path/util/assert/querystring already shipped) and hit — then fixed — a
+foundational engine bug.
+
+Shipped, gate-green, pushed:
+1. **node:fs readFileSync** (`5536fda`) — slurp via the existing `readFile` native, all four import forms.
+2. **node:fs writeFileSync / existsSync + readFileSync ENOENT** (`f331bd2`) — two new toolchain natives
+   `write_file`/`file_exists` (local-only); the fuzzer caught a shared-temp-dir side-effect leak → each
+   engine now runs in its own seeded dir.
+3. **node:os** (`e57e83a`) — platform/arch/type/endianness/tmpdir/homedir + EOL; five natives remap Rust's
+   target/OS consts to Node's spelling (x86_64→x64, macos→darwin, …) so the values are correct
+   cross-platform, not hardcoded.
+
+**★ CRITICAL ENGINE FIX — multi-line function bodies (`bf54f73`).** While adding WHATWG `new URL`, `new URL`
+inside a function returned NaN. Root-caused (via a temporary `__js-split` debug command that dumps the
+normalizeJs+splitTop intermediate) to a foundational splitter bug affecting FAR more than URL: `splitTop`
+copied a raw newline inside a `{ }` block straight into the TOP-LEVEL statement split, so
+`function f(){ <newline> ... }` was torn into separate top-level statements and `defineFn` stored an EMPTY
+body — **every multi-line function returned undefined/NaN (or stack-overflowed on a `new`)**. It had gone
+unnoticed because the differential fuzzers only ever emit top-level, one-statement-per-line programs; the
+one multi-line case that "worked" did so by accident (a `let` triggered the closure-boxing pass, which
+happened to reassemble the torn function). Fix: thread a brace-kind stack through `splitTopN` — a newline
+inside a **block** brace becomes a `;` statement separator (kept out of the top-level chr(10) split so the
+def stays whole), inside an **object literal / paren** it becomes whitespace, and only at the **top level**
+is it a real statement boundary. This unblocks multi-line function bodies, multi-line object literals, and
+multi-line call-arg lists engine-wide — the prerequisite for real-world JS and for every node-compat module
+used inside a function. Locked by a new `multiline-diff` fuzzer.
+
+**WHATWG new URL** (same commit) — was a stack-overflow; now parses an absolute special-scheme URL into
+href/protocol/username/password/host/hostname/port/pathname/search/hash/origin, byte-matching Node (default
+port dropped, scheme+host lowercased, empty `?`/`#` dropped from the property but kept in href), at top
+level AND inside multi-line functions. Deferred: relative resolution, URLSearchParams, IPv6, %-encoding.
+
+**Open (found, deferred):** `desugarObjMethods` has its own multi-line gap — object **method shorthand** in
+a MULTI-LINE object literal (`const o = {\n a: 1,\n m() { … }\n }`) still returns NaN, while single-line and
+multi-line data-only objects work. Newly exposed by the splitTop fix; a focused desugar fix, scoped out of
+`multiline-diff` for now.
