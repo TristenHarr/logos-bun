@@ -6195,7 +6195,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13749,6 +13749,20 @@
         Return concat(tagStr (), encodeStr(qsUnescape(decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env)))))).
     Return "undefined".
 
+# --- node:fs (synchronous file IO) ---
+# `fs.readFileSync(path[, encoding])` slurps a whole file to a string via the `readFile` native (the same
+# cwd-relative reader `bun run <file>` uses). Node returns a Buffer when no encoding is given; we always
+# return a string, so callers pass "utf8" (or `.toString()`) to match. A missing file reads as "" here —
+# Node throws ENOENT; that distinction needs a `fileExists` native (shipped alongside writeFileSync).
+## To fsModCall (method: Text, argText: Text, env: Text) -> Text:
+    If trim(concat(argText, "")) is equal to "":
+        Return "undefined".
+    Let argsL be splitArgsN(concat(argText, "")).
+    Let pathV be decodeStr(materialize(jsEvalIn(trim(item 1 of argsL), env))).
+    If concat(method, "") is equal to "readFileSync":
+        Return concat(tagStr (), encodeStr(readFile(concat(pathV, "")))).
+    Return "undefined".
+
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
 ## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -13862,6 +13876,8 @@
         Return assertModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "querystring":
         Return querystringModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "fs":
+        Return fsModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # A module handle called as a FUNCTION (`assert(x)` === `assert.ok(x)`). Only `assert` is callable.
@@ -13934,6 +13950,10 @@
         Return concat("default=", nodeModMarker("querystring")).
     If concat(spec, "") is equal to "node:querystring":
         Return concat("default=", nodeModMarker("querystring")).
+    If concat(spec, "") is equal to "fs":
+        Return concat("default=", nodeModMarker("fs")).
+    If concat(spec, "") is equal to "node:fs":
+        Return concat("default=", nodeModMarker("fs")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
