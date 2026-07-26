@@ -6018,6 +6018,35 @@
         Return "undefined".
     Return concat(t, "").
 
+## To isDigitsLoop (s: Text, i: Int, n: Int) -> Bool:
+    If i is greater than n:
+        Return true.
+    If hasSep("0123456789", item i of s) is equal to false:
+        Return false.
+    Return isDigitsLoop(s, i + 1, n).
+
+## To isDigitsStr (s: Text) -> Bool:
+    Let n be charLen(concat(s, "")).
+    If n is equal to 0:
+        Return false.
+    Return isDigitsLoop(concat(s, ""), 1, n).
+
+# `obj.hasOwnProperty(key)` / `Object.hasOwn(obj, key)`: whether `key` is an OWN property of `obj`. A plain
+# object owns `key` iff objGet finds it; an array owns `length` and each canonical integer index `0..len-1`
+# (a non-canonical or out-of-range index — `"1.5"`, `"-1"`, `"01"`, `"5"` on a 2-array — is not own). The
+# all-digits guard is load-bearing: parseInt here PANICS on a non-integer string like `"1.5"`.
+## To hasOwnKey (obj: Text, key: Text) -> Bool:
+    If isArrRef(concat(obj, "")):
+        If concat(key, "") is equal to "length":
+            Return true.
+        If isDigitsStr(concat(key, "")) is equal to false:
+            Return false.
+        Let idx be parseInt(concat(key, "")).
+        If toText(idx) is not equal to concat(key, ""):
+            Return false.
+        Return idx is less than length of arrElements(concat(obj, "")).
+    Return objGet(concat(obj, ""), concat(key, "")) is not equal to "undefined".
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If hasSep(concat(expr, ""), " . prototype . "):
         Let rw be protoCallRewrite(concat(expr, "")).
@@ -6544,6 +6573,13 @@
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, objIs(jsEvalIn(trim(item 1 of args), env), jsEvalIn(trim(item 2 of args), env))), rst)), env).
+    If substringBefore(expr, "Object . hasOwn (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . hasOwn (") is equal to false:
+        Let bef be substringBefore(expr, "Object . hasOwn (").
+        Let aft be substringAfter(expr, "Object . hasOwn (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(hasOwnKey(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))))), rst)), env).
     If substringBefore(expr, "Object . getOwnPropertyDescriptor (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . getOwnPropertyDescriptor (") is equal to false:
         Let bef be substringBefore(expr, "Object . getOwnPropertyDescriptor (").
@@ -6764,7 +6800,7 @@
         Let recv be recvExpr(concat(bef, "")).
         Let prefix be recvPrefix(concat(bef, "")).
         Let raw be jsEvalIn(recv, env).
-        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(objGet(concat(raw, ""), materialize(jsEvalIn(trim(argStr), env))) is not equal to "undefined")), rst)), env).
+        Return resolveMethods(trim(concat(concat(concat(prefix, " "), cmpResult(hasOwnKey(concat(raw, ""), materialize(jsEvalIn(trim(argStr), env))))), rst)), env).
     If lm is equal to " . toFixed (":
         Let bef be substringBefore(expr, " . toFixed (").
         Let aft be substringAfter(expr, " . toFixed (").
