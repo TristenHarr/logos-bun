@@ -4490,11 +4490,28 @@
         Return typeofOperandLen(atoks, i + 1).
     Return i.
 
+# The text after the LAST occurrence of `sep` (recurses into the remainder until no more `sep` remains).
+## To afterLastSep (s: Text, sep: Text) -> Text:
+    Let a be substringAfter(concat(s, ""), concat(sep, "")).
+    If hasSep(concat(a, ""), concat(sep, "")):
+        Return afterLastSep(concat(a, ""), concat(sep, "")).
+    Return a.
+
+# The text before the LAST occurrence of `sep` — the prefix whose length is everything but the final
+# `sep` and what follows it.
+## To beforeLastSep (s: Text, sep: Text) -> Text:
+    Let aft be afterLastSep(concat(s, ""), concat(sep, "")).
+    Return strSliceLoop(concat(s, ""), 1, (charLen(concat(s, "")) - charLen(concat(aft, ""))) - charLen(concat(sep, "")), "").
+
+# `typeof` is right-nested: `typeof typeof 5` is `typeof (typeof 5)`. Resolving the INNERMOST (last)
+# `typeof ` first turns it into a value the enclosing `typeof` can then classify, so nested typeofs
+# collapse correctly (`typeof typeof 5` -> `typeof "number"` -> `"string"`). Matching `typeof ` with its
+# trailing space leaves a property access `obj.typeof` (no following operand) untouched.
 ## To resolveTypeof (expr: Text) -> Text:
     If substringBefore(expr, "typeof ") is equal to expr:
         Return expr.
-    Let before be substringBefore(expr, "typeof ").
-    Let after be substringAfter(expr, "typeof ").
+    Let before be beforeLastSep(concat(expr, ""), "typeof ").
+    Let after be afterLastSep(concat(expr, ""), "typeof ").
     Let atoks be split(after, " ").
     Let tok be item 1 of atoks.
     If isUnaryPrefix(tok):
