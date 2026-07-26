@@ -3960,6 +3960,12 @@
         Return arithBadTok(toks, i + 1).
     If floatTok(concat(t, "")):
         Return arithBadTok(toks, i + 1).
+    If concat(t, "") is equal to "Infinity":
+        Return arithBadTok(toks, i + 1).
+    If concat(t, "") is equal to "-Infinity":
+        Return arithBadTok(toks, i + 1).
+    If concat(t, "") is equal to "NaN":
+        Return arithBadTok(toks, i + 1).
     Return true.
 
 # A `/` whose divisor is a literal 0 yields NaN (JS 0/0 → NaN); handling it here avoids an integer
@@ -4095,6 +4101,12 @@
         Return true.
     If item i of toks is equal to "**":
         Return true.
+    If item i of toks is equal to "Infinity":
+        Return true.
+    If item i of toks is equal to "-Infinity":
+        Return true.
+    If item i of toks is equal to "NaN":
+        Return true.
     If floatTok(concat(item i of toks, "")):
         Return true.
     Return needsFloat(toks, i + 1).
@@ -4176,6 +4188,13 @@
 # operator/`(`) into the numeric operand that follows, so the integer/float/bigint evaluators never see a
 # standalone `-` token (which panics `parseInt`). A run of signs collapses by parity: `* - 1` -> `* -1`,
 # `- - 3` -> `3`, `* + 1` -> `* 1`. Binary `-`/`+` (after an operand) is left untouched.
+# An operand a unary sign can attach to: a numeric literal or `Infinity` (`-Infinity` is a value, so a
+# leading `-` must fuse with it rather than strand a standalone `-`).
+## To isSignFoldable (t: Text) -> Bool:
+    If isNumericStr(concat(t, "")):
+        Return true.
+    Return concat(t, "") is equal to "Infinity".
+
 ## To foldSigns (toks: Seq of Text, i: Int, prevOp: Bool, acc: Text) -> Text:
     If i is greater than length of toks:
         Return trim(acc).
@@ -4184,7 +4203,7 @@
         If t is equal to "-":
             Let j be numRunStart(toks, i).
             If j is less than or equal to length of toks:
-                If isNumericStr(concat(item j of toks, "")):
+                If isSignFoldable(concat(item j of toks, "")):
                     Let base be concat(item j of toks, "").
                     If (countMinus(toks, i, j - 1, 0) % 2) is equal to 1:
                         Return foldSigns(toks, j + 1, false, concat(concat(acc, " "), signNegTok(base))).
@@ -4192,7 +4211,7 @@
         If t is equal to "+":
             Let jp be numRunStart(toks, i).
             If jp is less than or equal to length of toks:
-                If isNumericStr(concat(item jp of toks, "")):
+                If isSignFoldable(concat(item jp of toks, "")):
                     Let basep be concat(item jp of toks, "").
                     If (countMinus(toks, i, jp - 1, 0) % 2) is equal to 1:
                         Return foldSigns(toks, jp + 1, false, concat(concat(acc, " "), signNegTok(basep))).
