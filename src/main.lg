@@ -6047,6 +6047,46 @@
         Return idx is less than length of arrElements(concat(obj, "")).
     Return objGet(concat(obj, ""), concat(key, "")) is not equal to "undefined".
 
+# Object.groupBy(items, fn) / Map.groupBy(items, fn): partition `items` into groups keyed by `fn(item,
+# index)`, preserving encounter order within each group. Object.groupBy coerces the key to a property
+# string and returns a plain object of arrays; Map.groupBy keeps the key as a value and returns a Map.
+## To groupByLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return concat(acc, "").
+    Let el be item i of els.
+    Let keyv be callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return concat(acc, "").
+    Let key be materialize(concat(keyv, "")).
+    Let existing be objGet(concat(acc, ""), concat(key, "")).
+    If existing is equal to "undefined":
+        Let na be newArr(concat(concat(tagArr (), concat(el, "")), tagArrEnd ())).
+        Let d be objSet(concat(acc, ""), concat(key, ""), na).
+        Return groupByLoop(els, i + 1, fnval, env, concat(acc, "")).
+    Let pushed be arrPush(concat(existing, ""), concat(el, "")).
+    Return groupByLoop(els, i + 1, fnval, env, concat(acc, "")).
+
+## To objGroupBy (items: Text, fnval: Text, env: Text) -> Text:
+    Return groupByLoop(arrElements(concat(items, "")), 1, fnval, env, newObjRef(concat(tagObj (), tagObjEnd ()))).
+
+## To mapGroupByLoop (els: Seq of Text, i: Int, fnval: Text, env: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return concat(acc, "").
+    Let el be item i of els.
+    Let keyv be callFnIdx(concat(fnval, ""), concat(el, ""), toText(i - 1), concat(env, "")).
+    If throwPending() is equal to "1":
+        Return concat(acc, "").
+    Let existing be mapGet(concat(acc, ""), concat(keyv, "")).
+    If existing is equal to "undefined":
+        Let na be newArr(concat(concat(tagArr (), concat(el, "")), tagArrEnd ())).
+        Let d be mapSet(concat(acc, ""), concat(keyv, ""), na).
+        Return mapGroupByLoop(els, i + 1, fnval, env, concat(acc, "")).
+    Let pushed be arrPush(concat(existing, ""), concat(el, "")).
+    Return mapGroupByLoop(els, i + 1, fnval, env, concat(acc, "")).
+
+## To mapGroupBy (items: Text, fnval: Text, env: Text) -> Text:
+    Return mapGroupByLoop(arrElements(concat(items, "")), 1, fnval, env, newMap()).
+
 ## To resolveMethods (expr: Text, env: Text) -> Text:
     If hasSep(concat(expr, ""), " . prototype . "):
         Let rw be protoCallRewrite(concat(expr, "")).
@@ -6580,6 +6620,20 @@
         Let rst be methodRest(aft).
         Let args be patFields(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, cmpResult(hasOwnKey(jsEvalIn(trim(item 1 of args), env), materialize(jsEvalIn(trim(item 2 of args), env))))), rst)), env).
+    If substringBefore(expr, "Object . groupBy (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Object . groupBy (") is equal to false:
+        Let bef be substringBefore(expr, "Object . groupBy (").
+        Let aft be substringAfter(expr, "Object . groupBy (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, objGroupBy(jsEvalIn(trim(item 1 of args), env), fnArgValRaw(trim(item 2 of args), env), env)), rst)), env).
+    If substringBefore(expr, "Map . groupBy (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Map . groupBy (") is equal to false:
+        Let bef be substringBefore(expr, "Map . groupBy (").
+        Let aft be substringAfter(expr, "Map . groupBy (").
+        Let rst be methodRest(aft).
+        Let args be patFields(methodArg(aft)).
+        Return resolveMethods(trim(concat(concat(bef, mapGroupBy(jsEvalIn(trim(item 1 of args), env), fnArgValRaw(trim(item 2 of args), env), env)), rst)), env).
     If substringBefore(expr, "Object . getOwnPropertyDescriptor (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Object . getOwnPropertyDescriptor (") is equal to false:
         Let bef be substringBefore(expr, "Object . getOwnPropertyDescriptor (").
