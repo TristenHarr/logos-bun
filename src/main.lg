@@ -4500,11 +4500,26 @@
         Return concat(tagStr (), "undefined").
     Return concat(tagStr (), "number").
 
+# The `typeof` of a bare built-in NAME used as a value (not called): the global namespaces are objects,
+# the constructors and global functions are functions. These names are dispatched specially rather than
+# stored as heap values, so without this table they fall through to NaN and misreport as "number".
+## To builtinTypeofTag (name: Text) -> Text:
+    Let objs be ["Math", "JSON", "console", "globalThis", "Reflect", "Atomics", "Intl"].
+    If objs contains concat(name, ""):
+        Return "object".
+    Let fns be ["Object", "Array", "String", "Number", "Boolean", "Date", "Symbol", "BigInt", "Promise", "Map", "Set", "WeakMap", "WeakSet", "WeakRef", "FinalizationRegistry", "RegExp", "Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "EvalError", "URIError", "AggregateError", "Function", "Proxy", "Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array", "ArrayBuffer", "SharedArrayBuffer", "DataView", "parseInt", "parseFloat", "isNaN", "isFinite", "structuredClone", "encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI", "eval", "queueMicrotask", "setTimeout", "setInterval", "clearTimeout", "clearInterval", "atob", "btoa", "fetch", "URL", "URLSearchParams", "TextEncoder", "TextDecoder", "AbortController", "AbortSignal", "Event", "EventTarget"].
+    If fns contains concat(name, ""):
+        Return "function".
+    Return "".
+
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
         Return concat(tagStr (), "function").
     If isUndefRef(concat(tok, "")):
         Return concat(tagStr (), "undefined").
+    Let bt be builtinTypeofTag(concat(tok, "")).
+    If bt is not equal to "":
+        Return concat(tagStr (), bt).
     Return typeOfVal(evalValue(litToStr(tok))).
 
 ## To isUnaryPrefix (tok: Text) -> Bool:
