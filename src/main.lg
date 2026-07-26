@@ -30,6 +30,7 @@
 ## To native readDir (path: Text) -> Seq of Text
 ## To native makeDir (path: Text) -> Text
 ## To native removePath (path: Text) -> Text
+## To native fileStat (path: Text) -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
 ## To native heapAlloc (content: Text) -> Text
@@ -6206,7 +6207,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . readdirSync (", " . mkdirSync (", " . rmSync (", " . rmdirSync (", " . fileURLToPath (", " . pathToFileURL (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . readdirSync (", " . mkdirSync (", " . rmSync (", " . rmdirSync (", " . statSync (", " . isFile (", " . isDirectory (", " . fileURLToPath (", " . pathToFileURL (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -6580,6 +6581,20 @@
         If isEmitter(lrecv):
             Let largs be splitArgsN(methodArg(laft)).
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(lbef, "")), " "), toText(emitterCount(concat(lrecv, ""), jsEvalIn(trim(item 1 of largs), env)))), methodRest(laft))), env).
+    If substringBefore(expr, " . isFile (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . isFile (") is equal to false:
+        Let ifbef be substringBefore(expr, " . isFile (").
+        Let ifaft be substringAfter(expr, " . isFile (").
+        Let ifrecv be jsEvalIn(recvExpr(concat(ifbef, "")), env).
+        If isStat(ifrecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(ifbef, "")), " "), cmpResult(objGet(concat(ifrecv, ""), "__stat_isfile") is equal to "1")), methodRest(ifaft))), env).
+    If substringBefore(expr, " . isDirectory (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . isDirectory (") is equal to false:
+        Let idbef be substringBefore(expr, " . isDirectory (").
+        Let idaft be substringAfter(expr, " . isDirectory (").
+        Let idrecv be jsEvalIn(recvExpr(concat(idbef, "")), env).
+        If isStat(idrecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(idbef, "")), " "), cmpResult(objGet(concat(idrecv, ""), "__stat_isdir") is equal to "1")), methodRest(idaft))), env).
     If substringBefore(expr, " . set (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
@@ -13899,7 +13914,27 @@
     If concat(method, "") is equal to "rmdirSync":
         Let rd be removePath(concat(pathV, "")).
         Return "undefined".
+    If concat(method, "") is equal to "statSync":
+        Let raw be fileStat(concat(pathV, "")).
+        If concat(raw, "") is equal to "":
+            Return throwSet(newError("Error", concat(tagStr (), encodeStr(concat("ENOENT: no such file or directory, stat '", concat(pathV, "'")))))).
+        Return newStat(concat(raw, "")).
     Return "undefined".
+
+# A fs.Stats object from the `file_stat` native's `isFile:isDir:size` triple: size is a data property; the
+# type flags are stored as `__stat_isfile`/`__stat_isdir` and read by the `.isFile()`/`.isDirectory()`
+# method handlers (a `__stat` marker tags the object). mtime and the other members are a follow-up.
+## To newStat (raw: Text) -> Text:
+    Let parts be split(concat(raw, ""), ":").
+    Let s1 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__stat", concat(tagStr (), "1")).
+    Let s2 be objSet(concat(s1, ""), "__stat_isfile", concat(item 1 of parts, "")).
+    Let s3 be objSet(concat(s2, ""), "__stat_isdir", concat(item 2 of parts, "")).
+    Return objSet(concat(s3, ""), "size", concat(item 3 of parts, "")).
+
+## To isStat (v: Text) -> Bool:
+    If isObjRef(concat(v, "")):
+        Return objGet(concat(v, ""), "__stat") is not equal to "undefined".
+    Return false.
 
 # Build a JS array value from readDir's Seq of file names — each name becomes a tagged string element,
 # chr(6)-joined (the array element separator). Mirrors argvBuild.
