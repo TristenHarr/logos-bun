@@ -12292,73 +12292,122 @@
         Return false.
     Return isIdentKeyLoop(concat(k, ""), 2, n).
 
-## To inspectArrLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+# `k` spaces, for indenting a wrapped (multi-line) inspect block.
+## To spaces (k: Int) -> Text:
+    If k is less than or equal to 0:
+        Return "".
+    Return concat(" ", spaces(k - 1)).
+
+# Whether a container's entries fit on one line, mirroring Node's isBelowBreakLength (breakLength 80).
+# `single` is the entries joined by ", " (each already rendered); n = entry count; ind = this container's
+# own indentation level; bracesLen = the length of the opening brace token — 1 for a plain array/object
+# (`[`/`{`), but `charLen("Set(n)") + 2` for a Set/Map since Node folds the `Set(n) {` prefix into that
+# brace. Node's start reduces to needing `charLen(single) + ind + bracesLen + 12 <= 80`, plus the pre-sum
+# guard `3n + ind + bracesLen + 10 <= 80`, plus no entry may itself be multi-line (contain a newline).
+## To fitsSingleLine (single: Text, n: Int, ind: Int, bracesLen: Int) -> Bool:
+    If ((3 * n) + ind + bracesLen + 10) is greater than 80:
+        Return false.
+    If ((charLen(concat(single, ""))) + ind + bracesLen + 12) is greater than 80:
+        Return false.
+    If hasSep(concat(single, ""), chr(10)):
+        Return false.
+    Return true.
+
+## To inspectJoin (els: Seq of Text, i: Int, ind: Int, depth: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of els:
         Return acc.
-    Let piece be inspectVal(item i of els, false).
+    Let piece be inspectVal(item i of els, false, ind, depth).
     If i is equal to 1:
-        Return inspectArrLoop(els, i + 1, piece).
-    Return inspectArrLoop(els, i + 1, concat(concat(acc, ", "), piece)).
+        Return inspectJoin(els, i + 1, ind, depth, sep, piece).
+    Let nextAcc be concat(concat(acc, sep), piece).
+    Return inspectJoin(els, i + 1, ind, depth, sep, nextAcc).
 
-## To inspectArr (v: Text) -> Text:
+## To inspectArr (v: Text, ind: Int, depth: Int) -> Text:
     Let els be arrElements(concat(v, "")).
-    If length of els is equal to 0:
+    Let n be length of els.
+    If n is equal to 0:
         Return concat(chr(91), chr(93)).
-    Return concat(concat(concat(chr(91), " "), inspectArrLoop(els, 1, "")), concat(" ", chr(93))).
+    Let single be inspectJoin(els, 1, ind + 2, depth + 1, ", ", "").
+    If fitsSingleLine(concat(single, ""), n, ind, 1):
+        Return concat(concat(concat(chr(91), " "), single), concat(" ", chr(93))).
+    Let inner2 be spaces(ind + 2).
+    Let body be inspectJoin(els, 1, ind + 2, depth + 1, concat(concat(",", chr(10)), inner2), "").
+    Return concat(concat(concat(chr(91), chr(10)), concat(inner2, body)), concat(concat(chr(10), spaces(ind)), chr(93))).
 
 ## To inspectKey (k: Text) -> Text:
     If isIdentKey(concat(k, "")):
         Return concat(k, "").
     Return concat(concat(chr(39), k), chr(39)).
 
-## To inspectObjLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+## To inspectObjJoin (entries: Seq of Text, i: Int, ind: Int, depth: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of entries:
         Return acc.
     Let entry be item i of entries.
-    Let piece be concat(concat(inspectKey(substringBefore(entry, tagObjKV ())), ": "), inspectVal(substringAfter(entry, tagObjKV ()), false)).
+    Let piece be concat(concat(inspectKey(substringBefore(entry, tagObjKV ())), ": "), inspectVal(substringAfter(entry, tagObjKV ()), false, ind, depth)).
     If i is equal to 1:
-        Return inspectObjLoop(entries, i + 1, piece).
-    Return inspectObjLoop(entries, i + 1, concat(concat(acc, ", "), piece)).
+        Return inspectObjJoin(entries, i + 1, ind, depth, sep, piece).
+    Let nextAcc be concat(concat(acc, sep), piece).
+    Return inspectObjJoin(entries, i + 1, ind, depth, sep, nextAcc).
 
-## To inspectObj (v: Text) -> Text:
+## To inspectObj (v: Text, ind: Int, depth: Int) -> Text:
     Let entries be objEntrySeqPublic(concat(v, "")).
-    If length of entries is equal to 0:
+    Let n be length of entries.
+    If n is equal to 0:
         Return concat(chr(123), chr(125)).
-    Return concat(concat(concat(chr(123), " "), inspectObjLoop(entries, 1, "")), concat(" ", chr(125))).
+    Let single be inspectObjJoin(entries, 1, ind + 2, depth + 1, ", ", "").
+    If fitsSingleLine(concat(single, ""), n, ind, 1):
+        Return concat(concat(concat(chr(123), " "), single), concat(" ", chr(125))).
+    Let inner2 be spaces(ind + 2).
+    Let body be inspectObjJoin(entries, 1, ind + 2, depth + 1, concat(concat(",", chr(10)), inner2), "").
+    Return concat(concat(concat(chr(123), chr(10)), concat(inner2, body)), concat(concat(chr(10), spaces(ind)), chr(125))).
 
 # A Set renders `Set(n) { v, v }` (empty `Set(0) {}`), a Map `Map(n) { k => v, k => v }` (empty
-# `Map(0) {}`) — the count prefix and `=>` are Node's inspect form; the values/keys use the nested form
-# (strings single-quoted). The value join reuses inspectArrLoop.
-## To inspectMapLoop (keys: Seq of Text, vals: Seq of Text, i: Int, acc: Text) -> Text:
+# `Map(0) {}`) — the count prefix and `=>` are Node's inspect form; values/keys use the nested form
+# (strings single-quoted). Both wrap to one-entry-per-line past the breakLength like arrays/objects.
+## To inspectMapJoin (keys: Seq of Text, vals: Seq of Text, i: Int, ind: Int, depth: Int, sep: Text, acc: Text) -> Text:
     If i is greater than length of keys:
         Return acc.
-    Let piece be concat(concat(inspectVal(item i of keys, false), " => "), inspectVal(item i of vals, false)).
+    Let piece be concat(concat(inspectVal(item i of keys, false, ind, depth), " => "), inspectVal(item i of vals, false, ind, depth)).
     If i is equal to 1:
-        Return inspectMapLoop(keys, vals, i + 1, piece).
-    Return inspectMapLoop(keys, vals, i + 1, concat(concat(acc, ", "), piece)).
+        Return inspectMapJoin(keys, vals, i + 1, ind, depth, sep, piece).
+    Let nextAcc be concat(concat(acc, sep), piece).
+    Return inspectMapJoin(keys, vals, i + 1, ind, depth, sep, nextAcc).
 
-## To inspectSet (v: Text) -> Text:
+## To inspectSet (v: Text, ind: Int, depth: Int) -> Text:
     Let els be arrElements(objGet(concat(v, ""), "__set_vals")).
     Let n be length of els.
     If n is equal to 0:
         Return concat(concat("Set(0) ", chr(123)), chr(125)).
-    Return concat(concat(concat(concat(concat("Set(", toText(n)), ") "), chr(123)), concat(" ", inspectArrLoop(els, 1, ""))), concat(" ", chr(125))).
+    Let base be concat(concat("Set(", toText(n)), ")").
+    Let single be inspectJoin(els, 1, ind + 2, depth + 1, ", ", "").
+    If fitsSingleLine(concat(single, ""), n, ind, (charLen(concat(base, ""))) + 2):
+        Return concat(concat(concat(base, " "), concat(concat(chr(123), " "), single)), concat(" ", chr(125))).
+    Let inner2 be spaces(ind + 2).
+    Let body be inspectJoin(els, 1, ind + 2, depth + 1, concat(concat(",", chr(10)), inner2), "").
+    Return concat(concat(concat(concat(base, " "), concat(chr(123), chr(10))), concat(inner2, body)), concat(concat(chr(10), spaces(ind)), chr(125))).
 
-## To inspectMap (v: Text) -> Text:
+## To inspectMap (v: Text, ind: Int, depth: Int) -> Text:
     Let keys be arrElements(objGet(concat(v, ""), "__map_keys")).
     Let vals be arrElements(objGet(concat(v, ""), "__map_vals")).
     Let n be length of keys.
     If n is equal to 0:
         Return concat(concat("Map(0) ", chr(123)), chr(125)).
-    Return concat(concat(concat(concat(concat("Map(", toText(n)), ") "), chr(123)), concat(" ", inspectMapLoop(keys, vals, 1, ""))), concat(" ", chr(125))).
+    Let base be concat(concat("Map(", toText(n)), ")").
+    Let single be inspectMapJoin(keys, vals, 1, ind + 2, depth + 1, ", ", "").
+    If fitsSingleLine(concat(single, ""), n, ind, (charLen(concat(base, ""))) + 2):
+        Return concat(concat(concat(base, " "), concat(concat(chr(123), " "), single)), concat(" ", chr(125))).
+    Let inner2 be spaces(ind + 2).
+    Let body be inspectMapJoin(keys, vals, 1, ind + 2, depth + 1, concat(concat(",", chr(10)), inner2), "").
+    Return concat(concat(concat(concat(base, " "), concat(chr(123), chr(10))), concat(inner2, body)), concat(concat(chr(10), spaces(ind)), chr(125))).
 
-# Node util.inspect rendering for console.log — the SINGLE-LINE form, exact for structures under Node's
-# ~80-char breakLength: a top-level string prints raw, a nested string is single-quoted; arrays render
-# `[ e, e ]`, plain objects `{ k: v }`, Sets `Set(n) { … }`, Maps `Map(n) { k => v }` (empty `[]`/`{}`/
-# `Set(0) {}`/`Map(0) {}`), Dates as their ISO string (`Invalid Date` for NaN), recursively. Multi-line
-# wrapping + array column-grouping for large structures, and named forms for Error/Function/class
-# instances, are deliberate follow-ups (routed through materialize here so they are unchanged, not regressed).
-## To inspectVal (v: Text, top: Bool) -> Text:
+# Node util.inspect rendering for console.log: a top-level string prints raw, a nested string is
+# single-quoted; arrays render `[ e, e ]`, plain objects `{ k: v }`, Sets `Set(n) { … }`, Maps
+# `Map(n) { k => v }` (empty `[]`/`{}`/`Set(0) {}`/`Map(0) {}`), Dates as their ISO string (`Invalid
+# Date` for NaN), recursively. A container whose single-line form exceeds the ~80-char breakLength wraps
+# to one entry per line, indented by depth (ind). REMAINING follow-ups: array column-grouping (Node packs
+# >6 short elements into aligned columns — we stay one-per-line there), the compact=3 deep-nesting rule,
+# and named forms for Error/Function/class instances (routed through materialize, unchanged not regressed).
+## To inspectVal (v: Text, top: Bool, ind: Int, depth: Int) -> Text:
     If startsWith(v, tagBig ()):
         Return concat(substringAfter(v, tagBig ()), "n").
     If startsWith(v, tagStr ()):
@@ -12368,11 +12417,17 @@
     If startsWith(v, chr(1)):
         Return concat(concat(chr(91), "Function (anonymous)"), chr(93)).
     If isArrRef(v):
-        Return inspectArr(concat(v, "")).
+        If depth is greater than 2:
+            Return concat(concat(chr(91), "Array"), chr(93)).
+        Return inspectArr(concat(v, ""), ind, depth).
     If isSet(v):
-        Return inspectSet(concat(v, "")).
+        If depth is greater than 2:
+            Return concat(concat(chr(91), "Set"), chr(93)).
+        Return inspectSet(concat(v, ""), ind, depth).
     If isMap(v):
-        Return inspectMap(concat(v, "")).
+        If depth is greater than 2:
+            Return concat(concat(chr(91), "Map"), chr(93)).
+        Return inspectMap(concat(v, ""), ind, depth).
     If isObjRef(v):
         If isDateObj(v):
             If objGet(concat(v, ""), "__date_ms") is equal to "NaN":
@@ -12381,14 +12436,16 @@
         If objGet(concat(v, ""), "message") is not equal to "undefined":
             If objGet(concat(v, ""), "name") is not equal to "undefined":
                 Return materialize(v).
-        Return inspectObj(concat(v, "")).
+        If depth is greater than 2:
+            Return concat(concat(chr(91), "Object"), chr(93)).
+        Return inspectObj(concat(v, ""), ind, depth).
     Return v.
 
 # console.log renders a top-level BigInt with a trailing `n` (its inspect form) — distinct from
 # String(10n) / `10n + ""`, which drop it. Arrays and plain objects use Node's util.inspect form
 # (`[ 1, 2 ]` / `{ a: 1 }`), not join / `[object Object]`; other values format via materialize as usual.
 ## To bigDisplay (v: Text) -> Text:
-    Return inspectVal(concat(v, ""), true).
+    Return inspectVal(concat(v, ""), true, 0, 0).
 
 ## To consoleFmt (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
