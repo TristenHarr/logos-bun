@@ -20,7 +20,7 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 90), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const a = ri(20), b = ri(20), k = ri(11);
+    const a = ri(20), b = ri(20), k = ri(13);
     if (k === 0) return `const o={n:${a}};console.log(++o.n,o.n)`;
     if (k === 1) return `const o={n:${a}};console.log(o.n++,o.n)`;
     if (k === 2) return `const o={n:${a}};console.log(--o.n,o.n)`;
@@ -31,7 +31,10 @@ if (OURS) {
     if (k === 7) return `const o={n:${a}};const x=o.n++;console.log(x,o.n)`;
     if (k === 8) return `const o={c:0};for(let i=0;i<${1 + ri(5)};i++)o.c++;console.log(o.c)`;
     if (k === 9) return `const arr=[${a},${b},${a + b}];let i=${ri(3)};console.log(arr[i]++,arr[i])`;
-    return `class C{constructor(){this.n=${a}}bump(){return this.n++}}const c=new C();console.log(c.bump(),c.bump(),c.n)`;
+    if (k === 10) return `class C{constructor(){this.n=${a}}bump(){return this.n++}}const c=new C();console.log(c.bump(),c.bump(),c.n)`;
+    // static class field increment IN EXPRESSION position (id-generator / counter pattern)
+    if (k === 11) return `class C{static c=${a};static next(){return ++C.c}}console.log(C.next(),C.next(),C.next())`;
+    return `class C{static c=${a};static tick(){return C.c++}}console.log(C.tick(),C.tick(),C.c)`;
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {

@@ -9057,18 +9057,18 @@
     If memberIncAt(joinRange(toks, 1, length of toks, ""), i):
         If t is equal to "++":
             Let mEnd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
-            Let wr be assignTarget(joinRange(toks, i + 1, mEnd, ""), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEnd, ""), " + 1"), env)), env).
-            Return incDecEnv(toks, mEnd + 1, depth, env).
+            Let we be execStmt(concat(concat(joinRange(toks, i + 1, mEnd, ""), " = "), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEnd, ""), " + 1"), env))), env).
+            Return incDecEnv(toks, mEnd + 1, depth, we).
         If t is equal to "--":
             Let mEndd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
-            Let wrd be assignTarget(joinRange(toks, i + 1, mEndd, ""), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEndd, ""), " - 1"), env)), env).
-            Return incDecEnv(toks, mEndd + 1, depth, env).
+            Let wed be execStmt(concat(concat(joinRange(toks, i + 1, mEndd, ""), " = "), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEndd, ""), " - 1"), env))), env).
+            Return incDecEnv(toks, mEndd + 1, depth, wed).
         Let mEndp be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i, 0, "").
         If item (mEndp + 1) of toks is equal to "++":
-            Let wrp be assignTarget(joinRange(toks, i, mEndp, ""), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " + 1"), env)), env).
-            Return incDecEnv(toks, mEndp + 2, depth, env).
-        Let wrm be assignTarget(joinRange(toks, i, mEndp, ""), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " - 1"), env)), env).
-        Return incDecEnv(toks, mEndp + 2, depth, env).
+            Let wep be execStmt(concat(concat(joinRange(toks, i, mEndp, ""), " = "), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " + 1"), env))), env).
+            Return incDecEnv(toks, mEndp + 2, depth, wep).
+        Let wem be execStmt(concat(concat(joinRange(toks, i, mEndp, ""), " = "), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " - 1"), env))), env).
+        Return incDecEnv(toks, mEndp + 2, depth, wem).
     If t is equal to "++":
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
