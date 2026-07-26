@@ -2802,8 +2802,15 @@
     Return newArr(concat(concat(tagArr (), joinChr6(els, 1, length of els, "")), tagArrEnd ())).
 
 ## To objDefineProp (o: Text, key: Text, desc: Text) -> Text:
+    Let g be objGet(concat(desc, ""), "get").
+    If startsWith(concat(g, ""), chr(1)):
+        Let dg be objSet(concat(o, ""), concat("__get_", concat(key, "")), concat(g, "")).
+    Let st be objGet(concat(desc, ""), "set").
+    If startsWith(concat(st, ""), chr(1)):
+        Let ds be objSet(concat(o, ""), concat("__set_", concat(key, "")), concat(st, "")).
     Let v be objGet(concat(desc, ""), "value").
-    Let d be objSet(concat(o, ""), concat(key, ""), concat(v, "")).
+    If v is not equal to "undefined":
+        Let d be objSet(concat(o, ""), concat(key, ""), concat(v, "")).
     Return concat(o, "").
 
 ## To ownPropDesc (o: Text, key: Text) -> Text:
