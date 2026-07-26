@@ -5047,12 +5047,28 @@
     Let p1 be maybePropagateThrow(concat(d1, "")).
     Return envGet(d1, "__ret").
 
+# Whether a callback's parameter list contains a rest param (`...args`) — those need the (value, index,
+# array) call args gathered into an array via bindParams, not the plain positional binding below.
+## To hasRestParamAt (params: Seq of Text, i: Int) -> Bool:
+    If i is greater than length of params:
+        Return false.
+    If startsWith(trim(item i of params), "..."):
+        Return true.
+    Return hasRestParamAt(params, i + 1).
+
+## To hasRestParam (params: Seq of Text) -> Bool:
+    Return hasRestParamAt(params, 1).
+
 ## To callFnIdx (fnVal: Text, el: Text, idx: Text, env: Text) -> Text:
     If isBoundFn(concat(fnVal, "")):
         Return callBoundIdx(concat(fnVal, ""), el, idx, "undefined", env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
+    If hasRestParam(params):
+        Let dR be runBlockStr(body, bindParams(params, [concat(el, ""), concat(idx, "")], 1, env, env)).
+        Let pR be maybePropagateThrow(concat(dR, "")).
+        Return envGet(dR, "__ret").
     Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 1:
         Let d2 be runBlockStr(body, bindParamVal(trim(item 2 of params), idx, e1)).
@@ -5071,6 +5087,10 @@
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
+    If hasRestParam(params):
+        Let dR be runBlockStr(body, bindParams(params, [concat(el, ""), concat(idx, ""), concat(arrv, "")], 1, env, env)).
+        Let pR be maybePropagateThrow(concat(dR, "")).
+        Return envGet(dR, "__ret").
     Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 2:
         Let e2 be bindParamVal(trim(item 2 of params), idx, e1).
@@ -5116,6 +5136,10 @@
     Let params be patFields(fnParams(concat(fnVal, ""))).
     Let body be fnBody(concat(fnVal, "")).
     Let pset be paramNameSet(params, 1, "").
+    If hasRestParam(params):
+        Let dR be runBlockStr(body, bindParams(params, [concat(el, ""), concat(idx, ""), concat(arrv, "")], 1, env, env)).
+        Let pR be maybePropagateThrow(concat(dR, "")).
+        Return cbMerge(split(concat(env, ""), ";"), 1, concat(dR, ""), pset, "", "").
     Let e1 be bindParamVal(trim(item 1 of params), el, env).
     If length of params is greater than 2:
         Let d3 be runBlockStr(body, bindParamVal(trim(item 3 of params), arrv, bindParamVal(trim(item 2 of params), idx, e1))).
