@@ -11860,6 +11860,8 @@
     If i is greater than length of toks:
         Return acc.
     Let t be item i of toks.
+    If t is equal to chr(10):
+        Return domWalk(toks, i + 1, stack, prev, domAppend(acc, t)).
     If atKeyPos(stack, prev):
         If t is equal to "get":
             If isWordChar1(domNext(toks, i + 1)):

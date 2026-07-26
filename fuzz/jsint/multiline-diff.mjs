@@ -22,7 +22,7 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const a = () => 1 + ri(20), b = () => 1 + ri(20);
   const program = () => {
-    const x = a(), y = b(), k = ri(12);
+    const x = a(), y = b(), k = ri(14);
     if (k === 0) return `function f() {\n  let s = ${x} + ${y};\n  return s;\n}\nconsole.log(f());`;
     if (k === 1) return `function f() {\n  let a = ${x};\n  a = a + ${y};\n  return a;\n}\nconsole.log(f());`;
     if (k === 2) return `function f() {\n  const m = {};\n  m.x = ${x};\n  m.y = ${y};\n  return m.x + m.y;\n}\nconsole.log(f());`;
@@ -30,6 +30,8 @@ if (OURS) {
     if (k === 4) return `function f() {\n  const arr = [];\n  for (let i = 0; i < ${1 + ri(5)}; i++) {\n    arr.push(i * ${x});\n  }\n  return arr.reduce((s, v) => s + v, 0);\n}\nconsole.log(f());`;
     if (k === 5) return `function f(n) {\n  if (n > ${x}) {\n    return "big";\n  }\n  return "small";\n}\nconsole.log(f(${y}));`;
     if (k === 6) return `function f() {\n  try {\n    return ${x} + ${y};\n  } catch (e) {\n    return -1;\n  }\n}\nconsole.log(f());`;
+    if (k === 12) return `const o = {\n  a: ${x},\n  b: ${y},\n  sum() {\n    return this.a + this.b;\n  }\n};\nconsole.log(o.sum());`;
+    if (k === 13) return `const o = {\n  _v: ${x},\n  get v() {\n    return this._v * 2;\n  }\n};\nconsole.log(o.v);`;
     if (k === 7) return `function add(p, q) {\n  return p + q;\n}\nconsole.log(add(\n  ${x},\n  ${y}\n));`;
     if (k === 8) return `function fact(n) {\n  let r = 1;\n  while (n > 1) {\n    r = r * n;\n    n = n - 1;\n  }\n  return r;\n}\nconsole.log(fact(${1 + ri(5)}));`;
     if (k === 9) return `class P {\n  constructor(v) {\n    this.v = v;\n  }\n  double() {\n    return this.v * 2;\n  }\n}\nconst p = new P(${x});\nconsole.log(p.double());`;
