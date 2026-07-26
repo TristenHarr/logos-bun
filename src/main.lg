@@ -7665,9 +7665,10 @@
     Return optCallPos(toks, i + 1).
 
 # Resolve optional CALLS `recv ?. method ( args )` before ordinary method dispatch: evaluate the receiver
-# ONCE (jsEvalIn resolves any nested optional members in it), then either short-circuit to undefined
-# (nullish receiver — the balanced call group is consumed) or splice the evaluated receiver back as a
-# plain `<recv> . method ( args )` so resolveMethods runs the call. Left-to-right, recursively.
+# ONCE to test nullishness (jsEvalIn resolves any nested optional members in it), then either short-circuit
+# to undefined (nullish receiver — the balanced call group is consumed) or rewrite the ORIGINAL receiver
+# text to a plain `<before> . method ( args )` so resolveMethods runs the call — arrays, strings, and objects
+# alike, since the receiver is known non-null at this point. Left-to-right, recursively.
 ## To resolveOptCall (expr: Text, env: Text) -> Text:
     Let toks be split(concat(expr, ""), " ").
     Let pos be optCallPos(toks, 1).
@@ -7683,11 +7684,7 @@
         Let ai be balancedArg(concat(ac, ""), 1, 0, "").
         Let restAfter be trim(strSliceLoop(concat(ac, ""), (charLen(concat(ai, ""))) + 2, length of ac, "")).
         Return resolveOptCall(trim(concat(concat(prefix, " undefined "), restAfter)), env).
-    If isArrRef(concat(recv, "")):
-        Return concat(expr, "").
-    If startsWith(concat(recv, ""), tagStr ()):
-        Return concat(expr, "").
-    Return resolveOptCall(trim(concat(concat(concat(before, " . "), mname), concat(" ", afterCall))), env).
+    Return resolveOptCall(trim(concat(concat(concat(before, " . "), mname), concat(" ", trim(concat(afterCall, ""))))), env).
 
 # Optional chaining `a ?. b` / `a ?. [k]` / `a ?. (args)`: if the receiver is null/undefined the whole
 # access is undefined (the access group is consumed, short-circuiting); otherwise it behaves like the
