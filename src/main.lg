@@ -6187,7 +6187,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . ok (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13608,11 +13608,47 @@
         Return concat(tagStr (), encodeStr(decodeStr(inspectVal(concat(v, ""), false, 0, 0)))).
     Return "undefined".
 
+# node:assert — the comparison assertions, evaluated by building the equivalent `===`/`==`/`!==`/`!=`
+# expression from the argument source and re-evaluating; a failing assertion raises an AssertionError
+# through the pending-throw channel (an uncaught one exits non-zero, exactly like Node). deepEqual/
+# deepStrictEqual approximate structural equality with a JSON.stringify comparison (sufficient for the
+# common plain-data cases; nested-order/undefined edges are a follow-up).
+## To assertFail (msg: Text) -> Text:
+    Return throwSet(newError("AssertionError", concat(tagStr (), encodeStr(concat(msg, ""))))).
+
+## To assertCmp (a: Text, op: Text, b: Text, env: Text, msg: Text) -> Text:
+    If boolOf(jsEvalIn(concat(concat(concat(concat(a, " "), op), " "), b), env)) is equal to false:
+        Return assertFail(concat(msg, "")).
+    Return "undefined".
+
+## To assertModCall (method: Text, argText: Text, env: Text) -> Text:
+    Let argsL be splitArgsN(concat(argText, "")).
+    Let a1 be trim(item 1 of argsL).
+    If concat(method, "") is equal to "ok":
+        If boolOf(jsEvalIn(concat(a1, ""), env)) is equal to false:
+            Return assertFail("assertion failed").
+        Return "undefined".
+    If concat(method, "") is equal to "strictEqual":
+        Return assertCmp(concat(a1, ""), "===", trim(item 2 of argsL), env, "strictEqual failed").
+    If concat(method, "") is equal to "equal":
+        Return assertCmp(concat(a1, ""), "==", trim(item 2 of argsL), env, "equal failed").
+    If concat(method, "") is equal to "notStrictEqual":
+        Return assertCmp(concat(a1, ""), "!==", trim(item 2 of argsL), env, "notStrictEqual failed").
+    If concat(method, "") is equal to "notEqual":
+        Return assertCmp(concat(a1, ""), "!=", trim(item 2 of argsL), env, "notEqual failed").
+    If concat(method, "") is equal to "deepStrictEqual":
+        Return assertCmp(concat(concat(concat("JSON . stringify ( ", a1), " )"), ""), "===", concat(concat("JSON . stringify ( ", trim(item 2 of argsL)), " )"), env, "deepStrictEqual failed").
+    If concat(method, "") is equal to "deepEqual":
+        Return assertCmp(concat(concat(concat("JSON . stringify ( ", a1), " )"), ""), "===", concat(concat("JSON . stringify ( ", trim(item 2 of argsL)), " )"), env, "deepEqual failed").
+    Return "undefined".
+
 ## To nodeModCall (mod: Text, method: Text, argText: Text, env: Text) -> Text:
     If concat(mod, "") is equal to "path":
         Return pathModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "util":
         Return utilModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "assert":
+        Return assertModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # The exports blob for a built-in node module, or "" for a non-builtin specifier. The default export is a
@@ -13649,6 +13685,10 @@
         Return concat("default=", nodeModMarker("util")).
     If concat(spec, "") is equal to "node:util":
         Return concat("default=", nodeModMarker("util")).
+    If concat(spec, "") is equal to "assert":
+        Return concat("default=", nodeModMarker("assert")).
+    If concat(spec, "") is equal to "node:assert":
+        Return concat("default=", nodeModMarker("assert")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
