@@ -25,8 +25,10 @@ if (OURS) {
   const program = () => {
     const spec = ri(3) === 0 ? "node:path" : "path";
     const head = `import p from "${spec}";\n`;
-    const k = ri(10);
+    const k = ri(12);
     if (k === 9) return head + `console.log(p.relative(${JSON.stringify("/" + segs().join("/"))}, ${JSON.stringify("/" + segs().join("/"))}));`;
+    if (k === 10) return head + `console.log(JSON.stringify(p.parse(${JSON.stringify(apath())})));`;
+    if (k === 11) return head + `console.log(p.format(p.parse(${JSON.stringify("/" + segs().join("/"))})));`;    // roundtrip
     if (k === 0) return head + `console.log(p.join(${segs().map((s) => JSON.stringify(s)).join(",")}));`;
     if (k === 1) return head + `console.log(p.normalize(${JSON.stringify(apath())}));`;
     if (k === 2) return head + `console.log(p.basename(${JSON.stringify(apath())}));`;

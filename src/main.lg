@@ -6195,7 +6195,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13595,6 +13595,58 @@
         Return i.
     Return lastDotIdx(concat(s, ""), i - 1, found).
 
+# path.parse -> { root, dir, base, ext, name } as a heap object. `dir` is the directory part or "" when
+# the path has no directory (unlike dirname's "."); `root` is "/" for an absolute path else "".
+## To pathRootOf (p: Text) -> Text:
+    If startsWith(concat(p, ""), "/"):
+        Return "/".
+    Return "".
+
+## To pathParseDir (p: Text) -> Text:
+    If hasSep(pathDropTrailSlash(concat(p, "")), "/"):
+        Return pathDirname(concat(p, "")).
+    Return "".
+
+## To pathParse (p: Text) -> Text:
+    Let base be pathBasename(concat(p, ""), "").
+    Let ext be pathExtname(concat(p, "")).
+    Let nm be strSliceLoop(concat(base, ""), 1, (charLen(concat(base, ""))) - charLen(concat(ext, "")), "").
+    Let o1 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "root", concat(tagStr (), encodeStr(pathRootOf(concat(p, ""))))).
+    Let o2 be objSet(concat(o1, ""), "dir", concat(tagStr (), encodeStr(pathParseDir(concat(p, ""))))).
+    Let o3 be objSet(concat(o2, ""), "base", concat(tagStr (), encodeStr(concat(base, "")))).
+    Let o4 be objSet(concat(o3, ""), "ext", concat(tagStr (), encodeStr(concat(ext, "")))).
+    Return objSet(concat(o4, ""), "name", concat(tagStr (), encodeStr(concat(nm, "")))).
+
+# A decoded string field of a path object, or "" when absent.
+## To pathFmtStr (o: Text, key: Text) -> Text:
+    Let v be objGet(concat(o, ""), concat(key, "")).
+    If v is equal to "undefined":
+        Return "".
+    Return decodeStr(materialize(concat(v, ""))).
+
+# path.format({dir,base,name,ext}) -> a path. base wins over name+ext; a `dir` is joined with "/" unless
+# it already ends in one (so a root dir "/" is not doubled).
+## To pathFmtBase (o: Text) -> Text:
+    Let base be pathFmtStr(concat(o, ""), "base").
+    If base is not equal to "":
+        Return concat(base, "").
+    Return concat(pathFmtStr(concat(o, ""), "name"), pathFmtStr(concat(o, ""), "ext")).
+
+## To pathFmtDir (o: Text) -> Text:
+    Let dir be pathFmtStr(concat(o, ""), "dir").
+    If dir is not equal to "":
+        Return concat(dir, "").
+    Return pathFmtStr(concat(o, ""), "root").
+
+## To pathFormat (o: Text) -> Text:
+    Let dir be pathFmtDir(concat(o, "")).
+    Let base be pathFmtBase(concat(o, "")).
+    If dir is equal to "":
+        Return concat(tagStr (), encodeStr(concat(base, ""))).
+    If concat(dir, "") is equal to pathFmtStr(concat(o, ""), "root"):
+        Return concat(tagStr (), encodeStr(concat(concat(dir, ""), concat(base, "")))).
+    Return concat(tagStr (), encodeStr(concat(concat(concat(dir, ""), "/"), concat(base, "")))).
+
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
 ## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -13633,6 +13685,10 @@
         Return cmpResult(startsWith(concat(first, ""), "/")).
     If concat(method, "") is equal to "relative":
         Return concat(tagStr (), encodeStr(pathRelative(concat(first, ""), concat(item 2 of strs, "")))).
+    If concat(method, "") is equal to "parse":
+        Return pathParse(concat(first, "")).
+    If concat(method, "") is equal to "format":
+        Return pathFormat(jsEvalIn(trim(concat(argText, "")), env)).
     Return "undefined".
 
 # node:util — `format` reuses console.log's util.format engine; `inspect` reuses the inspector but with
