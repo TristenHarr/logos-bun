@@ -21,7 +21,9 @@ if (OURS) {
   const program = () => {
     const spec = ri(3) === 0 ? "node:os" : "os";
     const head = `import os from "${spec}";\n`;
-    const k = ri(11);
+    const k = ri(13);
+    if (k === 11) return head + `console.log(os.availableParallelism() > 0, typeof os.availableParallelism());`;
+    if (k === 12) return `import { availableParallelism } from "${spec}";\nconsole.log(availableParallelism() > 0);`;
     if (k === 0) return head + `console.log(os.platform());`;
     if (k === 1) return head + `console.log(os.arch());`;
     if (k === 2) return head + `console.log(os.type());`;
