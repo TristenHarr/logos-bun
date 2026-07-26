@@ -23,9 +23,12 @@ if (OURS) {
   const val = () => ["" + ri(9), '"s' + ri(9) + '"', ri(2) ? "true" : "false"][ri(3)];
   const program = () => {
     const head = `import a from "${ri(3) === 0 ? "node:assert" : "assert"}";\n`;
-    const v1 = val(), v2 = val(), k = ri(11);
+    const v1 = val(), v2 = val(), k = ri(14);
     if (k === 9) return head + `a(${v1} === ${v2});\nconsole.log("direct");`;             // direct assert(x)
     if (k === 10) return head + `a(${ri(2) ? v1 : ri(9)});\nconsole.log("direct2");`;
+    if (k === 11) return head + `a.throws(() => { ${ri(2) ? 'throw new Error("x")' : "return " + ri(9)} });\nconsole.log("thr");`;
+    if (k === 12) return head + `a.doesNotThrow(() => { ${ri(2) ? "return " + ri(9) : 'throw new Error("y")'} });\nconsole.log("dnt");`;
+    if (k === 13) return head + (ri(2) ? `a.fail();\nconsole.log("x");` : `a.ok(${1 + ri(5)} > 0);\nconsole.log("okp");`);
     if (k === 0) return head + `a.strictEqual(${v1}, ${v2});\nconsole.log("after");`;
     if (k === 1) return head + `a.equal(${v1}, ${v2});\nconsole.log("after");`;
     if (k === 2) return head + `a.notStrictEqual(${v1}, ${v2});\nconsole.log("after");`;

@@ -6195,7 +6195,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . ok (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13677,6 +13677,22 @@
         Return assertCmp(concat(concat(concat("JSON . stringify ( ", a1), " )"), ""), "===", concat(concat("JSON . stringify ( ", trim(item 2 of argsL)), " )"), env, "deepStrictEqual failed").
     If concat(method, "") is equal to "deepEqual":
         Return assertCmp(concat(concat(concat("JSON . stringify ( ", a1), " )"), ""), "===", concat(concat("JSON . stringify ( ", trim(item 2 of argsL)), " )"), env, "deepEqual failed").
+    If concat(method, "") is equal to "fail":
+        Return assertFail("Failed").
+    If concat(method, "") is equal to "throws":
+        Let tfn be jsEvalIn(concat(a1, ""), env).
+        Let tran be callFn(concat(tfn, ""), "", env).
+        If throwPending() is equal to "1":
+            Let tcl be throwClear().
+            Return "undefined".
+        Return assertFail("Missing expected exception").
+    If concat(method, "") is equal to "doesNotThrow":
+        Let dfn be jsEvalIn(concat(a1, ""), env).
+        Let dran be callFn(concat(dfn, ""), "", env).
+        If throwPending() is equal to "1":
+            Let dcl be throwClear().
+            Return assertFail("Got unwanted exception").
+        Return "undefined".
     Return "undefined".
 
 ## To nodeModCall (mod: Text, method: Text, argText: Text, env: Text) -> Text:
