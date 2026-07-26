@@ -12355,9 +12355,9 @@
 # Node util.inspect rendering for console.log — the SINGLE-LINE form, exact for structures under Node's
 # ~80-char breakLength: a top-level string prints raw, a nested string is single-quoted; arrays render
 # `[ e, e ]`, plain objects `{ k: v }`, Sets `Set(n) { … }`, Maps `Map(n) { k => v }` (empty `[]`/`{}`/
-# `Set(0) {}`/`Map(0) {}`), recursively. Multi-line wrapping + array column-grouping for large structures,
-# and named forms for Date/Error/Function/class instances, are deliberate follow-ups (routed through
-# materialize here so they are unchanged, not regressed).
+# `Set(0) {}`/`Map(0) {}`), Dates as their ISO string (`Invalid Date` for NaN), recursively. Multi-line
+# wrapping + array column-grouping for large structures, and named forms for Error/Function/class
+# instances, are deliberate follow-ups (routed through materialize here so they are unchanged, not regressed).
 ## To inspectVal (v: Text, top: Bool) -> Text:
     If startsWith(v, tagBig ()):
         Return concat(substringAfter(v, tagBig ()), "n").
@@ -12375,7 +12375,9 @@
         Return inspectMap(concat(v, "")).
     If isObjRef(v):
         If isDateObj(v):
-            Return materialize(v).
+            If objGet(concat(v, ""), "__date_ms") is equal to "NaN":
+                Return "Invalid Date".
+            Return jsDateField(objGet(concat(v, ""), "__date_ms"), "iso").
         If objGet(concat(v, ""), "message") is not equal to "undefined":
             If objGet(concat(v, ""), "name") is not equal to "undefined":
                 Return materialize(v).

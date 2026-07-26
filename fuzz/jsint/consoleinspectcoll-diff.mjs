@@ -1,7 +1,8 @@
-// fuzz/jsint/consoleinspectcoll — console.log of a Set / Map uses Node's util.inspect named form:
-// `Set(n) { v, v }`, `Map(n) { k => v, k => v }`, empty `Set(0) {}` / `Map(0) {}`, with values/keys in
-// the nested inspect form (strings single-quoted) and nesting (a Set inside an array / as an object value).
-// inspectVal now routes isSet/isMap to inspectSet/inspectMap (were materialize -> `[object Object]`).
+// fuzz/jsint/consoleinspectcoll — console.log of a Set / Map / Date uses Node's util.inspect form:
+// `Set(n) { v, v }`, `Map(n) { k => v, k => v }`, empty `Set(0) {}` / `Map(0) {}`, and a Date as its ISO
+// string (`1970-01-01T00:00:00.000Z`), with values/keys in the nested inspect form (strings single-quoted)
+// and nesting (a Set/Date inside an array / as an object value). inspectVal now routes isSet/isMap to
+// inspectSet/inspectMap and isDateObj to the ISO string (all were materialize -> `[object Object]`).
 // Regression control: spreading a Set then .join still yields the comma form. Programs are kept small so
 // output stays single-line (Node's multi-line wrapping for large collections is out of scope, skipped).
 // Diffed vs Node (`bun run`).
@@ -24,7 +25,10 @@ if (OURS) {
   const intList = () => Array.from({ length: 1 + ri(4) }, () => ri(9));
   const strList = () => Array.from({ length: 1 + ri(3) }, () => JSON.stringify(words[ri(words.length)]));
   const program = () => {
-    const k = ri(11);
+    const k = ri(14);
+    if (k === 11) return `console.log(new Date(${ri(2000000000) * 1000}))`;               // Date -> ISO
+    if (k === 12) return `console.log([new Date(${ri(1000000) * 100000})])`;              // Date nested in array
+    if (k === 13) return `console.log({t:new Date(${ri(1000000) * 100000})})`;            // Date as object value
     if (k === 0) return `console.log(new Set([${intList().join(",")}]))`;
     if (k === 1) return `console.log(new Set([${strList().join(",")}]))`;
     if (k === 2) return `console.log(new Set())`;
