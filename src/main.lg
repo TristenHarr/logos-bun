@@ -27,6 +27,9 @@
 ## To native osTmpdir () -> Text
 ## To native osType () -> Text
 ## To native getCwd () -> Text
+## To native readDir (path: Text) -> Seq of Text
+## To native makeDir (path: Text) -> Text
+## To native removePath (path: Text) -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
 ## To native heapAlloc (content: Text) -> Text
@@ -6203,7 +6206,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . fileURLToPath (", " . pathToFileURL (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . readdirSync (", " . mkdirSync (", " . rmSync (", " . rmdirSync (", " . fileURLToPath (", " . pathToFileURL (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13885,7 +13888,28 @@
         Return "undefined".
     If concat(method, "") is equal to "existsSync":
         Return fileExists(concat(pathV, "")).
+    If concat(method, "") is equal to "readdirSync":
+        Return newArr(concat(concat(tagArr (), fsReaddirBuild(readDir(concat(pathV, "")), 1, "")), tagArrEnd ())).
+    If concat(method, "") is equal to "mkdirSync":
+        Let mk be makeDir(concat(pathV, "")).
+        Return "undefined".
+    If concat(method, "") is equal to "rmSync":
+        Let rm be removePath(concat(pathV, "")).
+        Return "undefined".
+    If concat(method, "") is equal to "rmdirSync":
+        Let rd be removePath(concat(pathV, "")).
+        Return "undefined".
     Return "undefined".
+
+# Build a JS array value from readDir's Seq of file names — each name becomes a tagged string element,
+# chr(6)-joined (the array element separator). Mirrors argvBuild.
+## To fsReaddirBuild (names: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of names:
+        Return acc.
+    Let el be concat(tagStr (), encodeStr(concat(item i of names, ""))).
+    If i is equal to 1:
+        Return fsReaddirBuild(names, i + 1, concat(el, "")).
+    Return fsReaddirBuild(names, i + 1, concat(concat(acc, tagArrSep ()), concat(el, ""))).
 
 # --- node:events (EventEmitter) ---
 # `new EventEmitter()` is a heap object tagged `__emitter`; each event's persistent listeners live in an
