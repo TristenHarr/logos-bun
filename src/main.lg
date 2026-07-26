@@ -6202,7 +6202,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . fileURLToPath (", " . pathToFileURL (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13826,6 +13826,23 @@
         Return concat(tagStr (), encodeStr(getEnv("HOME"))).
     Return "undefined".
 
+# --- node:url module functions (the ESM essentials) ---
+# fileURLToPath("file:///a/b") -> "/a/b"; pathToFileURL("/a/b") -> a URL object whose href is
+# "file:///a/b". The WHATWG `URL`/`URLSearchParams` are also named exports of this module (URL works via
+# the textual `new URL (` intercept regardless of the import). Deferred: percent-decoding of the path,
+# UNC/`file://host` forms, and the legacy `url.parse`/`format` object API.
+## To urlFileToPath (u: Text) -> Text:
+    If startsWith(concat(u, ""), "file://"):
+        Return substringAfter(concat(u, ""), "file://").
+    Return concat(u, "").
+
+## To urlModCall (method: Text, argText: Text, env: Text) -> Text:
+    If concat(method, "") is equal to "fileURLToPath":
+        Return concat(tagStr (), encodeStr(urlFileToPath(decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env)))))).
+    If concat(method, "") is equal to "pathToFileURL":
+        Return newUrl(concat("file://", decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env))))).
+    Return "undefined".
+
 # --- WHATWG URL: `new URL(absoluteUrl)` ---
 # A pragmatic parser for the common absolute special-scheme URL. The result is a plain object carrying
 # href/protocol/username/password/host/hostname/port/pathname/search/hash/origin as data properties, so
@@ -14082,6 +14099,8 @@
         Return fsModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "os":
         Return osModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "url":
+        Return urlModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # A module handle called as a FUNCTION (`assert(x)` === `assert.ok(x)`). Only `assert` is callable.
@@ -14165,6 +14184,10 @@
         Return concat("default=", nodeModMarker("os")).
     If concat(spec, "") is equal to "node:os":
         Return concat("default=", nodeModMarker("os")).
+    If concat(spec, "") is equal to "url":
+        Return concat("default=", nodeModMarker("url")).
+    If concat(spec, "") is equal to "node:url":
+        Return concat("default=", nodeModMarker("url")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
