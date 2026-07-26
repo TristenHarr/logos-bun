@@ -9731,6 +9731,8 @@
     Let s be trim(stmt).
     If isLabeledLoop(concat(s, "")):
         Return execLabeledLoop(concat(s, ""), env).
+    If startsWith(concat(s, ""), chr(123)):
+        Return runBlockStr(braceBody(substringAfter(concat(s, ""), chr(123)), 1, 0, ""), env).
     If needsIncDec(s):
         Let nStmt be incDecRewrite(split(concat(s, ""), " "), 1, 0, concat(env, ""), "").
         Let nEnv be incDecEnv(split(concat(s, ""), " "), 1, 0, concat(env, "")).
