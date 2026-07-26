@@ -1285,12 +1285,49 @@
 # function-valued slots. getMember reads a plain property but, when absent, invokes the getter
 # with `this` bound to the receiver. callSetter binds the setter's single parameter DIRECTLY to
 # the already-evaluated right-hand side (no re-evaluation) and runs the body with `this`.
+## To isRegexObj (v: Text) -> Bool:
+    If isObjRef(v):
+        Return objGet(concat(v, ""), "__regex_src") is not equal to "undefined".
+    Return false.
+
+# A RegExp exposes its config as read-only properties: `source`/`flags` are strings, `lastIndex` is the
+# stored cursor (0 until exec/a stateful match advances it), and each flag has a boolean accessor. These
+# are backed by the internal __regex_* fields, so getMember maps them (a plain objGet would miss them).
+## To regexFlag (recv: Text, ch: Text) -> Text:
+    Return cmpResult(hasSep(materialize(objGet(concat(recv, ""), "__regex_flags")), concat(ch, ""))).
+
+## To regexProp (recv: Text, prop: Text) -> Text:
+    If prop is equal to "lastIndex":
+        Let li be objGet(concat(recv, ""), "__regex_lastindex").
+        If li is equal to "undefined":
+            Return "0".
+        Return concat(li, "").
+    If prop is equal to "source":
+        Return concat(tagStr (), encodeStr(decodeStr(materialize(objGet(concat(recv, ""), "__regex_src"))))).
+    If prop is equal to "flags":
+        Return concat(tagStr (), encodeStr(decodeStr(materialize(objGet(concat(recv, ""), "__regex_flags"))))).
+    If prop is equal to "global":
+        Return regexFlag(concat(recv, ""), "g").
+    If prop is equal to "ignoreCase":
+        Return regexFlag(concat(recv, ""), "i").
+    If prop is equal to "multiline":
+        Return regexFlag(concat(recv, ""), "m").
+    If prop is equal to "sticky":
+        Return regexFlag(concat(recv, ""), "y").
+    If prop is equal to "dotAll":
+        Return regexFlag(concat(recv, ""), "s").
+    If prop is equal to "unicode":
+        Return regexFlag(concat(recv, ""), "u").
+    Return objGet(concat(recv, ""), concat(prop, "")).
+
 ## To getMember (recv: Text, prop: Text) -> Text:
     If prop is equal to "size":
         If isMap(concat(recv, "")):
             Return toText(collSize(concat(recv, ""))).
         If isSet(concat(recv, "")):
             Return toText(collSize(concat(recv, ""))).
+    If isRegexObj(concat(recv, "")):
+        Return regexProp(concat(recv, ""), concat(prop, "")).
     Let direct be objGet(concat(recv, ""), concat(prop, "")).
     If direct is not equal to "undefined":
         Return direct.
@@ -12568,6 +12605,8 @@
             Return concat(concat(chr(91), "Map"), chr(93)).
         Return inspectMap(concat(v, ""), ind, depth).
     If isObjRef(v):
+        If isRegexObj(v):
+            Return concat(concat(concat("/", decodeStr(materialize(objGet(concat(v, ""), "__regex_src")))), "/"), decodeStr(materialize(objGet(concat(v, ""), "__regex_flags")))).
         If isDateObj(v):
             If objGet(concat(v, ""), "__date_ms") is equal to "NaN":
                 Return "Invalid Date".
