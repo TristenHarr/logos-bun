@@ -6195,7 +6195,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13647,6 +13647,108 @@
         Return concat(tagStr (), encodeStr(concat(concat(dir, ""), concat(base, "")))).
     Return concat(tagStr (), encodeStr(concat(concat(concat(dir, ""), "/"), concat(base, "")))).
 
+# --- node:querystring (application/x-www-form-urlencoded, ASCII) ---
+## To hexUpper (n: Int) -> Text:
+    If n is less than 10:
+        Return chr(48 + n).
+    Return chr((n - 10) + 65).
+
+# The characters querystring.escape leaves un-encoded (encodeURIComponent's unreserved set).
+## To isQsUnreserved (c: Text) -> Bool:
+    Return hasSep("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()", concat(c, "")).
+
+## To qsEscapeLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If isQsUnreserved(concat(c, "")):
+        Return qsEscapeLoop(concat(s, ""), i + 1, concat(concat(acc, ""), c), len).
+    Let b be ord(c).
+    Return qsEscapeLoop(concat(s, ""), i + 1, concat(concat(concat(acc, ""), "%"), concat(hexUpper(b // 16), hexUpper(b % 16))), len).
+
+## To qsEscape (s: Text) -> Text:
+    Return qsEscapeLoop(concat(s, ""), 1, "", charLen(concat(s, ""))).
+
+## To qsUnescapeLoop (s: Text, i: Int, acc: Text, len: Int) -> Text:
+    If i is greater than len:
+        Return acc.
+    Let c be item i of s.
+    If c is equal to "+":
+        Return qsUnescapeLoop(concat(s, ""), i + 1, concat(acc, " "), len).
+    If c is equal to "%":
+        If (i + 2) is less than or equal to len:
+            Let hi be hexVal(item (i + 1) of s).
+            Let lo be hexVal(item (i + 2) of s).
+            Return qsUnescapeLoop(concat(s, ""), i + 3, concat(acc, chr((hi * 16) + lo)), len).
+    Return qsUnescapeLoop(concat(s, ""), i + 1, concat(acc, c), len).
+
+## To qsUnescape (s: Text) -> Text:
+    Return qsUnescapeLoop(concat(s, ""), 1, "", charLen(concat(s, ""))).
+
+# ToString of a querystring value for stringify: a string decodes, true/false/number print as text.
+## To qsValStr (v: Text) -> Text:
+    If startsWith(concat(v, ""), tagStr ()):
+        Return decodeStr(materialize(concat(v, ""))).
+    If concat(v, "") is equal to "true":
+        Return "true".
+    If concat(v, "") is equal to "false":
+        Return "false".
+    Return concat(v, "").
+
+## To qsStringifyEntries (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let e be concat(item i of entries, "").
+    If e is equal to "":
+        Return qsStringifyEntries(entries, i + 1, concat(acc, "")).
+    Let k be qsEscape(decodeStr(substringBefore(concat(e, ""), tagObjKV ()))).
+    Let v be qsEscape(qsValStr(substringAfter(concat(e, ""), tagObjKV ()))).
+    Let piece be concat(concat(concat(k, ""), "="), concat(v, "")).
+    If concat(acc, "") is equal to "":
+        Return qsStringifyEntries(entries, i + 1, concat(piece, "")).
+    Return qsStringifyEntries(entries, i + 1, concat(concat(acc, "&"), piece)).
+
+## To qsParseVal (pair: Text) -> Text:
+    If hasSep(concat(pair, ""), "="):
+        Return qsUnescape(substringAfter(concat(pair, ""), "=")).
+    Return "".
+
+# A repeated querystring key collects its values into an array (`a=1&a=2` -> { a: ["1","2"] }): the first
+# value stays a string, a second promotes to a 2-element array, a further one appends.
+## To qsAppendVal (existing: Text, newv: Text) -> Text:
+    If isArrRef(concat(existing, "")):
+        Return newArr(concat(concat(concat(tagArr (), joinArrEls(arrElements(concat(existing, "")), 1, "")), concat(tagArrSep (), concat(newv, ""))), tagArrEnd ())).
+    Return newArr(concat(concat(concat(tagArr (), concat(existing, "")), concat(tagArrSep (), concat(newv, ""))), tagArrEnd ())).
+
+## To qsParsePairs (pairs: Seq of Text, i: Int, o: Text) -> Text:
+    If i is greater than length of pairs:
+        Return o.
+    Let pair be concat(item i of pairs, "").
+    If pair is equal to "":
+        Return qsParsePairs(pairs, i + 1, concat(o, "")).
+    Let k be qsUnescape(substringBefore(concat(pair, ""), "=")).
+    Let newv be concat(tagStr (), encodeStr(qsParseVal(concat(pair, "")))).
+    Let existing be objGet(concat(o, ""), concat(k, "")).
+    If existing is equal to "undefined":
+        Return qsParsePairs(pairs, i + 1, objSet(concat(o, ""), concat(k, ""), concat(newv, ""))).
+    Return qsParsePairs(pairs, i + 1, objSet(concat(o, ""), concat(k, ""), qsAppendVal(concat(existing, ""), concat(newv, "")))).
+
+## To qsParse (str: Text) -> Text:
+    If trim(concat(str, "")) is equal to "":
+        Return newObjRef(concat(tagObj (), tagObjEnd ())).
+    Return qsParsePairs(split(concat(str, ""), "&"), 1, newObjRef(concat(tagObj (), tagObjEnd ()))).
+
+## To querystringModCall (method: Text, argText: Text, env: Text) -> Text:
+    If concat(method, "") is equal to "parse":
+        Return qsParse(decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env)))).
+    If concat(method, "") is equal to "stringify":
+        Return concat(tagStr (), encodeStr(qsStringifyEntries(objEntrySeq(jsEvalIn(trim(concat(argText, "")), env)), 1, ""))).
+    If concat(method, "") is equal to "escape":
+        Return concat(tagStr (), encodeStr(qsEscape(decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env)))))).
+    If concat(method, "") is equal to "unescape":
+        Return concat(tagStr (), encodeStr(qsUnescape(decodeStr(materialize(jsEvalIn(trim(concat(argText, "")), env)))))).
+    Return "undefined".
+
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
 ## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -13758,6 +13860,8 @@
         Return utilModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "assert":
         Return assertModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "querystring":
+        Return querystringModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # A module handle called as a FUNCTION (`assert(x)` === `assert.ok(x)`). Only `assert` is callable.
@@ -13826,6 +13930,10 @@
         Return concat("default=", nodeModMarker("assert")).
     If concat(spec, "") is equal to "node:assert":
         Return concat("default=", nodeModMarker("assert")).
+    If concat(spec, "") is equal to "querystring":
+        Return concat("default=", nodeModMarker("querystring")).
+    If concat(spec, "") is equal to "node:querystring":
+        Return concat("default=", nodeModMarker("querystring")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
