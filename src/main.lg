@@ -6451,6 +6451,13 @@
         Let bef be substringBefore(expr, "process . cwd (").
         Let aft be substringAfter(expr, "process . cwd (").
         Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), encodeStr(getCwd ()))), methodRest(aft))), env).
+    If substringBefore(expr, "Buffer . from (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Buffer . from (") is equal to false:
+        Let bef be substringBefore(expr, "Buffer . from (").
+        Let aft be substringAfter(expr, "Buffer . from (").
+        Let bargs be splitArgsN(methodArg(aft)).
+        Let braw be decodeStr(materialize(jsEvalIn(trim(item 1 of bargs), env))).
+        Return resolveMethods(trim(concat(concat(bef, newBuffer(bufferDecode(concat(braw, ""), bufferEncArg(bargs, env)))), methodRest(aft))), env).
     If substringBefore(expr, "new WeakMap (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new WeakMap (") is equal to false:
         Let bef be substringBefore(expr, "new WeakMap (").
@@ -6596,6 +6603,13 @@
         Let idrecv be jsEvalIn(recvExpr(concat(idbef, "")), env).
         If isStat(idrecv):
             Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(idbef, "")), " "), cmpResult(objGet(concat(idrecv, ""), "__stat_isdir") is equal to "1")), methodRest(idaft))), env).
+    If substringBefore(expr, " . toString (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . toString (") is equal to false:
+        Let tsbef be substringBefore(expr, " . toString (").
+        Let tsaft be substringAfter(expr, " . toString (").
+        Let tsrecv be jsEvalIn(recvExpr(concat(tsbef, "")), env).
+        If isBuffer(tsrecv):
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(tsbef, "")), " "), bufToStrResult(decodeStr(materialize(objGet(concat(tsrecv, ""), "__buffer"))), methodArg(tsaft), env)), methodRest(tsaft))), env).
     If substringBefore(expr, " . set (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
@@ -13947,6 +13961,47 @@
         Return fsReaddirBuild(names, i + 1, concat(el, "")).
     Return fsReaddirBuild(names, i + 1, concat(concat(acc, tagArrSep ()), concat(el, ""))).
 
+# --- Buffer (encoding conversions) ---
+# A Buffer is a heap object tagged `__buffer` whose `__buffer` field holds the raw decoded bytes (as an
+# encoded string) and whose `length` field is the byte count. `Buffer.from(str[, enc])` decodes the input
+# by encoding (utf8 default, base64, hex); `buf.toString([enc])` re-encodes the raw bytes. Byte length
+# equals character length for ASCII (multi-byte UTF-8 byte-vs-char length, indexing, slice, alloc, concat,
+# and Buffer.isBuffer are follow-ups).
+## To bufferDecode (raw: Text, enc: Text) -> Text:
+    If concat(enc, "") is equal to "base64":
+        Return base64Decode(concat(raw, "")).
+    If concat(enc, "") is equal to "hex":
+        Return fromHex(concat(raw, "")).
+    Return concat(raw, "").
+
+## To bufferEncode (content: Text, enc: Text) -> Text:
+    If concat(enc, "") is equal to "base64":
+        Return base64Encode(concat(content, "")).
+    If concat(enc, "") is equal to "hex":
+        Return toHex(concat(content, "")).
+    Return concat(content, "").
+
+## To newBuffer (content: Text) -> Text:
+    Let b1 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__buffer", concat(tagStr (), encodeStr(concat(content, "")))).
+    Return objSet(concat(b1, ""), "length", toText(charLen(concat(content, "")))).
+
+## To isBuffer (v: Text) -> Bool:
+    If isObjRef(concat(v, "")):
+        Return objGet(concat(v, ""), "__buffer") is not equal to "undefined".
+    Return false.
+
+## To bufferEncArg (args: Seq of Text, env: Text) -> Text:
+    If length of args is greater than 1:
+        Return decodeStr(materialize(jsEvalIn(trim(item 2 of args), env))).
+    Return "".
+
+# `buf.toString([enc])` — the argText is the balanced call argument; empty means the utf8 default.
+## To bufToStrResult (content: Text, argText: Text, env: Text) -> Text:
+    If trim(concat(argText, "")) is equal to "":
+        Return concat(tagStr (), encodeStr(concat(content, ""))).
+    Let enc be decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(concat(argText, ""))), env))).
+    Return concat(tagStr (), encodeStr(bufferEncode(concat(content, ""), concat(enc, "")))).
+
 # --- node:events (EventEmitter) ---
 # `new EventEmitter()` is a heap object tagged `__emitter`; each event's persistent listeners live in an
 # `__evt_<name>` array and its one-shot listeners in `__once_<name>` (cleared after an emit). `.on` /
@@ -14410,6 +14465,10 @@
         Return concat("default=", nodeModMarker("events")).
     If concat(spec, "") is equal to "node:events":
         Return concat("default=", nodeModMarker("events")).
+    If concat(spec, "") is equal to "buffer":
+        Return concat("default=", nodeModMarker("buffer")).
+    If concat(spec, "") is equal to "node:buffer":
+        Return concat("default=", nodeModMarker("buffer")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
