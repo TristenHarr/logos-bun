@@ -19,8 +19,12 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 90), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const kw = () => ["class", "function", "return", "if", "for", "while", "async", "yield", "throw", "const", "=> {"][ri(11)];
+  // Apostrophes and quotes carried INSIDE a comment — an odd count (`Object's`, `isn't`) must not flip
+  // the quote-normalizer into string mode and mangle the real (double-quoted) code that follows. This is
+  // the exact shape of a test262 frontmatter description, and got the pipeline into infinite recursion.
+  const apos = () => ["Object's", "isn't", "doesn't", "property's", "'Attributes'", "the 'enumerable' bit", "can't 'do' it"][ri(7)];
   const program = () => {
-    const a = 1 + ri(20), b = 1 + ri(20), k = ri(9);
+    const a = 1 + ri(20), b = 1 + ri(20), k = ri(13);
     if (k === 0) return `// this is a ${kw()} in a line comment\nconsole.log(${a} + ${b});`;
     if (k === 1) return `/* a ${kw()} inside a block comment */\nconsole.log(${a} * ${b});`;
     if (k === 2) return `function f() {\n  // an error ${kw()} to avoid false positives\n  return ${a};\n}\nconsole.log(f());`;
@@ -29,6 +33,10 @@ if (OURS) {
     if (k === 5) return `console.log("http://example.com/${a}");\nconsole.log(${a} / ${1 + ri(4)} | 0);`;
     if (k === 6) return `const s = "a // not a comment ${kw()}";\nconsole.log(s.length > 0, ${a});`;
     if (k === 7) return `// café ${kw()} résumé → ${a}\nconsole.log("unicode-comment", ${b});`;
+    if (k === 8) return `/* ${apos()} */\nconsole.log("val", ${a});`;
+    if (k === 9) return `// ${apos()} and more\nvar msg = "result=${a}";\nconsole.log(msg);`;
+    if (k === 10) return `/*---\ndescription: >\n    ${apos()} using ${apos()} to ${apos()}\n---*/\nconsole.log("done", ${a} + ${b});`;
+    if (k === 11) return `function g() { /* ${apos()} */ return "x${a}"; }\nconsole.log(g());`;
     return `class P {\n  // a ${kw()} in a class body\n  m() { return ${a}; }\n}\nconsole.log(new P().m());`;
   };
   let checked = 0;

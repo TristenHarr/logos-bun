@@ -11872,7 +11872,10 @@
 # `'…'`, a literal `"` becomes `\"`, a `\'` becomes a bare `'`, other escapes pass through, and the
 # delimiters flip to `"`. Double-quoted and backtick strings pass through untouched (single quotes
 # inside a `${…}` template hole are not converted — a rare edge). mode: 0 normal · 1 single · 2 double
-# · 3 backtick.
+# · 3 backtick. This pass runs before comments are stripped, so in mode 0 it also skips `//` and `/* */`
+# comments verbatim (`/*`/`//` are unambiguously comments in JS — a regex can neither start with `*` nor
+# be the empty `//`); otherwise an odd apostrophe in a comment (`Object's`, `isn't`) would flip it into
+# single-quote mode and mangle the real code that follows (a stack-overflow trigger downstream).
 # The CHARACTER length of a string (Unicode scalar count), not the byte length that `length of` returns for
 # a Text. LOGOS indexes a Text by character (`item i of s` is the i-th scalar), so a source-walking lexer
 # pass must bound its loop by the char count — a byte-length bound over-runs past the last character on any
@@ -11902,6 +11905,16 @@
         Return acc.
     Let c be item i of s.
     If mode is equal to 0:
+        If c is equal to "/":
+            Let nx be rxNextOr(s, i + 1).
+            If nx is equal to "/":
+                Let le be rxLineEnd(s, i).
+                Let seg be strSliceLoop(s, i, le - 1, "").
+                Return convertQuotesN(s, le, 0, concat(acc, seg), len).
+            If nx is equal to "*":
+                Let bend be rxBlockEnd(s, i + 2).
+                Let bseg be strSliceLoop(s, i, bend - 1, "").
+                Return convertQuotesN(s, bend, 0, concat(acc, bseg), len).
         If c is equal to chr(39):
             Return convertQuotesN(s, i + 1, 1, concat(acc, chr(34)), len).
         If c is equal to chr(34):
