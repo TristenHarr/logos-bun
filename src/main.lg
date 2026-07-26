@@ -2413,6 +2413,11 @@
             Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), toText(propLength(concat(lastTok, "")))), concat(rest, "")))).
         Let elem be arrGet(concat(lastTok, ""), parseInt(materialize(evalIndex(inner)))).
         Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), elem), concat(rest, "")))).
+    If isBuffer(lastTok):
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        If concat(decodeStr(materialize(evalIndex(inner))), "") is equal to "length":
+            Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), objGet(concat(lastTok, ""), "length")), concat(rest, "")))).
+        Return resolveArrays(trim(concat(concat(concat(newPrefix, " "), bufIndexByte(concat(lastTok, ""), parseInt(materialize(evalIndex(inner))))), concat(rest, "")))).
     If isObjRef(lastTok):
         Let got be objGet(lastTok, materialize(evalIndex(inner))).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
@@ -14041,6 +14046,15 @@
         Return acc.
     Let c be decodeStr(materialize(objGet(concat(item i of bufs, ""), "__buffer"))).
     Return bufConcatContent(bufs, i + 1, concat(concat(acc, ""), concat(c, ""))).
+
+# `buf[i]` — the byte code at index i (0-based), or undefined out of range.
+## To bufIndexByte (buf: Text, idx: Int) -> Text:
+    Let content be decodeStr(materialize(objGet(concat(buf, ""), "__buffer"))).
+    If idx is less than 0:
+        Return "undefined".
+    If idx is greater than or equal to charLen(concat(content, "")):
+        Return "undefined".
+    Return toText(ord(item (idx + 1) of content)).
 
 # Bytes from a number array, for Buffer.from([104, 105]) — each element is a byte code.
 ## To bufferFromArray (els: Seq of Text, i: Int, acc: Text) -> Text:
