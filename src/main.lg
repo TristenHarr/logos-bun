@@ -5850,18 +5850,21 @@
 ## To arrJoin (arrval: Text, sep: Text) -> Text:
     Return concat(tagStr (), arrJoinLoop(arrElements(arrval), 1, sep, "")).
 
+# String .replace/.replaceAll honour the `$` replacement patterns against the matched substring `a`
+# ($& = the match, $$ = a literal $, $1.. stay literal since a string search has no capture groups),
+# so the replacement runs through applyBackrefs. applyBackrefs short-circuits when `b` has no `$`.
 ## To strReplace (s: Text, a: Text, b: Text) -> Text:
     Let bef be substringBefore(s, a).
     If bef is equal to s:
         Return concat(tagStr (), s).
     Let tail be substringAfter(s, a).
-    Return concat(tagStr (), concat(concat(bef, b), tail)).
+    Return concat(tagStr (), concat(concat(bef, applyBackrefs(concat(b, ""), concat(a, ""), "")), tail)).
 
 ## To strReplaceAllLoop (s: Text, a: Text, b: Text, acc: Text) -> Text:
     Let bef be substringBefore(s, a).
     If bef is equal to s:
         Return concat(acc, s).
-    Return strReplaceAllLoop(substringAfter(s, a), concat(a, ""), concat(b, ""), concat(concat(acc, bef), b)).
+    Return strReplaceAllLoop(substringAfter(s, a), concat(a, ""), concat(b, ""), concat(concat(acc, bef), applyBackrefs(concat(b, ""), concat(a, ""), ""))).
 
 ## To strReplaceAll (s: Text, a: Text, b: Text) -> Text:
     Return concat(tagStr (), strReplaceAllLoop(s, a, b, "")).
