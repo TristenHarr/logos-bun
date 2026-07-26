@@ -6458,6 +6458,22 @@
         Let bargs be splitArgsN(methodArg(aft)).
         Let braw be decodeStr(materialize(jsEvalIn(trim(item 1 of bargs), env))).
         Return resolveMethods(trim(concat(concat(bef, newBuffer(bufferDecode(concat(braw, ""), bufferEncArg(bargs, env)))), methodRest(aft))), env).
+    If substringBefore(expr, "Buffer . alloc (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Buffer . alloc (") is equal to false:
+        Let bef be substringBefore(expr, "Buffer . alloc (").
+        Let aft be substringAfter(expr, "Buffer . alloc (").
+        Let an be safeInt(materialize(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env))).
+        Return resolveMethods(trim(concat(concat(bef, newBuffer(bufAllocContent(an, ""))), methodRest(aft))), env).
+    If substringBefore(expr, "Buffer . isBuffer (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Buffer . isBuffer (") is equal to false:
+        Let bef be substringBefore(expr, "Buffer . isBuffer (").
+        Let aft be substringAfter(expr, "Buffer . isBuffer (").
+        Return resolveMethods(trim(concat(concat(bef, cmpResult(isBuffer(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env)))), methodRest(aft))), env).
+    If substringBefore(expr, "Buffer . concat (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Buffer . concat (") is equal to false:
+        Let bef be substringBefore(expr, "Buffer . concat (").
+        Let aft be substringAfter(expr, "Buffer . concat (").
+        Return resolveMethods(trim(concat(concat(bef, newBuffer(bufConcatContent(arrElements(jsEvalIn(trim(item 1 of splitArgsN(methodArg(aft))), env)), 1, ""))), methodRest(aft))), env).
     If substringBefore(expr, "new WeakMap (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new WeakMap (") is equal to false:
         Let bef be substringBefore(expr, "new WeakMap (").
@@ -14001,6 +14017,19 @@
         Return concat(tagStr (), encodeStr(concat(content, ""))).
     Let enc be decodeStr(materialize(jsEvalIn(trim(item 1 of splitArgsN(concat(argText, ""))), env))).
     Return concat(tagStr (), encodeStr(bufferEncode(concat(content, ""), concat(enc, "")))).
+
+# n zero bytes, for Buffer.alloc(n).
+## To bufAllocContent (n: Int, acc: Text) -> Text:
+    If n is less than or equal to 0:
+        Return acc.
+    Return bufAllocContent(n - 1, concat(concat(acc, ""), chr(0))).
+
+# Concatenate the raw bytes of a Seq of Buffer values, for Buffer.concat([...]).
+## To bufConcatContent (bufs: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of bufs:
+        Return acc.
+    Let c be decodeStr(materialize(objGet(concat(item i of bufs, ""), "__buffer"))).
+    Return bufConcatContent(bufs, i + 1, concat(concat(acc, ""), concat(c, ""))).
 
 # --- node:events (EventEmitter) ---
 # `new EventEmitter()` is a heap object tagged `__emitter`; each event's persistent listeners live in an

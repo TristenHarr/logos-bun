@@ -21,7 +21,10 @@ if (OURS) {
   const words = ["hello", "world", "abc", "logos", "x1y2", "The quick brown", "a=b&c=d", "12345", "", "buffer test"];
   const str = () => words[ri(words.length)];
   const program = () => {
-    const s = str(), k = ri(8);
+    const s = str(), s2 = str(), k = ri(11);
+    if (k === 8) return `console.log(Buffer.alloc(${ri(6)}).toString("hex"), Buffer.alloc(${1 + ri(5)}).length);`;
+    if (k === 9) return `console.log(Buffer.isBuffer(Buffer.from(${JSON.stringify(s)})), Buffer.isBuffer(${JSON.stringify(s)}), Buffer.isBuffer(${ri(9)}));`;
+    if (k === 10) return `console.log(Buffer.concat([Buffer.from(${JSON.stringify(s)}), Buffer.from(${JSON.stringify(s2)})]).toString(), Buffer.concat([Buffer.from(${JSON.stringify(s)}), Buffer.from(${JSON.stringify(s2)})]).length);`;
     if (k === 0) return `console.log(Buffer.from(${JSON.stringify(s)}).toString());`;
     if (k === 1) return `console.log(Buffer.from(${JSON.stringify(s)}).length);`;
     if (k === 2) return `console.log(Buffer.from(${JSON.stringify(s)}).toString("hex"));`;
