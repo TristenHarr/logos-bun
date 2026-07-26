@@ -835,10 +835,11 @@
 ## To relFold (parts: Seq of Text, i: Int, op: Text, acc: Text) -> Text:
     If i is greater than length of parts:
         Return acc.
-    Let b be evalValue(trim(item i of parts)).
-    If relIsNaN(concat(acc, ""), concat(b, "")):
+    Let b be cmpPrim(evalValue(trim(item i of parts))).
+    Let pa be cmpPrim(concat(acc, "")).
+    If relIsNaN(concat(pa, ""), concat(b, "")):
         Return relFold(parts, i + 1, concat(op, ""), "false").
-    Return relFold(parts, i + 1, concat(op, ""), relApply(concat(op, ""), relCmp(concat(acc, ""), concat(b, "")))).
+    Return relFold(parts, i + 1, concat(op, ""), relApply(concat(op, ""), relCmp(concat(pa, ""), concat(b, "")))).
 
 ## To jsEvalCmp (expr: Text) -> Text:
     If startsWith(trim(expr), "! "):
@@ -4609,6 +4610,15 @@
     Let urest be joinRange(atoks, opend + 1, length of atoks, "").
     Let discarded be jsEvalCmp(concat(operand, "")).
     Return resolveVoid(trim(concat(concat(before, " undefined"), urest))).
+
+# A relational operand reduced to its primitive: JS `<`/`>`/`<=`/`>=` run ToPrimitive first, so an array
+# compares by its `toString` (`[1,2] < [1,3]` is `"1,2" < "1,3"`) and a plain object by "[object Object]".
+## To cmpPrim (v: Text) -> Text:
+    If isArrRef(concat(v, "")):
+        Return arrJoin(concat(v, ""), ",").
+    If isObjRef(concat(v, "")):
+        Return concat(tagStr (), "[object Object]").
+    Return concat(v, "").
 
 ## To cmpVals (a: Text, b: Text) -> Int:
     If startsWith(a, tagStr ()):
