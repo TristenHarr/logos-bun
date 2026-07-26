@@ -5174,7 +5174,7 @@
 ## To arrReduceRightNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
-        Return "undefined".
+        Return throwSet(newError("TypeError", concat(tagStr (), encodeStr("Reduce of empty array with no initial value")))).
     Let n be length of els.
     Return arrReduceRightLoop(els, n - 1, fnval, env, item n of els).
 
@@ -5233,7 +5233,7 @@
 ## To arrReduceNoInit (arrval: Text, fnval: Text, env: Text) -> Text:
     Let els be arrElements(arrval).
     If length of els is less than 1:
-        Return "undefined".
+        Return throwSet(newError("TypeError", concat(tagStr (), encodeStr("Reduce of empty array with no initial value")))).
     Return arrReduceLoop(els, 2, fnval, env, item 1 of els).
 
 ## To joinChr6 (els: Seq of Text, i: Int, upto: Int, acc: Text) -> Text:
