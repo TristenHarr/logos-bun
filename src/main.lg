@@ -6187,7 +6187,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13533,9 +13533,21 @@
         Return cmpResult(startsWith(concat(first, ""), "/")).
     Return "undefined".
 
+# node:util — `format` reuses console.log's util.format engine; `inspect` reuses the inspector but with
+# top-level strings QUOTED (`util.inspect("x")` is "'x'", unlike console.log's bare "x").
+## To utilModCall (method: Text, argText: Text, env: Text) -> Text:
+    If concat(method, "") is equal to "format":
+        Return concat(tagStr (), consoleFmtArgs(patFieldSplit(concat(argText, ""), 1, 0, 0, "", charLen(concat(argText, ""))), env)).
+    If concat(method, "") is equal to "inspect":
+        Let v be jsEvalIn(trim(concat(argText, "")), concat(env, "")).
+        Return concat(tagStr (), encodeStr(decodeStr(inspectVal(concat(v, ""), false, 0, 0)))).
+    Return "undefined".
+
 ## To nodeModCall (mod: Text, method: Text, argText: Text, env: Text) -> Text:
     If concat(mod, "") is equal to "path":
         Return pathModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "util":
+        Return utilModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # The exports blob for a built-in node module, or "" for a non-builtin specifier. The default export is a
@@ -13568,6 +13580,10 @@
         Return concat("default=", nodeModMarker("path")).
     If concat(spec, "") is equal to "node:path":
         Return concat("default=", nodeModMarker("path")).
+    If concat(spec, "") is equal to "util":
+        Return concat("default=", nodeModMarker("util")).
+    If concat(spec, "") is equal to "node:util":
+        Return concat("default=", nodeModMarker("util")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
