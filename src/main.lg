@@ -3693,6 +3693,10 @@
         Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
         Let restToks be joinRange(tailToks, 2, length of tailToks, "").
         Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), "undefined"), restToks))).
+    If isNodeModHandle(concat(recv, "")):
+        Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
+        Let restToks be joinRange(tailToks, 2, length of tailToks, "").
+        Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), nodeModProp(nodeModName(concat(recv, "")), item 1 of tailToks)), restToks))).
     If isSymbol(concat(recv, "")):
         If item 1 of tailToks is equal to "description":
             Let newPrefix be joinRange(lhsToks, 1, (length of lhsToks) - 1, "").
@@ -6183,7 +6187,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -6387,6 +6391,9 @@
     Let lmm be leftmostMethod(concat(expr, "")).
     If substringBefore(expr, lmm) is not equal to expr:
         Let urecv be jsEvalIn(recvExpr(concat(substringBefore(expr, lmm), "")), concat(env, "")).
+        If isNodeModHandle(urecv):
+            Let uaft be substringAfter(expr, lmm).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(substringBefore(expr, lmm), "")), " "), nodeModCall(nodeModName(urecv), trim(substringBefore(substringAfter(lmm, " . "), " (")), methodArg(uaft), env)), methodRest(uaft))), env).
         If isObjRef(urecv):
             If isDateObj(urecv):
                 Let uaft be substringAfter(expr, lmm).
@@ -13331,6 +13338,238 @@
         Return bindImports(restClause, concat(exportsBlob, ""), envSet(env, defName, envGet(exportsBlob, "default"))).
     Return envSet(env, trim(clause), envGet(exportsBlob, "default")).
 
+# True when `s` ends with `suffix` (suffix "" is always a suffix).
+## To endsWith (s: Text, suffix: Text) -> Bool:
+    If concat(suffix, "") is equal to "":
+        Return true.
+    Let ns be charLen(concat(s, "")).
+    Let nsuf be charLen(concat(suffix, "")).
+    If nsuf is greater than ns:
+        Return false.
+    Return strSliceLoop(concat(s, ""), (ns - nsuf) + 1, ns, "") is equal to concat(suffix, "").
+
+# --- node:path builtin module (POSIX) ---
+# A segment stack held as a chr(31)-separated string (a fresh Seq per push/pop would trip the borrow
+# checker, and `/` can't be the separator — it appears inside no single normalized segment but the join
+# below reintroduces it). Empty string = empty stack.
+## To pnStackPush (stack: Text, s: Text) -> Text:
+    If concat(stack, "") is equal to "":
+        Return concat(s, "").
+    Return concat(concat(concat(stack, ""), chr(31)), concat(s, "")).
+
+## To pnStackTop (stack: Text) -> Text:
+    If concat(stack, "") is equal to "":
+        Return "".
+    Let parts be split(concat(stack, ""), chr(31)).
+    Return concat(item (length of parts) of parts, "").
+
+## To pnStackPop (stack: Text) -> Text:
+    Let parts be split(concat(stack, ""), chr(31)).
+    If length of parts is less than or equal to 1:
+        Return "".
+    Return joinUpto(parts, 1, (length of parts) - 1, chr(31), "").
+
+# Process one path segment for normalization: drop "" and ".", resolve ".." against the stack (a real
+# preceding segment pops; at an absolute root ".." is a no-op; otherwise ".." is kept), else push it.
+## To pathNormSegs (segs: Seq of Text, i: Int, isAbs: Bool, stack: Text) -> Text:
+    If i is greater than length of segs:
+        Return concat(stack, "").
+    Let s be concat(item i of segs, "").
+    If s is equal to "":
+        Return pathNormSegs(segs, i + 1, isAbs, concat(stack, "")).
+    If s is equal to ".":
+        Return pathNormSegs(segs, i + 1, isAbs, concat(stack, "")).
+    If s is equal to "..":
+        Let top be pnStackTop(concat(stack, "")).
+        If top is equal to "":
+            If isAbs is equal to true:
+                Return pathNormSegs(segs, i + 1, isAbs, concat(stack, "")).
+            Return pathNormSegs(segs, i + 1, isAbs, pnStackPush(concat(stack, ""), "..")).
+        If top is equal to "..":
+            Return pathNormSegs(segs, i + 1, isAbs, pnStackPush(concat(stack, ""), "..")).
+        Return pathNormSegs(segs, i + 1, isAbs, pnStackPop(concat(stack, ""))).
+    Return pathNormSegs(segs, i + 1, isAbs, pnStackPush(concat(stack, ""), concat(s, ""))).
+
+# path.normalize — collapse `.`/`..`/`//`. Trailing-slash preservation is a deliberate follow-up (dropped
+# here). Empty -> ".", an all-collapsed relative path -> ".", an absolute one keeps its leading "/".
+## To pathNormalize (p: Text) -> Text:
+    If concat(p, "") is equal to "":
+        Return ".".
+    Let isAbs be startsWith(concat(p, ""), "/").
+    Let body be replaceAll(pathNormSegs(split(concat(p, ""), "/"), 1, isAbs, ""), chr(31), "/").
+    If concat(body, "") is equal to "":
+        If isAbs is equal to true:
+            Return "/".
+        Return ".".
+    Let res be concat(body, "").
+    If isAbs is equal to true:
+        Let res2 be concat("/", concat(body, "")).
+        If endsWith(concat(p, ""), "/"):
+            Return concat(res2, "/").
+        Return concat(res2, "").
+    If endsWith(concat(p, ""), "/"):
+        Return concat(res, "/").
+    Return concat(res, "").
+
+# path.join — concatenate the non-empty segments with "/", then normalize. No segments -> ".".
+## To pathJoinAcc (segs: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of segs:
+        Return acc.
+    Let s be concat(item i of segs, "").
+    If s is equal to "":
+        Return pathJoinAcc(segs, i + 1, concat(acc, "")).
+    If concat(acc, "") is equal to "":
+        Return pathJoinAcc(segs, i + 1, concat(s, "")).
+    Return pathJoinAcc(segs, i + 1, concat(concat(concat(acc, ""), "/"), concat(s, ""))).
+
+# segsText is the chr(10)-joined segment list (re-split to a fresh owned Seq here to dodge the borrow
+# checker, matching how the other list-taking helpers are threaded).
+## To pathJoin (segsText: Text) -> Text:
+    Let joined be pathJoinAcc(split(concat(segsText, ""), chr(10)), 1, "").
+    If concat(joined, "") is equal to "":
+        Return ".".
+    Return pathNormalize(concat(joined, "")).
+
+# The last path segment (after dropping any trailing slashes), for basename/dirname.
+## To pathLastSeg (p: Text) -> Text:
+    Let t be pathDropTrailSlash(concat(p, "")).
+    Let parts be split(concat(t, ""), "/").
+    Return concat(item (length of parts) of parts, "").
+
+## To pathDropTrailSlash (p: Text) -> Text:
+    Let n be charLen(concat(p, "")).
+    If n is less than or equal to 1:
+        Return concat(p, "").
+    If item n of p is equal to "/":
+        Return pathDropTrailSlash(strSliceLoop(concat(p, ""), 1, n - 1, "")).
+    Return concat(p, "").
+
+# path.basename(p, ext?) — the last segment, minus a matching trailing extension.
+## To pathBasename (p: Text, ext: Text) -> Text:
+    Let base be pathLastSeg(concat(p, "")).
+    If concat(ext, "") is equal to "":
+        Return concat(base, "").
+    If concat(base, "") is equal to concat(ext, ""):
+        Return concat(base, "").
+    If endsWith(concat(base, ""), concat(ext, "")):
+        Return strSliceLoop(concat(base, ""), 1, (charLen(concat(base, ""))) - charLen(concat(ext, "")), "").
+    Return concat(base, "").
+
+# path.dirname — everything before the last segment; "." when there is no directory part.
+## To pathDirname (p: Text) -> Text:
+    Let t be pathDropTrailSlash(concat(p, "")).
+    If hasSep(concat(t, ""), "/") is equal to false:
+        Return ".".
+    Let cut be (charLen(concat(t, ""))) - charLen(pathLastSeg(concat(p, ""))).
+    Let d be pathDropTrailSlash(strSliceLoop(concat(t, ""), 1, cut, "")).
+    If concat(d, "") is equal to "":
+        Return "/".
+    Return concat(d, "").
+
+# path.extname — from the LAST dot of the basename to its end; "" when there is no dot, or the only dot
+# is a leading one (a dotfile like ".hidden").
+## To pathExtname (p: Text) -> Text:
+    Let base be pathLastSeg(concat(p, "")).
+    Let di be lastDotIdx(concat(base, ""), charLen(concat(base, "")), 0).
+    If di is less than or equal to 1:
+        Return "".
+    If hasNonDot(concat(base, ""), 1, di - 1) is equal to false:
+        Return "".
+    Return strSliceLoop(concat(base, ""), di, charLen(concat(base, "")), "").
+
+# True when [i, upto] of `s` holds a character other than "." — the extension of a basename that is all
+# dots (`..`) or that only starts with dots (`.hidden`) is empty, so extname needs a real name part.
+## To hasNonDot (s: Text, i: Int, upto: Int) -> Bool:
+    If i is greater than upto:
+        Return false.
+    If item i of s is not equal to ".":
+        Return true.
+    Return hasNonDot(concat(s, ""), i + 1, upto).
+
+## To lastDotIdx (s: Text, i: Int, found: Int) -> Int:
+    If i is less than 1:
+        Return found.
+    If found is greater than 0:
+        Return found.
+    If item i of s is equal to ".":
+        Return i.
+    Return lastDotIdx(concat(s, ""), i - 1, found).
+
+# Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
+## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
+    If i is greater than length of args:
+        Return acc.
+    Let v be jsEvalIn(trim(item i of args), concat(env, "")).
+    Let s be decodeStr(materialize(concat(v, ""))).
+    If i is equal to 1:
+        Return pathArgStrs(args, i + 1, env, concat(s, "")).
+    Return pathArgStrs(args, i + 1, env, concat(concat(concat(acc, ""), chr(10)), concat(s, ""))).
+
+# Dispatch a `path.<method>(args)` call to the pure path functions, returning a tagged string value.
+## To pathModCall (method: Text, argText: Text, env: Text) -> Text:
+    If trim(concat(argText, "")) is equal to "":
+        If concat(method, "") is equal to "join":
+            Return concat(tagStr (), ".").
+        If concat(method, "") is equal to "isAbsolute":
+            Return "false".
+        Return concat(tagStr (), "").
+    Let argsL be splitArgsN(concat(argText, "")).
+    Let argT be pathArgStrs(argsL, 1, env, "").
+    Let strs be split(concat(argT, ""), chr(10)).
+    Let first be concat(item 1 of strs, "").
+    If concat(method, "") is equal to "join":
+        Return concat(tagStr (), encodeStr(pathJoin(concat(argT, "")))).
+    If concat(method, "") is equal to "normalize":
+        Return concat(tagStr (), encodeStr(pathNormalize(concat(first, "")))).
+    If concat(method, "") is equal to "basename":
+        If length of strs is greater than 1:
+            Return concat(tagStr (), encodeStr(pathBasename(concat(first, ""), concat(item 2 of strs, "")))).
+        Return concat(tagStr (), encodeStr(pathBasename(concat(first, ""), ""))).
+    If concat(method, "") is equal to "dirname":
+        Return concat(tagStr (), encodeStr(pathDirname(concat(first, "")))).
+    If concat(method, "") is equal to "extname":
+        Return concat(tagStr (), encodeStr(pathExtname(concat(first, "")))).
+    If concat(method, "") is equal to "isAbsolute":
+        Return cmpResult(startsWith(concat(first, ""), "/")).
+    Return "undefined".
+
+## To nodeModCall (mod: Text, method: Text, argText: Text, env: Text) -> Text:
+    If concat(mod, "") is equal to "path":
+        Return pathModCall(concat(method, ""), concat(argText, ""), env).
+    Return "undefined".
+
+# The exports blob for a built-in node module, or "" for a non-builtin specifier. The default export is a
+# marker object tagged `__nodemod`; resolveMethods routes method calls on it to nodeModCall.
+# A builtin-module handle is a plain tagged STRING sentinel `<tagStr>__nodemod:<name>`, not a heap object
+# — a heap object allocated during import resolution does not survive into the module body. resolveMethods
+# routes `<handle>.method(args)` to nodeModCall; getMember serves the module's data properties (path.sep).
+## To nodeModMarker (name: Text) -> Text:
+    Return concat(tagStr (), concat("__nodemod:", concat(name, ""))).
+
+## To isNodeModHandle (v: Text) -> Bool:
+    If startsWith(concat(v, ""), tagStr ()) is equal to false:
+        Return false.
+    Return startsWith(materialize(concat(v, "")), "__nodemod:").
+
+## To nodeModName (v: Text) -> Text:
+    Return substringAfter(materialize(concat(v, "")), "__nodemod:").
+
+# A DATA property (not a method) of a builtin module handle — path.sep / path.delimiter.
+## To nodeModProp (mod: Text, prop: Text) -> Text:
+    If concat(mod, "") is equal to "path":
+        If concat(prop, "") is equal to "sep":
+            Return concat(tagStr (), "/").
+        If concat(prop, "") is equal to "delimiter":
+            Return concat(tagStr (), ":").
+    Return "undefined".
+
+## To builtinModuleExports (spec: Text) -> Text:
+    If concat(spec, "") is equal to "path":
+        Return concat("default=", nodeModMarker("path")).
+    If concat(spec, "") is equal to "node:path":
+        Return concat("default=", nodeModMarker("path")).
+    Return "".
+
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
     If i is greater than length of lines:
         Return env.
@@ -13339,6 +13578,9 @@
         Let spec be importSpec(t).
         If spec is equal to "":
             Return applyImports(lines, i + 1, dir, env).
+        Let builtinBlob be builtinModuleExports(concat(spec, "")).
+        If builtinBlob is not equal to "":
+            Return applyImports(lines, i + 1, dir, bindImports(importClause(t), concat(builtinBlob, ""), env)).
         Let exportsBlob be loadModule(pathResolve(dir, spec)).
         Return applyImports(lines, i + 1, dir, bindImports(importClause(t), exportsBlob, env)).
     If startsWith(t, "export "):
