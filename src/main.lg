@@ -6474,6 +6474,11 @@
         If trim(methodArg(aft)) is equal to "":
             Return resolveMethods(trim(concat(concat(bef, newSetFrom(newArr(concat(tagArr (), tagArrEnd ())))), methodRest(aft))), env).
         Return resolveMethods(trim(concat(concat(bef, newSetFrom(jsEvalIn(trim(methodArg(aft)), env))), methodRest(aft))), env).
+    If substringBefore(expr, "new EventEmitter (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new EventEmitter (") is equal to false:
+        Let bef be substringBefore(expr, "new EventEmitter (").
+        Let aft be substringAfter(expr, "new EventEmitter (").
+        Return resolveMethods(trim(concat(concat(bef, newEmitter()), methodRest(aft))), env).
     If substringBefore(expr, "new Array (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new Array (") is equal to false:
         Let bef be substringBefore(expr, "new Array (").
@@ -6504,6 +6509,74 @@
         Let bef be substringBefore(expr, "new ReferenceError (").
         Let aft be substringAfter(expr, "new ReferenceError (").
         Return resolveMethods(trim(buildErrorCall(bef, aft, "ReferenceError", env)), env).
+    If substringBefore(expr, " . on (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . on (") is equal to false:
+        Let obef be substringBefore(expr, " . on (").
+        Let oaft be substringAfter(expr, " . on (").
+        Let orecv be jsEvalIn(recvExpr(concat(obef, "")), env).
+        If isEmitter(orecv):
+            Let oargs be splitArgsN(methodArg(oaft)).
+            Let od be emitterAdd(concat(orecv, ""), emitterKey(jsEvalIn(trim(item 1 of oargs), env)), fnArgValRaw(trim(item 2 of oargs), env)).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(obef, "")), " "), concat(orecv, "")), methodRest(oaft))), env).
+    If substringBefore(expr, " . addListener (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . addListener (") is equal to false:
+        Let abef be substringBefore(expr, " . addListener (").
+        Let aaft be substringAfter(expr, " . addListener (").
+        Let arecv be jsEvalIn(recvExpr(concat(abef, "")), env).
+        If isEmitter(arecv):
+            Let aargs be splitArgsN(methodArg(aaft)).
+            Let ad be emitterAdd(concat(arecv, ""), emitterKey(jsEvalIn(trim(item 1 of aargs), env)), fnArgValRaw(trim(item 2 of aargs), env)).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(abef, "")), " "), concat(arecv, "")), methodRest(aaft))), env).
+    If substringBefore(expr, " . once (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . once (") is equal to false:
+        Let qbef be substringBefore(expr, " . once (").
+        Let qaft be substringAfter(expr, " . once (").
+        Let qrecv be jsEvalIn(recvExpr(concat(qbef, "")), env).
+        If isEmitter(qrecv):
+            Let qargs be splitArgsN(methodArg(qaft)).
+            Let qd be emitterAdd(concat(qrecv, ""), emitterOnceKey(jsEvalIn(trim(item 1 of qargs), env)), fnArgValRaw(trim(item 2 of qargs), env)).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(qbef, "")), " "), concat(qrecv, "")), methodRest(qaft))), env).
+    If substringBefore(expr, " . emit (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . emit (") is equal to false:
+        Let mbef be substringBefore(expr, " . emit (").
+        Let maft be substringAfter(expr, " . emit (").
+        Let mrecv be jsEvalIn(recvExpr(concat(mbef, "")), env).
+        If isEmitter(mrecv):
+            Let margs be splitArgsN(methodArg(maft)).
+            Let mres be emitterEmit(concat(mrecv, ""), jsEvalIn(trim(item 1 of margs), env), joinCommaFrom(margs, 2, 2, ""), env).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(mbef, "")), " "), concat(mres, "")), methodRest(maft))), env).
+    If substringBefore(expr, " . removeListener (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . removeListener (") is equal to false:
+        Let rbef be substringBefore(expr, " . removeListener (").
+        Let raft be substringAfter(expr, " . removeListener (").
+        Let rrecv be jsEvalIn(recvExpr(concat(rbef, "")), env).
+        If isEmitter(rrecv):
+            Let rargs be splitArgsN(methodArg(raft)).
+            Let rname be jsEvalIn(trim(item 1 of rargs), env).
+            Let rfn be fnArgValRaw(trim(item 2 of rargs), env).
+            Let rd1 be emitterRemoveKey(concat(rrecv, ""), emitterKey(concat(rname, "")), concat(rfn, "")).
+            Let rd2 be emitterRemoveKey(concat(rrecv, ""), emitterOnceKey(concat(rname, "")), concat(rfn, "")).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(rbef, "")), " "), concat(rrecv, "")), methodRest(raft))), env).
+    If substringBefore(expr, " . off (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . off (") is equal to false:
+        Let fbef be substringBefore(expr, " . off (").
+        Let faft be substringAfter(expr, " . off (").
+        Let frecv be jsEvalIn(recvExpr(concat(fbef, "")), env).
+        If isEmitter(frecv):
+            Let fargs be splitArgsN(methodArg(faft)).
+            Let fname be jsEvalIn(trim(item 1 of fargs), env).
+            Let ffn be fnArgValRaw(trim(item 2 of fargs), env).
+            Let fd1 be emitterRemoveKey(concat(frecv, ""), emitterKey(concat(fname, "")), concat(ffn, "")).
+            Let fd2 be emitterRemoveKey(concat(frecv, ""), emitterOnceKey(concat(fname, "")), concat(ffn, "")).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(fbef, "")), " "), concat(frecv, "")), methodRest(faft))), env).
+    If substringBefore(expr, " . listenerCount (") is not equal to expr:
+      If markerInBody(concat(expr, ""), " . listenerCount (") is equal to false:
+        Let lbef be substringBefore(expr, " . listenerCount (").
+        Let laft be substringAfter(expr, " . listenerCount (").
+        Let lrecv be jsEvalIn(recvExpr(concat(lbef, "")), env).
+        If isEmitter(lrecv):
+            Let largs be splitArgsN(methodArg(laft)).
+            Return resolveMethods(trim(concat(concat(concat(recvPrefix(concat(lbef, "")), " "), toText(emitterCount(concat(lrecv, ""), jsEvalIn(trim(item 1 of largs), env)))), methodRest(laft))), env).
     If substringBefore(expr, " . set (") is not equal to expr:
       If markerInBody(concat(expr, ""), " . set (") is equal to false:
         Let bef be substringBefore(expr, " . set (").
@@ -13812,6 +13885,81 @@
         Return fileExists(concat(pathV, "")).
     Return "undefined".
 
+# --- node:events (EventEmitter) ---
+# `new EventEmitter()` is a heap object tagged `__emitter`; each event's persistent listeners live in an
+# `__evt_<name>` array and its one-shot listeners in `__once_<name>` (cleared after an emit). `.on` /
+# `.addListener` / `.prependListener` append; `.once` appends to the once-list; `.emit(name, ...args)` calls
+# every listener (persistent then once) with the args and returns whether any ran; `.removeListener` / `.off`
+# drop a listener by identity; `.listenerCount` counts both lists. Subclassing (`class X extends
+# EventEmitter`) and error-event-throwing are follow-ups.
+## To newEmitter () -> Text:
+    Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__emitter", concat(tagStr (), "1")).
+
+## To isEmitter (v: Text) -> Bool:
+    If isObjRef(concat(v, "")):
+        Return objGet(concat(v, ""), "__emitter") is not equal to "undefined".
+    Return false.
+
+## To emitterKey (name: Text) -> Text:
+    Return concat("__evt_", decodeStr(materialize(concat(name, "")))).
+
+## To emitterOnceKey (name: Text) -> Text:
+    Return concat("__once_", decodeStr(materialize(concat(name, "")))).
+
+## To emitterEmptyArr () -> Text:
+    Return newArr(concat(tagArr (), tagArrEnd ())).
+
+## To emitterEls (arrOrUndef: Text) -> Seq of Text:
+    If concat(arrOrUndef, "") is equal to "undefined":
+        Return arrElements(emitterEmptyArr()).
+    Return arrElements(concat(arrOrUndef, "")).
+
+## To emitterAdd (recv: Text, key: Text, lfn: Text) -> Text:
+    Let cur be objGet(concat(recv, ""), concat(key, "")).
+    If cur is equal to "undefined":
+        Let du be objSet(concat(recv, ""), concat(key, ""), newArr(concat(concat(tagArr (), concat(lfn, "")), tagArrEnd ()))).
+        Return concat(recv, "").
+    Let dp be arrPush(concat(cur, ""), concat(lfn, "")).
+    Return concat(recv, "").
+
+## To emitterCallAll (listeners: Seq of Text, i: Int, args: Text, env: Text) -> Text:
+    If i is greater than length of listeners:
+        Return "".
+    Let d be callFn(concat(item i of listeners, ""), concat(args, ""), env).
+    Return emitterCallAll(listeners, i + 1, concat(args, ""), env).
+
+## To emitterEmit (recv: Text, name: Text, args: Text, env: Text) -> Text:
+    Let evtEls be emitterEls(objGet(concat(recv, ""), emitterKey(concat(name, "")))).
+    Let onceEls be emitterEls(objGet(concat(recv, ""), emitterOnceKey(concat(name, "")))).
+    Let c1 be emitterCallAll(evtEls, 1, concat(args, ""), env).
+    Let c2 be emitterCallAll(onceEls, 1, concat(args, ""), env).
+    Let clr be objSet(concat(recv, ""), emitterOnceKey(concat(name, "")), emitterEmptyArr()).
+    If (length of evtEls) + (length of onceEls) is greater than 0:
+        Return "true".
+    Return "false".
+
+## To emitterCount (recv: Text, name: Text) -> Int:
+    Return (length of emitterEls(objGet(concat(recv, ""), emitterKey(concat(name, ""))))) + (length of emitterEls(objGet(concat(recv, ""), emitterOnceKey(concat(name, ""))))).
+
+# Rebuild an event's listener list with `fn` removed (all occurrences); chr(6)-joins the survivors.
+## To emitterFilter (els: Seq of Text, i: Int, lfn: Text, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let cur be concat(item i of els, "").
+    If concat(cur, "") is equal to concat(lfn, ""):
+        Return emitterFilter(els, i + 1, concat(lfn, ""), concat(acc, "")).
+    If concat(acc, "") is equal to "":
+        Return emitterFilter(els, i + 1, concat(lfn, ""), concat(cur, "")).
+    Return emitterFilter(els, i + 1, concat(lfn, ""), concat(concat(acc, tagArrSep ()), concat(cur, ""))).
+
+## To emitterRemoveKey (recv: Text, key: Text, lfn: Text) -> Text:
+    Let cur be objGet(concat(recv, ""), concat(key, "")).
+    If cur is equal to "undefined":
+        Return concat(recv, "").
+    Let rebuilt be emitterFilter(arrElements(concat(cur, "")), 1, concat(lfn, ""), "").
+    Let du be objSet(concat(recv, ""), concat(key, ""), newArr(concat(concat(tagArr (), concat(rebuilt, "")), tagArrEnd ()))).
+    Return concat(recv, "").
+
 # --- node:os ---
 # The deterministic, commonly-used surface: platform/arch/type/endianness/tmpdir come from natives that
 # remap Rust's target/OS spelling to Node's (x86_64->x64, macos->darwin, …); homedir reads $HOME; the EOL
@@ -14194,6 +14342,10 @@
         Return concat("default=", nodeModMarker("url")).
     If concat(spec, "") is equal to "node:url":
         Return concat("default=", nodeModMarker("url")).
+    If concat(spec, "") is equal to "events":
+        Return concat("default=", nodeModMarker("events")).
+    If concat(spec, "") is equal to "node:events":
+        Return concat("default=", nodeModMarker("events")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
