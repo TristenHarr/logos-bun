@@ -2217,10 +2217,11 @@
             Return resolveCalls(concat(concat(concat(newPrefixN, " "), fnvalN), remainderN), envN).
     If length of ptoks is greater than 1:
         If item ((length of ptoks) - 1) of ptoks is equal to "new":
-            If startsWith(envGet(env, lastTok), chr(1)):
+            Let ctor be newCtorFn(envGet(env, lastTok)).
+            If startsWith(ctor, chr(1)):
                 Let inst be applyProto(newObjRef(concat(tagObj (), tagObjEnd ())), concat(lastTok, ""), concat(env, "")).
-                Let ran be callMethod(envGet(env, lastTok), inner, inst, env).
                 classTagSet(refId(concat(inst, "")), instanceChain(concat(lastTok, ""), env)).
+                Let ran be callMethod(concat(ctor, ""), inner, inst, env).
                 Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 2, "").
                 Return resolveCalls(concat(concat(concat(newPrefix, " "), concat(inst, "")), rest), env).
     If isBoundFn(concat(lastTok, "")):
@@ -2246,6 +2247,10 @@
     Let fnVal be envGet(env, lastTok).
     If startsWith(fnVal, chr(1)):
         Let result be callFn(fnVal, inner, env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If startsWith(objGet(concat(fnVal, ""), "__callfn"), chr(1)):
+        Let result be callFn(objGet(concat(fnVal, ""), "__callfn"), inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If isGlobalFn(lastTok):
@@ -4564,6 +4569,8 @@
 
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
+        Return concat(tagStr (), "function").
+    If startsWith(objGet(concat(tok, ""), "__callfn"), chr(1)):
         Return concat(tagStr (), "function").
     If isUndefRef(concat(tok, "")):
         Return concat(tagStr (), "undefined").
@@ -8680,7 +8687,7 @@
 # when a genuine new statement begins (an identifier/keyword that isn't a continuation) is a newline
 # spliced in. Runs on normalized (space-joined) source, so only spaces are skipped.
 ## To splitSkipSpaces (s: Text, j: Int) -> Int:
-    If j is greater than length of s:
+    If j is greater than charLen(concat(s, "")):
         Return j.
     If item j of s is equal to " ":
         Return splitSkipSpaces(s, j + 1).
@@ -9868,10 +9875,29 @@
 
 # Write the value into a `.name` slot of the container (a `__set_<name>` accessor is honored). Each
 # joinRange gets a fresh split so the token Seq is never passed to two consuming calls (codegen).
+# Assigning a property to a bare function value (`fn.x = …`) must not discard the function. Box it into a
+# CALLABLE OBJECT — a heap object carrying the original function in a `__callfn` slot — so the object holds
+# properties AND stays callable (`fn()` invokes `__callfn`, `typeof fn` is "function", `fn.m(…)` dispatches
+# like any object method). test262's `assert` is `function assert(){}` with `.sameValue`/`._isSameValue`
+# properties, so this is the keystone that makes its assertions runnable.
+## To recvBoxCallable (v: Text) -> Text:
+    If startsWith(concat(v, ""), chr(1)):
+        Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__callfn", concat(v, "")).
+    Return concat(v, "").
+
+# The callable function underlying a value used as a callee/constructor: the raw token if it is already a
+# function, else the `__callfn` of a callable object (a function that gained properties), else the value.
+## To newCtorFn (v: Text) -> Text:
+    If startsWith(concat(v, ""), chr(1)):
+        Return concat(v, "").
+    If startsWith(objGet(concat(v, ""), "__callfn"), chr(1)):
+        Return objGet(concat(v, ""), "__callfn").
+    Return concat(v, "").
+
 ## To assignDot (target: Text, ntok: Int, di: Int, value: Text, env: Text) -> Text:
     Let containerExpr be trim(joinRange(split(concat(target, ""), " "), 1, di - 1, "")).
     Let name be trim(joinRange(split(concat(target, ""), " "), di + 1, ntok, "")).
-    Let recv be assignContainer(concat(containerExpr, ""), concat(env, "")).
+    Let recv be recvBoxCallable(assignContainer(concat(containerExpr, ""), concat(env, ""))).
     If isObjRef(concat(recv, "")):
         If jsIsFrozen(concat(recv, "")):
             Return env.
