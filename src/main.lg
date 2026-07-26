@@ -5575,11 +5575,13 @@
 # a normalized `Math . x` / `Number . x` of exactly three tokens (namespace, dot, method — no call/args).
 # synthGlobalCb wraps it as (__cbx) => Namespace.method(__cbx), so it rides the ordinary closure path.
 ## To isDottedBuiltinFn (s: Text) -> Bool:
-    If startsWith(trim(concat(s, "")), "Math . "):
-        Return length of split(trim(concat(s, "")), " ") is equal to 3.
-    If startsWith(trim(concat(s, "")), "Number . "):
-        Return length of split(trim(concat(s, "")), " ") is equal to 3.
-    Return false.
+    Let toks be split(trim(concat(s, "")), " ").
+    If length of toks is not equal to 3:
+        Return false.
+    If item 2 of toks is not equal to ".":
+        Return false.
+    Let known be ["Math", "Number", "Object", "JSON", "Array", "console", "String", "Date"].
+    Return known contains concat(item 1 of toks, "").
 
 # Synthesize the closure `(__cbx) => <name>(__cbx)` so a bare global-fn callback rides the ordinary
 # closure-application path (callFnIdx/callFn) like any user arrow.
@@ -5590,6 +5592,8 @@
     If isFnLiteral(s):
         Return funcValueOf(substitute(s, env)).
     If isUnaryGlobalFn(trim(concat(s, ""))):
+        Return synthGlobalCb(trim(concat(s, ""))).
+    If isDottedBuiltinFn(concat(s, "")):
         Return synthGlobalCb(trim(concat(s, ""))).
     Return jsEvalIn(s, env).
 
