@@ -13332,7 +13332,7 @@
         Let exportsBlob be loadModule(pathResolve(dir, spec)).
         Return applyImports(lines, i + 1, dir, bindImports(importClause(t), exportsBlob, env)).
     If startsWith(t, "export "):
-        If importSpec(t) is not equal to "":
+        If hasSep(concat(t, ""), " from "):
             Let reeval be loadModule(pathResolve(dir, importSpec(t))).
             Return applyImports(lines, i + 1, dir, env).
     Return applyImports(lines, i + 1, dir, env).
@@ -13402,7 +13402,7 @@
         Let ebAll be loadModule(pathResolve(dir, importSpec(t))).
         Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), mergeAllExports(split(ebAll, ";"), 1, acc)).
     If startsWith(t, "export "):
-      If importSpec(t) is not equal to "":
+      If hasSep(concat(t, ""), " from "):
         Let inner be substringBefore(substringAfter(t, chr(123)), chr(125)).
         Let ebList be loadModule(pathResolve(dir, importSpec(t))).
         Return collectExports(lines, i + 1, concat(dir, ""), concat(env, ""), addExportList(split(inner, ","), 1, ebList, acc)).
