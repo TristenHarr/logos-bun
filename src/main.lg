@@ -2047,6 +2047,41 @@
 ## To isIdentStartChar (c: Text) -> Bool:
     Return hasSep("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$", concat(c, "")).
 
+# Every char of `s` (from index `i`) is an identifier char (letter/digit/`_`/`$`) — so `s` is a single
+# bare identifier token and not, say, an encoded value carrying control bytes or punctuation.
+## To allIdentChars (s: Text, i: Int, len: Int) -> Bool:
+    If i is greater than len:
+        Return true.
+    If hasSep("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$", item i of s) is equal to false:
+        Return false.
+    Return allIdentChars(s, i + 1, len).
+
+# The names that legitimately survive as a bare identifier because they denote a built-in global
+# (Math/JSON/console/…), a keyword-literal (true/null/undefined/NaN/Infinity/this/…), or an
+# operator/statement keyword — none of which is an undeclared reference.
+## To isGlobalWhitelist (tok: Text) -> Bool:
+    Let kws be ["true", "false", "null", "undefined", "NaN", "Infinity", "this", "arguments", "globalThis", "super", "self", "window", "global", "in", "of", "instanceof", "new", "typeof", "void", "delete", "yield", "await", "function", "return", "if", "else", "for", "while", "do", "switch", "case", "default", "break", "continue", "var", "let", "const", "throw", "try", "catch", "finally", "class", "extends", "static", "get", "set", "async", "from", "as", "export", "import", "Math", "JSON", "console", "Object", "Array", "String", "Number", "Boolean", "Date", "Symbol", "BigInt", "Promise", "Map", "Set", "WeakMap", "WeakSet", "WeakRef", "FinalizationRegistry", "RegExp", "Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "EvalError", "URIError", "AggregateError", "Function", "Reflect", "Proxy", "Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array", "ArrayBuffer", "SharedArrayBuffer", "DataView", "Atomics", "Intl", "Temporal", "parseInt", "parseFloat", "isNaN", "isFinite", "structuredClone", "encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI", "escape", "unescape", "eval", "queueMicrotask", "setTimeout", "setInterval", "clearTimeout", "clearInterval", "setImmediate", "clearImmediate", "atob", "btoa", "fetch", "URL", "URLSearchParams", "TextEncoder", "TextDecoder", "crypto", "performance", "AbortController", "AbortSignal", "Event", "EventTarget", "process", "Buffer", "require", "module", "exports", "Bun", "debugger"].
+    Return kws contains concat(tok, "").
+
+# A bare identifier that is an UNDECLARED name: identifier-shaped, all identifier chars, and neither a
+# built-in/keyword (isGlobalWhitelist) nor an internal sentinel (`__…`) nor a test-harness global (`$…`).
+# Used only by `typeof` — which alone among reads must yield "undefined" (not throw) for an undeclared
+# name; a real binding is substituted to its value before reaching typeOfTag, so it is never seen bare.
+## To isUndefRef (tok: Text) -> Bool:
+    If tok is equal to "":
+        Return false.
+    If isIdentStartChar(item 1 of concat(tok, "")) is equal to false:
+        Return false.
+    If item 1 of concat(tok, "") is equal to "$":
+        Return false.
+    If startsWith(concat(tok, ""), "__"):
+        Return false.
+    If allIdentChars(concat(tok, ""), 1, charLen(concat(tok, ""))) is equal to false:
+        Return false.
+    If isGlobalWhitelist(concat(tok, "")):
+        Return false.
+    Return true.
+
 # Keywords that can legitimately precede a `(` as something OTHER than a call (control-flow heads,
 # grouping after a unary/expression keyword). A callee that is one of these must NOT be treated as a
 # failed function call.
@@ -4468,6 +4503,8 @@
 ## To typeOfTag (tok: Text) -> Text:
     If startsWith(tok, chr(1)):
         Return concat(tagStr (), "function").
+    If isUndefRef(concat(tok, "")):
+        Return concat(tagStr (), "undefined").
     Return typeOfVal(evalValue(litToStr(tok))).
 
 ## To isUnaryPrefix (tok: Text) -> Bool:
