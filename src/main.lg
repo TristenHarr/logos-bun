@@ -26,6 +26,7 @@
 ## To native osEndianness () -> Text
 ## To native osTmpdir () -> Text
 ## To native osType () -> Text
+## To native getCwd () -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
 ## To native heapAlloc (content: Text) -> Text
@@ -6440,6 +6441,11 @@
         Let bef be substringBefore(expr, "Date . now (").
         Let aft be substringAfter(expr, "Date . now (").
         Return resolveMethods(trim(concat(concat(bef, jsDateNow()), methodRest(aft))), env).
+    If substringBefore(expr, "process . cwd (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "process . cwd (") is equal to false:
+        Let bef be substringBefore(expr, "process . cwd (").
+        Let aft be substringAfter(expr, "process . cwd (").
+        Return resolveMethods(trim(concat(concat(bef, concat(tagStr (), encodeStr(getCwd ()))), methodRest(aft))), env).
     If substringBefore(expr, "new WeakMap (") is not equal to expr:
       If markerInBody(concat(expr, ""), "new WeakMap (") is equal to false:
         Let bef be substringBefore(expr, "new WeakMap (").
@@ -14336,7 +14342,8 @@
     Return jsRunFileIn(src, argv, "").
 
 ## To jsRunFileIn (src: Text, argv: Text, dir: Text) -> Text:
-    Let procObj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
+    Let procBase be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "argv", argv).
+    Let procObj be objSet(objSet(concat(procBase, ""), "platform", concat(tagStr (), osPlatform ())), "arch", concat(tagStr (), osArch ())).
     Let env0 be envSet("", "process", procObj).
     Let finalEnv be runModuleBody(src, dir, env0).
     Let drained be drainMicrotasks("", concat(finalEnv, "")).
