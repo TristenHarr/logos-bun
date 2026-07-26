@@ -9054,6 +9054,21 @@
         Return incDecEnv(toks, i + 1, depth - 1, env).
     If depth is greater than 0:
         Return incDecEnv(toks, i + 1, depth, env).
+    If memberIncAt(joinRange(toks, 1, length of toks, ""), i):
+        If t is equal to "++":
+            Let mEnd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
+            Let wr be assignTarget(joinRange(toks, i + 1, mEnd, ""), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEnd, ""), " + 1"), env)), env).
+            Return incDecEnv(toks, mEnd + 1, depth, env).
+        If t is equal to "--":
+            Let mEndd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
+            Let wrd be assignTarget(joinRange(toks, i + 1, mEndd, ""), materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEndd, ""), " - 1"), env)), env).
+            Return incDecEnv(toks, mEndd + 1, depth, env).
+        Let mEndp be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i, 0, "").
+        If item (mEndp + 1) of toks is equal to "++":
+            Let wrp be assignTarget(joinRange(toks, i, mEndp, ""), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " + 1"), env)), env).
+            Return incDecEnv(toks, mEndp + 2, depth, env).
+        Let wrm be assignTarget(joinRange(toks, i, mEndp, ""), materialize(jsEvalIn(concat(joinRange(toks, i, mEndp, ""), " - 1"), env)), env).
+        Return incDecEnv(toks, mEndp + 2, depth, env).
     If t is equal to "++":
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
@@ -9092,6 +9107,18 @@
         Return incDecRewrite(toks, i + 1, depth - 1, env, concat(concat(acc, " "), t)).
     If depth is greater than 0:
         Return incDecRewrite(toks, i + 1, depth, env, concat(concat(acc, " "), t)).
+    If memberIncAt(joinRange(toks, 1, length of toks, ""), i):
+        If t is equal to "++":
+            Let mEnd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
+            Let nv be materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEnd, ""), " + 1"), concat(env, ""))).
+            Return incDecRewrite(toks, mEnd + 1, depth, env, concat(concat(acc, " "), nv)).
+        If t is equal to "--":
+            Let mEndd be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i + 1, 0, "").
+            Let nvd be materialize(jsEvalIn(concat(joinRange(toks, i + 1, mEndd, ""), " - 1"), concat(env, ""))).
+            Return incDecRewrite(toks, mEndd + 1, depth, env, concat(concat(acc, " "), nvd)).
+        Let mEndp be memberEndFwdD(joinRange(toks, 1, length of toks, ""), i, 0, "").
+        Let ov be materialize(jsEvalIn(joinRange(toks, i, mEndp, ""), concat(env, ""))).
+        Return incDecRewrite(toks, mEndp + 2, depth, env, concat(concat(acc, " "), ov)).
     If t is equal to "++":
         If i is less than length of toks:
             Let x be item (i + 1) of toks.
@@ -9161,6 +9188,38 @@
                     Return true.
     Return hasSimpleIncDec(toks, i + 1, depth).
 
+# Whether the statement contains a MEMBER increment (`o.n++`, `++a[i]`) that the incDec two-pass should
+# consume — routing member increments in expression position through incDecEnv/incDecRewrite. A `{ … }`
+# nested body is skipped (its own increments belong to the callback, per hasSimpleIncDec).
+## To hasMemberIncDec (toks: Seq of Text, i: Int, depth: Int) -> Bool:
+    If i is greater than length of toks:
+        Return false.
+    Let t be item i of toks.
+    If t is equal to chr(123):
+        Return hasMemberIncDec(toks, i + 1, depth + 1).
+    If t is equal to chr(125):
+        Return hasMemberIncDec(toks, i + 1, depth - 1).
+    If depth is greater than 0:
+        Return hasMemberIncDec(toks, i + 1, depth).
+    If memberIncAt(joinRange(toks, 1, length of toks, ""), i):
+        Return true.
+    Return hasMemberIncDec(toks, i + 1, depth).
+
+# Whether a MEMBER increment spans the WHOLE (trimmed) statement — `o.n++` / `++a[i]` on their own. Those
+# stay with memberCompoundRewrite (which writes static fields correctly); a member increment in EXPRESSION
+# position (`console.log(o.n++)`, `return ++C.count`) is NOT whole-statement and routes to the incDec pass.
+## To wholeStmtMemberInc (s: Text) -> Bool:
+    Let toks be split(trim(concat(s, "")), " ").
+    If item 1 of toks is equal to "++":
+        If memberIncPrefixAt(trim(concat(s, "")), 1):
+            Return memberEndFwdD(trim(concat(s, "")), 2, 0, "") is equal to length of toks.
+    If item 1 of toks is equal to "--":
+        If memberIncPrefixAt(trim(concat(s, "")), 1):
+            Return memberEndFwdD(trim(concat(s, "")), 2, 0, "") is equal to length of toks.
+    If memberIncPostfixAt(trim(concat(s, "")), 1):
+        Return memberEndFwdD(trim(concat(s, "")), 1, 0, "") is equal to ((length of toks) - 1).
+    Return false.
+
 ## To needsIncDec (s: Text) -> Bool:
     If startsWith(s, "for "):
         Return false.
@@ -9170,7 +9229,11 @@
         Return false.
     If startsWith(s, "switch "):
         Return false.
-    Return hasSimpleIncDec(split(concat(s, ""), " "), 1, 0).
+    If hasSimpleIncDec(split(concat(s, ""), " "), 1, 0):
+        Return true.
+    If hasMemberIncDec(split(concat(s, ""), " "), 1, 0):
+        Return wholeStmtMemberInc(concat(s, "")) is equal to false.
+    Return false.
 
 # Each branch is guarded by markerInBody: a compound operator that sits inside a nested function/callback
 # body (`arr.forEach(x=>{o.c++})`) is NOT this statement's own operator — rewriting it would splice a
@@ -10463,6 +10526,70 @@
             Return i.
         Return matchGroupLeft(toks, i - 1, depth - 1, concat(g, c)).
     Return matchGroupLeft(toks, i - 1, depth, concat(g, c)).
+
+# The last token index of a member path that STARTS at `i` (a name), walking forward over `. name` and
+# balanced `[ … ]` index groups — so `o . a . b` and `a [ i + 1 ]` are consumed whole. `bd` tracks bracket
+# nesting so a nested `a [ b [ c ] ]` closes correctly; self-recursive to avoid passing the token Seq to
+# another function (a Seq PARAMETER lowers to a slice that a separate fn's owned-Seq param can't take). The
+# `g` accumulator varies each recursion to halt the constant-arg monomorphizer (which otherwise specialises
+# the `bd=0` call into a variant whose owned-Seq param a slice-param caller can't satisfy).
+## To memberEndFwdD (toksText: Text, i: Int, bd: Int, g: Text) -> Int:
+    Let toks be split(concat(toksText, ""), " ").
+    If i + 1 is greater than length of toks:
+        Return i.
+    Let nx be item (i + 1) of toks.
+    If bd is greater than 0:
+        If nx is equal to chr(91):
+            Return memberEndFwdD(concat(toksText, ""), i + 1, bd + 1, concat(g, nx)).
+        If nx is equal to chr(93):
+            If bd is equal to 1:
+                Return memberEndFwdD(concat(toksText, ""), i + 1, 0, concat(g, nx)).
+            Return memberEndFwdD(concat(toksText, ""), i + 1, bd - 1, concat(g, nx)).
+        Return memberEndFwdD(concat(toksText, ""), i + 1, bd, concat(g, nx)).
+    If nx is equal to ".":
+        If i + 2 is less than or equal to length of toks:
+            Return memberEndFwdD(concat(toksText, ""), i + 2, 0, concat(g, nx)).
+        Return i.
+    If nx is equal to chr(91):
+        Return memberEndFwdD(concat(toksText, ""), i + 1, 1, concat(g, nx)).
+    Return i.
+
+# A member-increment token at `i`: either a prefix `++`/`--` whose target is a member (`++o.n`, `--a[i]`),
+# or a member-START name whose whole path is immediately followed by `++`/`--` (`o.n++`, `a[i]++`). Used to
+# route member increments in EXPRESSION position through the incDec two-pass (memberCompoundRewrite only
+# handles a member increment that is the WHOLE statement).
+## To memberIncAt (toksText: Text, i: Int) -> Bool:
+    Let toks be split(concat(toksText, ""), " ").
+    If item i of toks is equal to "++":
+        Return memberIncPrefixAt(concat(toksText, ""), i).
+    If item i of toks is equal to "--":
+        Return memberIncPrefixAt(concat(toksText, ""), i).
+    Return memberIncPostfixAt(concat(toksText, ""), i).
+
+## To memberIncPrefixAt (toksText: Text, i: Int) -> Bool:
+    Let toks be split(concat(toksText, ""), " ").
+    If i is greater than or equal to length of toks:
+        Return false.
+    If isWordChar1(concat(item (i + 1) of toks, "")) is equal to false:
+        Return false.
+    Return memberFollows(toks, i + 1).
+
+## To memberIncPostfixAt (toksText: Text, i: Int) -> Bool:
+    Let toks be split(concat(toksText, ""), " ").
+    If isWordChar1(concat(item i of toks, "")) is equal to false:
+        Return false.
+    If memberFollows(toks, i) is equal to false:
+        Return false.
+    If prevIsDot(toks, i):
+        Return false.
+    Let mEnd be memberEndFwdD(concat(toksText, ""), i, 0, "").
+    If mEnd is greater than or equal to length of toks:
+        Return false.
+    If item (mEnd + 1) of toks is equal to "++":
+        Return true.
+    If item (mEnd + 1) of toks is equal to "--":
+        Return true.
+    Return false.
 
 ## To isStopTok (c: Text) -> Bool:
     Let stops be ["+", "-", "*", "/", "%", "<", ">", "=", "!", "?", ":", ",", ";", "(", ".", "...", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "++", "--", "=>", "===", "!==", "&", "|"].
