@@ -21,7 +21,8 @@ if (OURS) {
   const words = ["hello", "world", "abc", "logos", "x1y2", "The quick brown", "a=b&c=d", "12345", "", "buffer test"];
   const str = () => words[ri(words.length)];
   const program = () => {
-    const s = str(), s2 = str(), k = ri(14);
+    const s = str(), s2 = str(), k = ri(15);
+    if (k === 14) { const codes = Array.from({ length: 1 + ri(5) }, () => 65 + ri(26)); return `console.log(Buffer.from([${codes.join(",")}]).toString(), Buffer.from([${codes.join(",")}]).length);`; }
     if (k === 11) return `console.log(Buffer.from(${JSON.stringify(s)}).slice(0, ${ri(6)}).toString());`;
     if (k === 12) return `console.log(Buffer.byteLength(${JSON.stringify(s)}), Buffer.from(${JSON.stringify(s)}).slice(${ri(4)}).length);`;
     if (k === 13) return `console.log("str".slice(0, 2), [10, 20, 30].slice(1).join(","), Buffer.from(${JSON.stringify(s)}).slice(1, 3).toString());`;  // slice regression control
