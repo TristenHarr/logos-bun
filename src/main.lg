@@ -1631,6 +1631,38 @@
     Let d be drainMicrotasks("", concat(env, "")).
     Return newPromise("fulfilled", settledValues(arrElements(concat(arrval, "")), 1, "")).
 
+# Promise.any([...]): drain, then fulfill with the FIRST element that fulfilled (a non-promise element is
+# its own value); if EVERY element rejected (or the array is empty) reject with an AggregateError whose
+# `.errors` array holds each element's rejection reason. `__none__` sentinel = no fulfillment found.
+## To firstFulfillment (proms: Seq of Text, i: Int) -> Text:
+    If i is greater than length of proms:
+        Return "__none__".
+    Let p be item i of proms.
+    If isPromise(p):
+        If materialize(objGet(concat(p, ""), "__pstate")) is equal to "fulfilled":
+            Return objGet(concat(p, ""), "__pvalue").
+        Return firstFulfillment(proms, i + 1).
+    Return concat(p, "").
+
+## To rejectionReasons (proms: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of proms:
+        Return newArr(concat(concat(tagArr (), acc), tagArrEnd ())).
+    Let p be item i of proms.
+    Let r be objGet(concat(p, ""), "__pvalue").
+    If acc is equal to "":
+        Return rejectionReasons(proms, i + 1, concat(r, "")).
+    Return rejectionReasons(proms, i + 1, concat(concat(acc, tagArrSep ()), concat(r, ""))).
+
+## To promiseAny (arrval: Text, env: Text) -> Text:
+    Let d be drainMicrotasks("", concat(env, "")).
+    Let elems be arrElements(concat(arrval, "")).
+    Let ff be firstFulfillment(elems, 1).
+    If ff is not equal to "__none__":
+        Return newPromise("fulfilled", concat(ff, "")).
+    Let aggErr be newError("AggregateError", concat(tagStr (), "All promises were rejected")).
+    Let de be objSet(concat(aggErr, ""), "errors", rejectionReasons(elems, 1, "")).
+    Return newPromise("rejected", concat(aggErr, "")).
+
 # Run the event loop: pop and execute microtasks until the queue drains. Each job runs its
 # callback on its captured value and settles the job's result promise (whose own `.then`
 # callbacks, enqueued while draining, run in turn — chained thens resolve in order).
@@ -6348,6 +6380,11 @@
         Let bef be substringBefore(expr, "Promise . race (").
         Let aft be substringAfter(expr, "Promise . race (").
         Return resolveMethods(trim(concat(concat(bef, promiseRace(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
+    If substringBefore(expr, "Promise . any (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "Promise . any (") is equal to false:
+        Let bef be substringBefore(expr, "Promise . any (").
+        Let aft be substringAfter(expr, "Promise . any (").
+        Return resolveMethods(trim(concat(concat(bef, promiseAny(jsEvalIn(trim(methodArg(aft)), env), env)), methodRest(aft))), env).
     If substringBefore(expr, "Promise . resolve (") is not equal to expr:
       If markerInBody(concat(expr, ""), "Promise . resolve (") is equal to false:
         Let bef be substringBefore(expr, "Promise . resolve (").
