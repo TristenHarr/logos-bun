@@ -27,7 +27,9 @@ if (OURS) {
   const program = () => {
     const spec = ri(3) === 0 ? "node:fs" : "fs";
     const payload = JSON.stringify(line());
-    const k = ri(11);
+    const k = ri(13);
+    if (k === 11) return `import fs from "${spec}";\nfs.writeFileSync("ap.txt", "start");\nfs.appendFileSync("ap.txt", ${payload});\nfs.appendFileSync("ap.txt", "END");\nconsole.log(fs.readFileSync("ap.txt", "utf8"));`;
+    if (k === 12) return `import fs from "${spec}";\nfs.writeFileSync("src.txt", ${payload});\nfs.copyFileSync("src.txt", "dst.txt");\nconsole.log(fs.readFileSync("dst.txt", "utf8"), fs.existsSync("dst.txt"));`;
     if (k === 0) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8"));`;
     if (k === 1) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8").length);`;
     if (k === 2) return `import fs from "${spec}";\nconst j = JSON.parse(fs.readFileSync("j.json", "utf8"));\nconsole.log(j.a, j.name, j.b[1]);`;
