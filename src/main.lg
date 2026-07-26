@@ -11155,6 +11155,27 @@
 # `async` adds no new control flow in this synchronous-drain model — an async function runs like
 # any function and `await` extracts a promise's settled value — so it is stripped: `async function`
 # → `function`, `async (`/`async x =>` → the plain arrow. (`await` itself is handled in jsEvalIn.)
+# An `async function` runs synchronously here (await is resolved inline), but a THROW in its body — or an
+# `await` of a rejected promise (which throws) — must become a REJECTED promise so `.catch`/`.then(,onRej)`
+# see it, rather than propagating as an uncaught throw. So each async function body is wrapped
+# `function NAME(params){ try { body } catch(__asyncErr){ return Promise.reject(__asyncErr) } }`; a normal
+# return passes straight through the try. Async ARROWS are still handled by the plain strip below.
+## To desugarAsync (expr: Text) -> Text:
+    If substringBefore(expr, "async function ") is equal to expr:
+        Return expr.
+    Let bef be substringBefore(expr, "async function ").
+    Let aft be substringAfter(expr, "async function ").
+    Let name be genExprName(concat(aft, "")).
+    Let params be trim(substringBefore(substringAfter(aft, chr(40)), chr(41))).
+    Let afterBrace be substringAfter(aft, chr(123)).
+    Let body be braceBody(afterBrace, 1, 0, "").
+    Let remainder be strSliceLoop(afterBrace, (charLen(concat(body, ""))) + 2, length of afterBrace, "").
+    Let head be concat(concat(concat(concat("function ", name), " ( "), params), " ) ").
+    Let catchPart be concat(concat(" catch ( __asyncErr ) ", chr(123)), " return Promise . reject ( __asyncErr ) ").
+    Let inner be concat(concat(concat(concat(" try ", chr(123)), concat(concat(" ", trim(body)), " ")), chr(125)), concat(catchPart, chr(125))).
+    Let wrapped be concat(concat(head, chr(123)), concat(inner, chr(125))).
+    Return desugarAsync(concat(concat(concat(bef, wrapped), " "), remainder)).
+
 ## To stripAsync (s: Text) -> Text:
     Return replaceAll(replaceAll(replaceAll(s, "async function", "function"), "async (", "("), "async ", "").
 
@@ -11712,7 +11733,7 @@
     Let templated be desugarTemplates(tagged, 1, 0, 0, "").
     Let rx be desugarRegexLits(templated, 1, "", false, "", "").
     Let normed be joinNonEmpty(split(normJs(rx, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarGenerators(normed))))), " "), 1, "").
+    Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarAsync(desugarGenerators(normed)))))), " "), 1, "").
 
 # --- Regex engine (E4): a backtracking matcher in LOGOS ---
 # JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-rolled
