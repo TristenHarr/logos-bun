@@ -8533,7 +8533,7 @@
     Return split(patFieldSplit(inner, 1, 0, 0, "", charLen(inner)), chr(10)).
 
 ## To topEqIdx (s: Text, i: Int, depth: Int) -> Int:
-    If i is greater than length of s:
+    If i is greater than charLen(concat(s, "")):
         Return 0.
     Let c be item i of s.
     If c is equal to chr(123):
@@ -8694,18 +8694,18 @@
     Return j.
 
 ## To splitWordIs (s: Text, k: Int, w: Text) -> Bool:
-    Let m be length of w.
-    If k + m - 1 is greater than length of s:
+    Let m be charLen(concat(w, "")).
+    If k + m - 1 is greater than charLen(concat(s, "")):
         Return false.
     If strSliceLoop(s, k, k + m - 1, "") is not equal to w:
         Return false.
-    If k + m is greater than length of s:
+    If k + m is greater than charLen(concat(s, "")):
         Return true.
     Return rxIsIdentChar(item (k + m) of s) is equal to false.
 
 ## To splitContinues (s: Text, j: Int) -> Bool:
     Let k be splitSkipSpaces(s, j).
-    If k is greater than length of s:
+    If k is greater than charLen(concat(s, "")):
         Return true.
     Let c be item k of s.
     Let conts be [";", ")", ",", ".", "+", "-", "*", "/", "%", "<", ">", "=", "&", "|", "?", ":", "(", "!", chr(91), chr(93), chr(125)].
@@ -8812,7 +8812,7 @@
 # which keeps member/call/operator continuations for an EXPRESSION `}` (object literal / function expr).
 ## To splitBlockContinues (s: Text, j: Int) -> Bool:
     Let k be splitSkipSpaces(s, j).
-    If k is greater than length of s:
+    If k is greater than charLen(concat(s, "")):
         Return true.
     If item k of s is equal to ";":
         Return true.
