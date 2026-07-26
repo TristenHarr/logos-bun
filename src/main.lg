@@ -2176,6 +2176,10 @@
         Let ndResult be nodeModCallDirect(nodeModName(envGet(env, concat(lastTok, ""))), concat(inner, ""), env).
         Let ndPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(ndPrefix, " "), ndResult), rest), env).
+    If isNodeModFn(envGet(env, concat(lastTok, ""))):
+        Let nfResult be nodeModCall(nodeModFnMod(envGet(env, concat(lastTok, ""))), nodeModFnMethod(envGet(env, concat(lastTok, ""))), concat(inner, ""), env).
+        Let nfPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(nfPrefix, " "), nfResult), rest), env).
     If startsWith(envGet(env, lastTok), "__PRES__"):
         Let dRes be settlePromise(concat(tagRef (), substringAfter(envGet(env, lastTok), "__PRES__")), "fulfilled", jsEvalIn(inner, env)).
         Return resolveCalls(concat(concat(concat(joinRange(ptoks, 1, (length of ptoks) - 1, ""), " "), "undefined"), rest), env).
@@ -13342,6 +13346,35 @@
         Return bindImports(restClause, concat(exportsBlob, ""), envSet(env, defName, envGet(exportsBlob, "default"))).
     Return envSet(env, trim(clause), envGet(exportsBlob, "default")).
 
+# Bind the imports of a BUILTIN module: a default/namespace binding gets the module handle
+# (`<tagStr>__nodemod:mod`), a named binding gets a callable fn-marker (`import { join } from "path"`
+# binds join -> a marker resolveCalls dispatches, honoring `as` renames).
+## To bindBuiltinNamed (parts: Seq of Text, i: Int, modn: Text, env: Text) -> Text:
+    If i is greater than length of parts:
+        Return env.
+    Let p be trim(item i of parts).
+    If p is equal to "":
+        Return bindBuiltinNamed(parts, i + 1, concat(modn, ""), env).
+    If substringBefore(p, " as ") is not equal to p:
+        Let orig be trim(substringBefore(p, " as ")).
+        Let local be trim(substringAfter(p, " as ")).
+        Return bindBuiltinNamed(parts, i + 1, concat(modn, ""), envSet(env, local, nodeModFnMarker(concat(modn, ""), concat(orig, "")))).
+    Return bindBuiltinNamed(parts, i + 1, concat(modn, ""), envSet(env, p, nodeModFnMarker(concat(modn, ""), concat(p, "")))).
+
+## To bindBuiltinImports (clause: Text, modn: Text, env: Text) -> Text:
+    If clause is equal to "":
+        Return env.
+    If startsWith(clause, chr(123)):
+        Let inner be substringBefore(substringAfter(clause, chr(123)), chr(125)).
+        Return bindBuiltinNamed(split(inner, ","), 1, concat(modn, ""), env).
+    If startsWith(clause, "* as "):
+        Return envSet(env, trim(substringAfter(clause, "* as ")), nodeModMarker(concat(modn, ""))).
+    If substringBefore(clause, ",") is not equal to clause:
+        Let defName be trim(substringBefore(clause, ",")).
+        Let restClause be trim(substringAfter(clause, ",")).
+        Return bindBuiltinImports(concat(restClause, ""), concat(modn, ""), envSet(env, defName, nodeModMarker(concat(modn, "")))).
+    Return envSet(env, trim(clause), nodeModMarker(concat(modn, ""))).
+
 # True when `s` ends with `suffix` (suffix "" is always a suffix).
 ## To endsWith (s: Text, suffix: Text) -> Bool:
     If concat(suffix, "") is equal to "":
@@ -13669,6 +13702,28 @@
 ## To nodeModMarker (name: Text) -> Text:
     Return concat(tagStr (), concat("__nodemod:", concat(name, ""))).
 
+# A callable marker for a NAMED builtin-module import (`import { join } from "path"`): the bound name
+# holds `<tagStr>__nodemodfn:<mod>:<method>`, and resolveCalls routes a call on it to nodeModCall.
+## To nodeModFnMarker (mod: Text, method: Text) -> Text:
+    Return concat(tagStr (), concat(concat(concat("__nodemodfn:", concat(mod, "")), ":"), concat(method, ""))).
+
+## To isNodeModFn (v: Text) -> Bool:
+    If startsWith(concat(v, ""), tagStr ()) is equal to false:
+        Return false.
+    Return startsWith(materialize(concat(v, "")), "__nodemodfn:").
+
+## To nodeModFnMod (v: Text) -> Text:
+    Return substringBefore(substringAfter(materialize(concat(v, "")), "__nodemodfn:"), ":").
+
+## To nodeModFnMethod (v: Text) -> Text:
+    Return substringAfter(substringAfter(materialize(concat(v, "")), "__nodemodfn:"), ":").
+
+# The bare module name of a builtin specifier ("node:path" -> "path").
+## To builtinModName (spec: Text) -> Text:
+    If startsWith(concat(spec, ""), "node:"):
+        Return substringAfter(concat(spec, ""), "node:").
+    Return concat(spec, "").
+
 ## To isNodeModHandle (v: Text) -> Bool:
     If startsWith(concat(v, ""), tagStr ()) is equal to false:
         Return false.
@@ -13711,7 +13766,7 @@
             Return applyImports(lines, i + 1, dir, env).
         Let builtinBlob be builtinModuleExports(concat(spec, "")).
         If builtinBlob is not equal to "":
-            Return applyImports(lines, i + 1, dir, bindImports(importClause(t), concat(builtinBlob, ""), env)).
+            Return applyImports(lines, i + 1, dir, bindBuiltinImports(importClause(t), builtinModName(concat(spec, "")), env)).
         Let exportsBlob be loadModule(pathResolve(dir, spec)).
         Return applyImports(lines, i + 1, dir, bindImports(importClause(t), exportsBlob, env)).
     If startsWith(t, "export "):
