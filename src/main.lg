@@ -5710,19 +5710,39 @@
         Return false.
     Return strSliceLoop(s, ls - lsub + 1, ls, "") is equal to sub.
 
+# JS String trim strips all whitespace, not just spaces: space + tab/LF/CR/VT/FF (line terminators and
+# other whitespace). A space is stored encoded (encSpace) and a newline as encNewline; tab/CR/VT/FF stay
+# literal in a string value — so both forms are matched.
+## To isTrimWs (c: Text) -> Bool:
+    If c is equal to encSpace ():
+        Return true.
+    If c is equal to encNewline ():
+        Return true.
+    If c is equal to " ":
+        Return true.
+    If c is equal to chr(9):
+        Return true.
+    If c is equal to chr(10):
+        Return true.
+    If c is equal to chr(11):
+        Return true.
+    If c is equal to chr(12):
+        Return true.
+    If c is equal to chr(13):
+        Return true.
+    Return false.
+
 ## To trimHeadIdx (s: Text, i: Int) -> Int:
     If i is greater than charLen(concat(s, "")):
         Return i.
-    Let c be item i of s.
-    If c is equal to encSpace ():
+    If isTrimWs(item i of s):
         Return trimHeadIdx(s, i + 1).
     Return i.
 
 ## To trimTailIdx (s: Text, i: Int) -> Int:
     If i is less than 1:
         Return 0.
-    Let c be item i of s.
-    If c is equal to encSpace ():
+    If isTrimWs(item i of s):
         Return trimTailIdx(s, i - 1).
     Return i.
 
