@@ -13062,15 +13062,124 @@
         Return consoleFmt(args, i + 1, env, piece).
     Return consoleFmt(args, i + 1, env, concat(concat(acc, " "), piece)).
 
+# --- console.log format specifiers (util.format) ---
+# A `%`-specifier char that console.log/util.format substitutes an argument for.
+## To isFmtSpec (c: Text) -> Bool:
+    Let specs be ["s", "d", "i", "f", "o", "O", "j", "c"].
+    Return specs contains concat(c, "").
+
+# ToNumber(value) as a display string, for `%d` — a numeric literal as-is (`%d 3.9` -> "3.9", no
+# truncation), a string via Number(), the usual primitive coercions, else NaN.
+## To fmtToNumStr (v: Text) -> Text:
+    If startsWith(concat(v, ""), tagStr ()):
+        Return jsNumberText(decodeStr(materialize(concat(v, "")))).
+    If concat(v, "") is equal to "true":
+        Return "1".
+    If concat(v, "") is equal to "false":
+        Return "0".
+    If concat(v, "") is equal to "null":
+        Return "0".
+    If concat(v, "") is equal to "Infinity":
+        Return "Infinity".
+    If concat(v, "") is equal to "-Infinity":
+        Return "-Infinity".
+    If isNumericStr(concat(v, "")):
+        Return concat(v, "").
+    Return "NaN".
+
+# Truncate a number string toward zero, for `%i` (`3.9` -> "3", `-3.9` -> "-3"); NaN/Infinity pass through.
+## To fmtTruncStr (s: Text) -> Text:
+    If concat(s, "") is equal to "NaN":
+        Return "NaN".
+    If concat(s, "") is equal to "Infinity":
+        Return "Infinity".
+    If concat(s, "") is equal to "-Infinity":
+        Return "-Infinity".
+    Return substringBefore(concat(s, ""), ".").
+
+# parseFloat(value) as a display string, for `%f` (`"2.5x"` -> "2.5").
+## To fmtFloatStr (v: Text) -> Text:
+    If startsWith(concat(v, ""), tagStr ()):
+        Return jsParseFloat(decodeStr(materialize(concat(v, "")))).
+    If isNumericStr(concat(v, "")):
+        Return concat(v, "").
+    Return jsParseFloat(concat(v, "")).
+
+# The substitution for one `%`-specifier applied to an already-evaluated argument value.
+## To fmtSpec (nc: Text, v: Text) -> Text:
+    If concat(nc, "") is equal to "s":
+        Return bigDisplay(concat(v, "")).
+    If concat(nc, "") is equal to "o":
+        Return bigDisplay(concat(v, "")).
+    If concat(nc, "") is equal to "O":
+        Return bigDisplay(concat(v, "")).
+    If concat(nc, "") is equal to "j":
+        Return jsonStringify(concat(v, "")).
+    If concat(nc, "") is equal to "c":
+        Return "".
+    If concat(nc, "") is equal to "d":
+        Return fmtToNumStr(concat(v, "")).
+    If concat(nc, "") is equal to "i":
+        Return fmtTruncStr(fmtToNumStr(concat(v, ""))).
+    Return fmtFloatStr(concat(v, "")).
+
+# Append the arguments not consumed by a specifier, each space-separated and inspected (util.format's
+# trailing behavior: `console.log("%s", a, b, c)` prints a then " b c"). Fields arrive chr(10)-joined and
+# are re-split to a fresh owned Seq here (avoids threading a borrowed slice between helpers).
+## To applyFmtTail (argsT: Text, fi: Int, env: Text, acc: Text) -> Text:
+    Let args be split(concat(argsT, ""), chr(10)).
+    If fi is greater than length of args:
+        Return acc.
+    Let piece be bigDisplay(jsEvalIn(trim(item fi of args), concat(env, ""))).
+    Return applyFmtTail(concat(argsT, ""), fi + 1, env, concat(concat(acc, " "), piece)).
+
+# Walk a format string, substituting each `%`-specifier with the next argument (`%%` -> `%` consumes
+# none; a specifier with no remaining argument, or an unknown `%x`, is emitted literally and consumes
+# none), then append any leftover arguments. `fi` is the next argument field (arg 1 is the format string).
+## To applyFmt (fmt: Text, i: Int, len: Int, argsT: Text, fi: Int, env: Text, acc: Text) -> Text:
+    If i is greater than len:
+        Return applyFmtTail(concat(argsT, ""), fi, env, acc).
+    Let c be item i of fmt.
+    If c is equal to "%":
+        If i is greater than or equal to len:
+            Return applyFmtTail(concat(argsT, ""), fi, env, concat(acc, "%")).
+        Let nc be item (i + 1) of fmt.
+        If nc is equal to "%":
+            Return applyFmt(concat(fmt, ""), i + 2, len, concat(argsT, ""), fi, env, concat(acc, "%")).
+        If isFmtSpec(concat(nc, "")):
+            If fi is less than or equal to length of split(concat(argsT, ""), chr(10)):
+                Let v be jsEvalIn(trim(item fi of split(concat(argsT, ""), chr(10))), concat(env, "")).
+                Return applyFmt(concat(fmt, ""), i + 2, len, concat(argsT, ""), fi + 1, env, concat(acc, fmtSpec(concat(nc, ""), concat(v, "")))).
+            Return applyFmt(concat(fmt, ""), i + 2, len, concat(argsT, ""), fi, env, concat(concat(acc, "%"), nc)).
+        Return applyFmt(concat(fmt, ""), i + 2, len, concat(argsT, ""), fi, env, concat(concat(acc, "%"), nc)).
+    Return applyFmt(concat(fmt, ""), i + 1, len, concat(argsT, ""), fi, env, concat(acc, c)).
+
+# The console.log argument list, formatted: when the first argument is a string and there is more than
+# one argument, util.format's `%`-substitution applies; otherwise each argument is inspected and joined
+# by spaces. Every argument is evaluated exactly once, left to right. `argsT` is the chr(10)-joined fields.
+## To consoleFmtArgs (argsT: Text, env: Text) -> Text:
+    Let args be split(concat(argsT, ""), chr(10)).
+    If length of args is equal to 0:
+        Return "".
+    Let v1 be jsEvalIn(trim(item 1 of args), concat(env, "")).
+    If length of args is less than 2:
+        Return bigDisplay(concat(v1, "")).
+    If startsWith(concat(v1, ""), tagStr ()):
+        Let fmt be materialize(concat(v1, "")).
+        Return applyFmt(concat(fmt, ""), 1, charLen(concat(fmt, "")), concat(argsT, ""), 2, env, "").
+    Return applyFmtTail(concat(argsT, ""), 2, env, bigDisplay(concat(v1, ""))).
+
 ## To doConsoleLog (logArg: Text, env: Text) -> Text:
-    Let formatted be decodeStr(consoleFmt(patFields(expandSpreadArgs(concat(logArg, ""), env)), 1, env, "")).
+    Let inner be expandSpreadArgs(concat(logArg, ""), env).
+    Let formatted be decodeStr(consoleFmtArgs(patFieldSplit(concat(inner, ""), 1, 0, 0, "", charLen(concat(inner, ""))), env)).
     If throwPending() is equal to "1":
         Return env.
     puts(concat(formatted, chr(10))).
     Return env.
 
 ## To doConsoleErr (logArg: Text, env: Text) -> Text:
-    eputs(decodeStr(consoleFmt(patFields(expandSpreadArgs(concat(logArg, ""), env)), 1, env, ""))).
+    Let inner be expandSpreadArgs(concat(logArg, ""), env).
+    eputs(decodeStr(consoleFmtArgs(patFieldSplit(concat(inner, ""), 1, 0, 0, "", charLen(concat(inner, ""))), env))).
     Return env.
 
 ## To doExit (arg: Text, env: Text) -> Text:
