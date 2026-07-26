@@ -27,9 +27,11 @@ if (OURS) {
   const program = () => {
     const spec = ri(3) === 0 ? "node:fs" : "fs";
     const payload = JSON.stringify(line());
-    const k = ri(13);
+    const k = ri(15);
     if (k === 11) return `import fs from "${spec}";\nfs.writeFileSync("ap.txt", "start");\nfs.appendFileSync("ap.txt", ${payload});\nfs.appendFileSync("ap.txt", "END");\nconsole.log(fs.readFileSync("ap.txt", "utf8"));`;
     if (k === 12) return `import fs from "${spec}";\nfs.writeFileSync("src.txt", ${payload});\nfs.copyFileSync("src.txt", "dst.txt");\nconsole.log(fs.readFileSync("dst.txt", "utf8"), fs.existsSync("dst.txt"));`;
+    if (k === 13) return `import fs from "${spec}";\nfs.writeFileSync("r1.txt", ${payload});\nfs.renameSync("r1.txt", "r2.txt");\nconsole.log(fs.existsSync("r1.txt"), fs.existsSync("r2.txt"), fs.readFileSync("r2.txt", "utf8"));`;
+    if (k === 14) return `import fs from "${spec}";\nfs.writeFileSync("u.txt", ${payload});\nconsole.log(fs.existsSync("u.txt"));\nfs.unlinkSync("u.txt");\nconsole.log(fs.existsSync("u.txt"));`;
     if (k === 0) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8"));`;
     if (k === 1) return `import fs from "${spec}";\nconsole.log(fs.readFileSync("a.txt", "utf8").length);`;
     if (k === 2) return `import fs from "${spec}";\nconst j = JSON.parse(fs.readFileSync("j.json", "utf8"));\nconsole.log(j.a, j.name, j.b[1]);`;
