@@ -23,7 +23,9 @@ if (OURS) {
   const val = () => ["" + ri(9), '"s' + ri(9) + '"', ri(2) ? "true" : "false"][ri(3)];
   const program = () => {
     const head = `import a from "${ri(3) === 0 ? "node:assert" : "assert"}";\n`;
-    const v1 = val(), v2 = val(), k = ri(9);
+    const v1 = val(), v2 = val(), k = ri(11);
+    if (k === 9) return head + `a(${v1} === ${v2});\nconsole.log("direct");`;             // direct assert(x)
+    if (k === 10) return head + `a(${ri(2) ? v1 : ri(9)});\nconsole.log("direct2");`;
     if (k === 0) return head + `a.strictEqual(${v1}, ${v2});\nconsole.log("after");`;
     if (k === 1) return head + `a.equal(${v1}, ${v2});\nconsole.log("after");`;
     if (k === 2) return head + `a.notStrictEqual(${v1}, ${v2});\nconsole.log("after");`;

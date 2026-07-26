@@ -2172,6 +2172,10 @@
         Let result be callFn(lastTok, inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If isNodeModHandle(envGet(env, concat(lastTok, ""))):
+        Let ndResult be nodeModCallDirect(nodeModName(envGet(env, concat(lastTok, ""))), concat(inner, ""), env).
+        Let ndPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(ndPrefix, " "), ndResult), rest), env).
     If startsWith(envGet(env, lastTok), "__PRES__"):
         Let dRes be settlePromise(concat(tagRef (), substringAfter(envGet(env, lastTok), "__PRES__")), "fulfilled", jsEvalIn(inner, env)).
         Return resolveCalls(concat(concat(concat(joinRange(ptoks, 1, (length of ptoks) - 1, ""), " "), "undefined"), rest), env).
@@ -13649,6 +13653,12 @@
         Return utilModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "assert":
         Return assertModCall(concat(method, ""), concat(argText, ""), env).
+    Return "undefined".
+
+# A module handle called as a FUNCTION (`assert(x)` === `assert.ok(x)`). Only `assert` is callable.
+## To nodeModCallDirect (mod: Text, argText: Text, env: Text) -> Text:
+    If concat(mod, "") is equal to "assert":
+        Return assertModCall("ok", concat(argText, ""), env).
     Return "undefined".
 
 # The exports blob for a built-in node module, or "" for a non-builtin specifier. The default export is a
