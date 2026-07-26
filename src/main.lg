@@ -13411,6 +13411,69 @@
         Return concat(res, "/").
     Return concat(res, "").
 
+# path.relative(from, to) — the shortest path from `from` to `to` (POSIX, absolute inputs). Both are
+# normalized to their non-empty segment lists (chr(31)-joined to dodge the empty-Seq footgun); the shared
+# leading run is skipped, one ".." is emitted per remaining `from` segment, and the remaining `to`
+# segments follow. `relLen`/`relItem` treat the empty list as length 0.
+## To relLen (s: Text) -> Int:
+    If concat(s, "") is equal to "":
+        Return 0.
+    Return length of split(concat(s, ""), chr(31)).
+
+## To relItem (s: Text, i: Int) -> Text:
+    Return concat(item i of split(concat(s, ""), chr(31)), "").
+
+## To relCommon (a: Text, b: Text, i: Int) -> Int:
+    If i is greater than relLen(concat(a, "")):
+        Return i - 1.
+    If i is greater than relLen(concat(b, "")):
+        Return i - 1.
+    If relItem(concat(a, ""), i) is not equal to relItem(concat(b, ""), i):
+        Return i - 1.
+    Return relCommon(concat(a, ""), concat(b, ""), i + 1).
+
+## To relDrop (s: Text, fromI: Int, acc: Text) -> Text:
+    If fromI is greater than relLen(concat(s, "")):
+        Return acc.
+    If concat(acc, "") is equal to "":
+        Return relDrop(concat(s, ""), fromI + 1, relItem(concat(s, ""), fromI)).
+    Return relDrop(concat(s, ""), fromI + 1, concat(concat(acc, chr(31)), relItem(concat(s, ""), fromI))).
+
+## To relDotDots (n: Int, acc: Text) -> Text:
+    If n is less than or equal to 0:
+        Return acc.
+    If concat(acc, "") is equal to "":
+        Return relDotDots(n - 1, "..").
+    Return relDotDots(n - 1, concat(concat(acc, chr(31)), "..")).
+
+## To relCombine (ups: Text, down: Text) -> Text:
+    If concat(ups, "") is equal to "":
+        Return concat(down, "").
+    If concat(down, "") is equal to "":
+        Return concat(ups, "").
+    Return concat(concat(concat(ups, ""), chr(31)), concat(down, "")).
+
+## To pathRelative (fromP: Text, toP: Text) -> Text:
+    Let fromStr be pathSegJoin(split(pathNormalize(concat(fromP, "")), "/"), 1, "").
+    Let toStr be pathSegJoin(split(pathNormalize(concat(toP, "")), "/"), 1, "").
+    Let common be relCommon(concat(fromStr, ""), concat(toStr, ""), 1).
+    Let up be (relLen(concat(fromStr, ""))) - common.
+    Let down be relDrop(concat(toStr, ""), common + 1, "").
+    Return replaceAll(relCombine(relDotDots(up, ""), concat(down, "")), chr(31), "/").
+
+# The non-empty, non-"." segments of `p`, chr(31)-joined (used by path.relative).
+## To pathSegJoin (segs: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of segs:
+        Return acc.
+    Let s be concat(item i of segs, "").
+    If s is equal to "":
+        Return pathSegJoin(segs, i + 1, concat(acc, "")).
+    If s is equal to ".":
+        Return pathSegJoin(segs, i + 1, concat(acc, "")).
+    If concat(acc, "") is equal to "":
+        Return pathSegJoin(segs, i + 1, concat(s, "")).
+    Return pathSegJoin(segs, i + 1, concat(concat(acc, chr(31)), s)).
+
 # path.join — concatenate the non-empty segments with "/", then normalize. No segments -> ".".
 ## To pathJoinAcc (segs: Seq of Text, i: Int, acc: Text) -> Text:
     If i is greater than length of segs:
@@ -13531,6 +13594,8 @@
         Return concat(tagStr (), encodeStr(pathExtname(concat(first, "")))).
     If concat(method, "") is equal to "isAbsolute":
         Return cmpResult(startsWith(concat(first, ""), "/")).
+    If concat(method, "") is equal to "relative":
+        Return concat(tagStr (), encodeStr(pathRelative(concat(first, ""), concat(item 2 of strs, "")))).
     Return "undefined".
 
 # node:util — `format` reuses console.log's util.format engine; `inspect` reuses the inspector but with
