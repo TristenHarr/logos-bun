@@ -12326,11 +12326,38 @@
         Return concat(chr(123), chr(125)).
     Return concat(concat(concat(chr(123), " "), inspectObjLoop(entries, 1, "")), concat(" ", chr(125))).
 
+# A Set renders `Set(n) { v, v }` (empty `Set(0) {}`), a Map `Map(n) { k => v, k => v }` (empty
+# `Map(0) {}`) — the count prefix and `=>` are Node's inspect form; the values/keys use the nested form
+# (strings single-quoted). The value join reuses inspectArrLoop.
+## To inspectMapLoop (keys: Seq of Text, vals: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of keys:
+        Return acc.
+    Let piece be concat(concat(inspectVal(item i of keys, false), " => "), inspectVal(item i of vals, false)).
+    If i is equal to 1:
+        Return inspectMapLoop(keys, vals, i + 1, piece).
+    Return inspectMapLoop(keys, vals, i + 1, concat(concat(acc, ", "), piece)).
+
+## To inspectSet (v: Text) -> Text:
+    Let els be arrElements(objGet(concat(v, ""), "__set_vals")).
+    Let n be length of els.
+    If n is equal to 0:
+        Return concat(concat("Set(0) ", chr(123)), chr(125)).
+    Return concat(concat(concat(concat(concat("Set(", toText(n)), ") "), chr(123)), concat(" ", inspectArrLoop(els, 1, ""))), concat(" ", chr(125))).
+
+## To inspectMap (v: Text) -> Text:
+    Let keys be arrElements(objGet(concat(v, ""), "__map_keys")).
+    Let vals be arrElements(objGet(concat(v, ""), "__map_vals")).
+    Let n be length of keys.
+    If n is equal to 0:
+        Return concat(concat("Map(0) ", chr(123)), chr(125)).
+    Return concat(concat(concat(concat(concat("Map(", toText(n)), ") "), chr(123)), concat(" ", inspectMapLoop(keys, vals, 1, ""))), concat(" ", chr(125))).
+
 # Node util.inspect rendering for console.log — the SINGLE-LINE form, exact for structures under Node's
 # ~80-char breakLength: a top-level string prints raw, a nested string is single-quoted; arrays render
-# `[ e, e ]` and plain objects `{ k: v }` (empty `[]`/`{}`), recursively. Multi-line wrapping + array
-# column-grouping for large structures, and named forms for Set/Map/Date/Error/Function/class instances,
-# are deliberate follow-ups (routed through materialize here so they are unchanged, not regressed).
+# `[ e, e ]`, plain objects `{ k: v }`, Sets `Set(n) { … }`, Maps `Map(n) { k => v }` (empty `[]`/`{}`/
+# `Set(0) {}`/`Map(0) {}`), recursively. Multi-line wrapping + array column-grouping for large structures,
+# and named forms for Date/Error/Function/class instances, are deliberate follow-ups (routed through
+# materialize here so they are unchanged, not regressed).
 ## To inspectVal (v: Text, top: Bool) -> Text:
     If startsWith(v, tagBig ()):
         Return concat(substringAfter(v, tagBig ()), "n").
@@ -12343,9 +12370,9 @@
     If isArrRef(v):
         Return inspectArr(concat(v, "")).
     If isSet(v):
-        Return materialize(v).
+        Return inspectSet(concat(v, "")).
     If isMap(v):
-        Return materialize(v).
+        Return inspectMap(concat(v, "")).
     If isObjRef(v):
         If isDateObj(v):
             Return materialize(v).
