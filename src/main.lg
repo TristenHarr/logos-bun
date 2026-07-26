@@ -4107,8 +4107,65 @@
         Return stripUnaryPlus(trim(substringAfter(trim(e), "+ "))).
     Return e.
 
+# A token that puts the parser in OPERAND position — after it, a `-`/`+` is a unary SIGN, not a binary
+# operator. The arithmetic operators plus a `(` (whose first inner token is an operand) qualify.
+## To isArithOperatorTok (t: Text) -> Bool:
+    Let ops be ["+", "-", "*", "/", "%", "**", "("].
+    Return ops contains concat(t, "").
+
+# The index of the first non-sign token at or after `i` — skips a run of unary `-`/`+` signs.
+## To numRunStart (toks: Seq of Text, i: Int) -> Int:
+    If i is greater than length of toks:
+        Return i.
+    If item i of toks is equal to "-":
+        Return numRunStart(toks, i + 1).
+    If item i of toks is equal to "+":
+        Return numRunStart(toks, i + 1).
+    Return i.
+
+# The count of `-` signs in the token run [i, upto] — its parity decides the folded operand's sign.
+## To countMinus (toks: Seq of Text, i: Int, upto: Int, n: Int) -> Int:
+    If i is greater than upto:
+        Return n.
+    If item i of toks is equal to "-":
+        Return countMinus(toks, i + 1, upto, n + 1).
+    Return countMinus(toks, i + 1, upto, n).
+
+# Apply a leading minus to a numeric token, collapsing a double negative (`-` on `-3` -> `3`).
+## To signNegTok (t: Text) -> Text:
+    If startsWith(concat(t, ""), "-"):
+        Return substringAfter(concat(t, ""), "-").
+    Return concat("-", concat(t, "")).
+
+# Fold each unary sign (a `-`/`+` in operand position — at the start or right after an arithmetic
+# operator/`(`) into the numeric operand that follows, so the integer/float/bigint evaluators never see a
+# standalone `-` token (which panics `parseInt`). A run of signs collapses by parity: `* - 1` -> `* -1`,
+# `- - 3` -> `3`, `* + 1` -> `* 1`. Binary `-`/`+` (after an operand) is left untouched.
+## To foldSigns (toks: Seq of Text, i: Int, prevOp: Bool, acc: Text) -> Text:
+    If i is greater than length of toks:
+        Return trim(acc).
+    Let t be item i of toks.
+    If prevOp is equal to true:
+        If t is equal to "-":
+            Let j be numRunStart(toks, i).
+            If j is less than or equal to length of toks:
+                If isNumericStr(concat(item j of toks, "")):
+                    Let base be concat(item j of toks, "").
+                    If (countMinus(toks, i, j - 1, 0) % 2) is equal to 1:
+                        Return foldSigns(toks, j + 1, false, concat(concat(acc, " "), signNegTok(base))).
+                    Return foldSigns(toks, j + 1, false, concat(concat(acc, " "), base)).
+        If t is equal to "+":
+            Let jp be numRunStart(toks, i).
+            If jp is less than or equal to length of toks:
+                If isNumericStr(concat(item jp of toks, "")):
+                    Let basep be concat(item jp of toks, "").
+                    If (countMinus(toks, i, jp - 1, 0) % 2) is equal to 1:
+                        Return foldSigns(toks, jp + 1, false, concat(concat(acc, " "), signNegTok(basep))).
+                    Return foldSigns(toks, jp + 1, false, concat(concat(acc, " "), basep)).
+    Return foldSigns(toks, i + 1, isArithOperatorTok(concat(t, "")), concat(concat(acc, " "), concat(t, ""))).
+
 ## To arithValue (expr: Text) -> Text:
-    Let coerced be coerceNumToks(split(stripUnaryPlus(coerceStrLits(concat(expr, ""))), " "), 1, "").
+    Let coerced be foldSigns(split(coerceNumToks(split(stripUnaryPlus(coerceStrLits(concat(expr, ""))), " "), 1, ""), " "), 1, true, "").
     If hasBigTok(split(concat(coerced, ""), " "), 1):
         Return bigintEval(concat(coerced, "")).
     If arithBadTok(split(concat(coerced, ""), " "), 1):
