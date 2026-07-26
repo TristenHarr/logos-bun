@@ -7849,35 +7849,46 @@
     Let toks be split(concat(t, ""), " ").
     Return joinRange(toks, 2, length of toks, "").
 
-# The index of the first `?.` token that begins an optional CALL — a `?.` immediately followed by an
-# identifier and a `(`. Optional member (`?. a`) and index (`?. [k]`) tokens are skipped (resolveOptChain
-# handles those); only a call needs early handling because method-call dispatch (resolveMethods) runs
-# before resolveOptChain and would otherwise never see the call.
+# The index of the first `?.` token that begins an optional CALL — a `?.` immediately followed by `(`
+# (a direct call of the receiver value, `f ?. ( … )`), or by an identifier and a `(` (`o ?. m ( … )`).
+# Optional member (`?. a`) and index (`?. [k]`) tokens are skipped (resolveOptChain handles those); only a
+# call needs early handling because call/method dispatch runs before resolveOptChain would see it.
 ## To optCallPos (toks: Seq of Text, i: Int) -> Int:
     If i is greater than length of toks:
         Return 0.
     If item i of toks is equal to "?.":
+        If i + 1 is less than or equal to length of toks:
+            If item (i + 1) of toks is equal to chr(40):
+                Return i.
         If i + 2 is less than or equal to length of toks:
             If isSimpleName(concat(item (i + 1) of toks, "")):
                 If item (i + 2) of toks is equal to chr(40):
                     Return i.
     Return optCallPos(toks, i + 1).
 
-# Resolve optional CALLS `recv ?. method ( args )` before ordinary method dispatch: evaluate the receiver
-# ONCE to test nullishness (jsEvalIn resolves any nested optional members in it), then either short-circuit
-# to undefined (nullish receiver — the balanced call group is consumed) or rewrite the ORIGINAL receiver
-# text to a plain `<before> . method ( args )` so resolveMethods runs the call — arrays, strings, and objects
-# alike, since the receiver is known non-null at this point. Left-to-right, recursively.
+# Resolve optional CALLS before ordinary call/method dispatch: evaluate the receiver ONCE to test
+# nullishness, then either short-circuit to undefined (nullish receiver — the balanced call group is
+# consumed) or rewrite to a plain non-optional call. A DIRECT call `recv ?. ( args )` juxtaposes the args
+# onto the receiver (`<recv> ( args )` for resolveCalls); a METHOD call `recv ?. m ( args )` becomes
+# `<recv> . m ( args )` for resolveMethods. Left-to-right, recursively.
 ## To resolveOptCall (expr: Text, env: Text) -> Text:
     Let toks be split(concat(expr, ""), " ").
     Let pos be optCallPos(toks, 1).
     If pos is equal to 0:
         Return concat(expr, "").
     Let before be joinRange(toks, 1, pos - 1, "").
-    Let mname be item (pos + 1) of toks.
-    Let afterCall be joinRange(toks, pos + 2, length of toks, "").
     Let recv be jsEvalIn(recvExpr(concat(before, "")), env).
     Let prefix be recvPrefix(concat(before, "")).
+    If item (pos + 1) of toks is equal to chr(40):
+        Let dcall be joinRange(toks, pos + 1, length of toks, "").
+        If isNullish(concat(recv, "")):
+            Let acd be substringAfter(concat(dcall, ""), chr(40)).
+            Let aid be balancedArg(concat(acd, ""), 1, 0, "").
+            Let restD be trim(strSliceLoop(concat(acd, ""), (charLen(concat(aid, ""))) + 2, length of acd, "")).
+            Return resolveOptCall(trim(concat(concat(prefix, " undefined "), restD)), env).
+        Return resolveOptCall(trim(concat(concat(before, " "), trim(concat(dcall, "")))), env).
+    Let mname be item (pos + 1) of toks.
+    Let afterCall be joinRange(toks, pos + 2, length of toks, "").
     If isNullish(concat(recv, "")):
         Let ac be substringAfter(concat(afterCall, ""), chr(40)).
         Let ai be balancedArg(concat(ac, ""), 1, 0, "").
