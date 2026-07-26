@@ -11162,7 +11162,7 @@
 # return passes straight through the try. Async ARROWS are still handled by the plain strip below.
 ## To desugarAsync (expr: Text) -> Text:
     If substringBefore(expr, "async function ") is equal to expr:
-        Return expr.
+        Return desugarAsyncArrow(concat(expr, "")).
     Let bef be substringBefore(expr, "async function ").
     Let aft be substringAfter(expr, "async function ").
     Let name be genExprName(concat(aft, "")).
@@ -11175,6 +11175,44 @@
     Let inner be concat(concat(concat(concat(" try ", chr(123)), concat(concat(" ", trim(body)), " ")), chr(125)), concat(catchPart, chr(125))).
     Let wrapped be concat(concat(head, chr(123)), concat(inner, chr(125))).
     Return desugarAsync(concat(concat(concat(bef, wrapped), " "), remainder)).
+
+# An async ARROW with a BLOCK body (`async (p) => { … }`, `async x => { … }`) needs the same throw->reject
+# wrap as an async function; an expr-body async arrow can't hold a `throw` statement so it just loses its
+# `async`. An arrow HEAD is `( … )` or a single identifier — the guard keeps this from mangling an async
+# METHOD (`async go(){…}`) that happens to contain an inner `=>` (that just drops its async; async-method
+# throw-wrap is a follow-up).
+## To isArrowHead (h: Text) -> Bool:
+    Let t be trim(concat(h, "")).
+    If concat(t, "") is equal to "":
+        Return true.
+    If startsWith(concat(t, ""), chr(40)):
+        Return item (charLen(concat(t, ""))) of t is equal to chr(41).
+    If hasSep(concat(t, ""), " "):
+        Return false.
+    If hasSep(concat(t, ""), chr(123)):
+        Return false.
+    Return true.
+
+## To desugarAsyncArrow (expr: Text) -> Text:
+    If substringBefore(expr, "async ") is equal to expr:
+        Return expr.
+    Let bef be substringBefore(expr, "async ").
+    Let aft be substringAfter(expr, "async ").
+    Let head be substringBefore(concat(aft, ""), " => ").
+    If concat(head, "") is equal to concat(aft, ""):
+        Return desugarAsyncArrow(concat(bef, aft)).
+    If isArrowHead(concat(head, "")) is equal to false:
+        Return desugarAsyncArrow(concat(bef, aft)).
+    Let afterArrow be trim(substringAfter(concat(aft, ""), " => ")).
+    If startsWith(concat(afterArrow, ""), chr(123)) is equal to false:
+        Return desugarAsyncArrow(concat(concat(bef, head), concat(" => ", afterArrow))).
+    Let afterBrace be substringAfter(concat(afterArrow, ""), chr(123)).
+    Let body be braceBody(afterBrace, 1, 0, "").
+    Let remainder be strSliceLoop(afterBrace, (charLen(concat(body, ""))) + 2, length of afterBrace, "").
+    Let catchPart be concat(concat(" catch ( __asyncErr ) ", chr(123)), " return Promise . reject ( __asyncErr ) ").
+    Let inner be concat(concat(concat(concat(" try ", chr(123)), concat(concat(" ", trim(body)), " ")), chr(125)), concat(catchPart, chr(125))).
+    Let wrapped be concat(concat(concat(head, " => "), chr(123)), concat(inner, chr(125))).
+    Return desugarAsyncArrow(concat(concat(concat(bef, wrapped), " "), remainder)).
 
 ## To stripAsync (s: Text) -> Text:
     Return replaceAll(replaceAll(replaceAll(s, "async function", "function"), "async (", "("), "async ", "").

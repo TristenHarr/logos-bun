@@ -21,16 +21,22 @@ if (OURS) {
   const msgs = ["boom", "bad", "nope", "fail"];
   const m = () => JSON.stringify(msgs[ri(msgs.length)]);
   const program = () => {
-    const a = ri(20), k = ri(9);
+    const a = ri(20), k = ri(14);
     if (k === 0) return `async function f(){throw new Error(${m()})}f().catch(e=>console.log("c:"+e.message))`;
     if (k === 1) return `async function f(){throw ${m()}}f().catch(e=>console.log("c:"+e))`;
     if (k === 2) return `async function f(){throw new Error(${m()})}f().then(x=>console.log("t")).catch(e=>console.log("c:"+e.message))`;
     if (k === 3) return `async function f(){await Promise.reject(${m()});return 1}f().catch(e=>console.log("c:"+e))`;
     if (k === 4) return `async function f(x){if(x<0)throw new Error("neg");return x*2}f(${a - 10}).then(v=>console.log("v:"+v),e=>console.log("c:"+e.message))`;
+    // async ARROWS
+    if (k === 5) return `const f=async()=>{throw new Error(${m()})};f().catch(e=>console.log("c:"+e.message))`;
+    if (k === 6) return `const f=async(n)=>{if(n<0)throw new Error("neg");return n*2};f(${a - 10}).then(v=>console.log("v:"+v),e=>console.log("c:"+e.message))`;
+    if (k === 7) return `Promise.resolve(${a}).then(async v=>{throw new Error("t"+v)}).catch(e=>console.log("c:"+e.message))`;
+    if (k === 8) return `const f=async x=>{const y=await Promise.resolve(x);return y+1};f(${a}).then(v=>console.log("v:"+v))`;
     // regression controls
-    if (k === 5) return `async function f(){return ${a}}f().then(x=>console.log("v:"+x))`;
-    if (k === 6) return `async function f(){const y=await Promise.resolve(${a});return y+1}f().then(x=>console.log("v:"+x))`;
-    if (k === 7) return `async function f(){return Promise.reject(${m()})}f().catch(v=>console.log("c:"+v))`;
+    if (k === 9) return `async function f(){return ${a}}f().then(x=>console.log("v:"+x))`;
+    if (k === 10) return `async function f(){const y=await Promise.resolve(${a});return y+1}f().then(x=>console.log("v:"+x))`;
+    if (k === 11) return `async function f(){return Promise.reject(${m()})}f().catch(v=>console.log("c:"+v))`;
+    if (k === 12) return `const f=async()=>${a};f().then(v=>console.log("v:"+v))`;
     return `(async()=>{try{await Promise.reject(${m()})}catch(e){console.log("caught:"+e)}})()`;
   };
   let checked = 0;
