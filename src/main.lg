@@ -8009,18 +8009,43 @@
 # The chain remainder after one optional access is consumed — used when the receiver is nullish and the
 # access short-circuits to undefined: skip a balanced `[ … ]` index or `( … )` call, else a single
 # dot-member token.
-## To optChainAfter (tail: Text) -> Text:
-    Let t be trim(concat(tail, "")).
-    If startsWith(concat(t, ""), chr(91)):
-        Let ab be substringAfter(concat(t, ""), chr(91)).
+# When a `?.` receiver is nullish the WHOLE remaining member/index/call chain short-circuits to
+# undefined — not just the first access. optChainSkip walks that chain: in member mode it consumes one
+# access (a member name, or an index/call on the nullish receiver); in continuation mode it consumes a
+# following `?.`/`.` member or `[…]`/`(…)`, STOPPING at the first non-chain token (an operator, `,`, end)
+# which is returned so the enclosing expression keeps evaluating (`null?.x.y + 5` -> `undefined + 5`).
+# A single self-recursive function (no mutual recursion, which the tail-call codegen mishandles).
+## To optChainSkip (t: Text, member: Bool) -> Text:
+    Let s be trim(concat(t, "")).
+    If s is equal to "":
+        Return "".
+    If member is equal to true:
+        If startsWith(concat(s, ""), chr(91)):
+            Let ab be substringAfter(concat(s, ""), chr(91)).
+            Let ib be bracketBody(concat(ab, ""), 1, 0, "").
+            Return optChainSkip(trim(strSliceLoop(concat(ab, ""), (charLen(concat(ib, ""))) + 2, length of ab, "")), false).
+        If startsWith(concat(s, ""), chr(40)):
+            Let ap be substringAfter(concat(s, ""), chr(40)).
+            Let ip be balancedArg(concat(ap, ""), 1, 0, "").
+            Return optChainSkip(trim(strSliceLoop(concat(ap, ""), (charLen(concat(ip, ""))) + 2, length of ap, "")), false).
+        Let toks be split(concat(s, ""), " ").
+        Return optChainSkip(trim(joinRange(toks, 2, length of toks, "")), false).
+    If startsWith(concat(s, ""), "?. "):
+        Return optChainSkip(trim(substringAfter(concat(s, ""), "?. ")), true).
+    If startsWith(concat(s, ""), ". "):
+        Return optChainSkip(trim(substringAfter(concat(s, ""), ". ")), true).
+    If startsWith(concat(s, ""), chr(91)):
+        Let ab be substringAfter(concat(s, ""), chr(91)).
         Let ib be bracketBody(concat(ab, ""), 1, 0, "").
-        Return trim(strSliceLoop(concat(ab, ""), (charLen(concat(ib, ""))) + 2, length of ab, "")).
-    If startsWith(concat(t, ""), chr(40)):
-        Let ap be substringAfter(concat(t, ""), chr(40)).
+        Return optChainSkip(trim(strSliceLoop(concat(ab, ""), (charLen(concat(ib, ""))) + 2, length of ab, "")), false).
+    If startsWith(concat(s, ""), chr(40)):
+        Let ap be substringAfter(concat(s, ""), chr(40)).
         Let ip be balancedArg(concat(ap, ""), 1, 0, "").
-        Return trim(strSliceLoop(concat(ap, ""), (charLen(concat(ip, ""))) + 2, length of ap, "")).
-    Let toks be split(concat(t, ""), " ").
-    Return joinRange(toks, 2, length of toks, "").
+        Return optChainSkip(trim(strSliceLoop(concat(ap, ""), (charLen(concat(ip, ""))) + 2, length of ap, "")), false).
+    Return concat(s, "").
+
+## To optChainAfter (tail: Text) -> Text:
+    Return optChainSkip(concat(tail, ""), true).
 
 # The index of the first `?.` token that begins an optional CALL — a `?.` immediately followed by `(`
 # (a direct call of the receiver value, `f ?. ( … )`), or by an identifier and a `(` (`o ?. m ( … )`).
