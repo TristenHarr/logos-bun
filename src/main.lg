@@ -12272,12 +12272,94 @@
     heapSet(alias, "v2").
     Return heapGet(h).
 
-# console.log renders a top-level BigInt with a trailing `n` (its inspect form) — distinct from
-# String(10n) / `10n + ""`, which drop it. Other values format via materialize as usual.
-## To bigDisplay (v: Text) -> Text:
+# A valid bare object key for inspect output: `^[A-Za-z_$][A-Za-z0-9_$]*$` (Node prints a matching key
+# unquoted, `{ a: 1 }`, and single-quotes anything else — `'a-b'`, `'0'`, `'has space'`).
+## To isIdentRestChar (c: Text) -> Bool:
+    Return hasSep("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$", concat(c, "")).
+
+## To isIdentKeyLoop (k: Text, i: Int, len: Int) -> Bool:
+    If i is greater than len:
+        Return true.
+    If isIdentRestChar(item i of k) is equal to false:
+        Return false.
+    Return isIdentKeyLoop(k, i + 1, len).
+
+## To isIdentKey (k: Text) -> Bool:
+    Let n be charLen(concat(k, "")).
+    If n is equal to 0:
+        Return false.
+    If isIdentStartChar(item 1 of concat(k, "")) is equal to false:
+        Return false.
+    Return isIdentKeyLoop(concat(k, ""), 2, n).
+
+## To inspectArrLoop (els: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of els:
+        Return acc.
+    Let piece be inspectVal(item i of els, false).
+    If i is equal to 1:
+        Return inspectArrLoop(els, i + 1, piece).
+    Return inspectArrLoop(els, i + 1, concat(concat(acc, ", "), piece)).
+
+## To inspectArr (v: Text) -> Text:
+    Let els be arrElements(concat(v, "")).
+    If length of els is equal to 0:
+        Return concat(chr(91), chr(93)).
+    Return concat(concat(concat(chr(91), " "), inspectArrLoop(els, 1, "")), concat(" ", chr(93))).
+
+## To inspectKey (k: Text) -> Text:
+    If isIdentKey(concat(k, "")):
+        Return concat(k, "").
+    Return concat(concat(chr(39), k), chr(39)).
+
+## To inspectObjLoop (entries: Seq of Text, i: Int, acc: Text) -> Text:
+    If i is greater than length of entries:
+        Return acc.
+    Let entry be item i of entries.
+    Let piece be concat(concat(inspectKey(substringBefore(entry, tagObjKV ())), ": "), inspectVal(substringAfter(entry, tagObjKV ()), false)).
+    If i is equal to 1:
+        Return inspectObjLoop(entries, i + 1, piece).
+    Return inspectObjLoop(entries, i + 1, concat(concat(acc, ", "), piece)).
+
+## To inspectObj (v: Text) -> Text:
+    Let entries be objEntrySeqPublic(concat(v, "")).
+    If length of entries is equal to 0:
+        Return concat(chr(123), chr(125)).
+    Return concat(concat(concat(chr(123), " "), inspectObjLoop(entries, 1, "")), concat(" ", chr(125))).
+
+# Node util.inspect rendering for console.log — the SINGLE-LINE form, exact for structures under Node's
+# ~80-char breakLength: a top-level string prints raw, a nested string is single-quoted; arrays render
+# `[ e, e ]` and plain objects `{ k: v }` (empty `[]`/`{}`), recursively. Multi-line wrapping + array
+# column-grouping for large structures, and named forms for Set/Map/Date/Error/Function/class instances,
+# are deliberate follow-ups (routed through materialize here so they are unchanged, not regressed).
+## To inspectVal (v: Text, top: Bool) -> Text:
     If startsWith(v, tagBig ()):
         Return concat(substringAfter(v, tagBig ()), "n").
-    Return materialize(v).
+    If startsWith(v, tagStr ()):
+        If top:
+            Return substringAfter(v, tagStr ()).
+        Return concat(concat(chr(39), substringAfter(v, tagStr ())), chr(39)).
+    If startsWith(v, chr(1)):
+        Return concat(concat(chr(91), "Function (anonymous)"), chr(93)).
+    If isArrRef(v):
+        Return inspectArr(concat(v, "")).
+    If isSet(v):
+        Return materialize(v).
+    If isMap(v):
+        Return materialize(v).
+    If isObjRef(v):
+        If isDateObj(v):
+            Return materialize(v).
+        If objGet(concat(v, ""), "message") is not equal to "undefined":
+            If objGet(concat(v, ""), "name") is not equal to "undefined":
+                Return materialize(v).
+        Return inspectObj(concat(v, "")).
+    Return v.
+
+# console.log renders a top-level BigInt with a trailing `n` (its inspect form) — distinct from
+# String(10n) / `10n + ""`, which drop it. Arrays and plain objects use Node's util.inspect form
+# (`[ 1, 2 ]` / `{ a: 1 }`), not join / `[object Object]`; other values format via materialize as usual.
+## To bigDisplay (v: Text) -> Text:
+    Return inspectVal(concat(v, ""), true).
 
 ## To consoleFmt (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
