@@ -21,6 +21,11 @@
 ## To native readFile (path: Text) -> Text
 ## To native writeFile (path: Text, contents: Text) -> Text
 ## To native fileExists (path: Text) -> Text
+## To native osPlatform () -> Text
+## To native osArch () -> Text
+## To native osEndianness () -> Text
+## To native osTmpdir () -> Text
+## To native osType () -> Text
 ## To native puts (s: Text) -> Unit
 ## To native getEnv (key: Text) -> Text
 ## To native heapAlloc (content: Text) -> Text
@@ -6197,7 +6202,7 @@
     Return leftmostOf(expr, markers, i + 1, best, bestPos).
 
 ## To leftmostMethod (expr: Text) -> Text:
-    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
+    Return leftmostOf(concat(expr, ""), [" . strictEqual (", " . notStrictEqual (", " . deepStrictEqual (", " . deepEqual (", " . notEqual (", " . equal (", " . doesNotThrow (", " . throws (", " . ok (", " . fail (", " . parse (", " . stringify (", " . escape (", " . unescape (", " . readFileSync (", " . writeFileSync (", " . existsSync (", " . platform (", " . arch (", " . endianness (", " . tmpdir (", " . homedir (", " . type (", " . basename (", " . dirname (", " . extname (", " . isAbsolute (", " . relative (", " . format (", " . inspect (", " . call (", " . apply (", " . bind (", " . getTime (", " . valueOf (", " . getUTCFullYear (", " . getFullYear (", " . getUTCMonth (", " . getMonth (", " . getUTCDate (", " . getDate (", " . getUTCHours (", " . getUTCMinutes (", " . getUTCSeconds (", " . getHours (", " . getMinutes (", " . getSeconds (", " . getUTCMilliseconds (", " . getMilliseconds (", " . getUTCDay (", " . getDay (", " . toISOString (", " . toJSON (", " . hasOwnProperty (", " . flatMap (", " . replaceAll (", " . findLastIndex (", " . findLast (", " . findIndex (", " . forEach (", " . push (", " . splice (", " . shift (", " . unshift (", " . pop (", " . toString (", " . toFixed (", " . toPrecision (", " . toExponential (", " . toLocaleString (", " . sort (", " . toSorted (", " . toReversed (", " . with (", " . flat (", " . at (", " . concat (", " . some (", " . every (", " . find (", " . padStart (", " . padEnd (", " . substring (", " . substr (", " . charCodeAt (", " . codePointAt (", " . lastIndexOf (", " . reduceRight (", " . reduce (", " . map (", " . filter (", " . reverse (", " . fill (", " . copyWithin (", " . charAt (", " . indexOf (", " . slice (", " . toUpperCase (", " . toLowerCase (", " . normalize (", " . includes (", " . startsWith (", " . endsWith (", " . localeCompare (", " . repeat (", " . trimStart (", " . trimEnd (", " . trim (", " . split (", " . join (", " . replace ("], 1, " . replace (", 1000000).
 
 # Method dispatch must not reach INTO an un-executed callback body: methods handled by the fixed-
 # order checks below (`.test`/`.match`, Map/Set ops, `new RegExp`) fire on any textual occurrence,
@@ -13775,6 +13780,26 @@
         Return fileExists(concat(pathV, "")).
     Return "undefined".
 
+# --- node:os ---
+# The deterministic, commonly-used surface: platform/arch/type/endianness/tmpdir come from natives that
+# remap Rust's target/OS spelling to Node's (x86_64->x64, macos->darwin, …); homedir reads $HOME; the EOL
+# data property ("\n" on POSIX) is served by nodeModProp. Syscall-heavy members (cpus/totalmem/hostname/
+# release/networkInterfaces) are a follow-up needing more natives.
+## To osModCall (method: Text, argText: Text, env: Text) -> Text:
+    If concat(method, "") is equal to "platform":
+        Return concat(tagStr (), osPlatform ()).
+    If concat(method, "") is equal to "arch":
+        Return concat(tagStr (), osArch ()).
+    If concat(method, "") is equal to "type":
+        Return concat(tagStr (), osType ()).
+    If concat(method, "") is equal to "endianness":
+        Return concat(tagStr (), osEndianness ()).
+    If concat(method, "") is equal to "tmpdir":
+        Return concat(tagStr (), encodeStr(osTmpdir ())).
+    If concat(method, "") is equal to "homedir":
+        Return concat(tagStr (), encodeStr(getEnv("HOME"))).
+    Return "undefined".
+
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
 ## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
     If i is greater than length of args:
@@ -13890,6 +13915,8 @@
         Return querystringModCall(concat(method, ""), concat(argText, ""), env).
     If concat(mod, "") is equal to "fs":
         Return fsModCall(concat(method, ""), concat(argText, ""), env).
+    If concat(mod, "") is equal to "os":
+        Return osModCall(concat(method, ""), concat(argText, ""), env).
     Return "undefined".
 
 # A module handle called as a FUNCTION (`assert(x)` === `assert.ok(x)`). Only `assert` is callable.
@@ -13943,6 +13970,9 @@
             Return concat(tagStr (), "/").
         If concat(prop, "") is equal to "delimiter":
             Return concat(tagStr (), ":").
+    If concat(mod, "") is equal to "os":
+        If concat(prop, "") is equal to "EOL":
+            Return concat(tagStr (), encodeStr(chr(10))).
     Return "undefined".
 
 ## To builtinModuleExports (spec: Text) -> Text:
@@ -13966,6 +13996,10 @@
         Return concat("default=", nodeModMarker("fs")).
     If concat(spec, "") is equal to "node:fs":
         Return concat("default=", nodeModMarker("fs")).
+    If concat(spec, "") is equal to "os":
+        Return concat("default=", nodeModMarker("os")).
+    If concat(spec, "") is equal to "node:os":
+        Return concat("default=", nodeModMarker("os")).
     Return "".
 
 ## To applyImports (lines: Seq of Text, i: Int, dir: Text, env: Text) -> Text:
