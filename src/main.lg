@@ -6577,6 +6577,12 @@
         Let aft be substringAfter(expr, "new RegExp (").
         Let rargs be splitArgsN(methodArg(aft)).
         Return resolveMethods(trim(concat(concat(bef, newRegex(decodeStr(materialize(jsEvalIn(trim(item 1 of rargs), env))), reFlagsArg(rargs, env))), methodRest(aft))), env).
+    If substringBefore(expr, "new URL (") is not equal to expr:
+      If markerInBody(concat(expr, ""), "new URL (") is equal to false:
+        Let ubef be substringBefore(expr, "new URL (").
+        Let uaft be substringAfter(expr, "new URL (").
+        Let uargs be splitArgsN(methodArg(uaft)).
+        Return resolveMethods(trim(concat(concat(ubef, newUrl(decodeStr(materialize(jsEvalIn(trim(item 1 of uargs), env))))), methodRest(uaft))), env).
     If substringBefore(expr, " . test (") is not equal to expr:
         If markerInBody(concat(expr, ""), " . test (") is equal to false:
             Let rbef be substringBefore(expr, " . test (").
@@ -8672,48 +8678,66 @@
 # Inside a string literal (opened at a chr(34) that splitTop saw), every character is copied verbatim
 # — a `;`/`{`/`(` there is DATA, not a statement/scope boundary. Escaped quotes are already encoded
 # (encQuote), so a raw chr(34) here is the real closing delimiter, handing control back to splitTop.
-## To splitTopStrN (s: Text, i: Int, depth: Int, acc: Text, len: Int, blk: Bool) -> Text:
+# The brace-kind stack tracks whether each open `{`/`(` is a block ("B"), an object literal ("O"), or a
+# paren ("P") — so splitTopN knows, at any raw newline, which context it is in. A newline INSIDE a block
+# is a statement separator (→ `;`, kept out of the top-level chr(10) split so a multi-line function body
+# stays one top-level statement); inside an object literal or paren group it is mere whitespace (→ space);
+# only at the top level (empty stack) is it a real statement boundary (→ chr(10)).
+## To splitBracePush (stk: Text, isBlk: Bool) -> Text:
+    If isBlk:
+        Return concat(concat(stk, ""), "B").
+    Return concat(concat(stk, ""), "O").
+
+## To splitInBlockBrace (stk: Text) -> Bool:
+    Return lastCharOf(concat(stk, "")) is equal to "B".
+
+## To splitTopStrN (s: Text, i: Int, depth: Int, acc: Text, len: Int, blk: Bool, stk: Text) -> Text:
     If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk).
-    Return splitTopStrN(s, i + 1, depth, concat(acc, c), len, blk).
+        Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk, stk).
+    Return splitTopStrN(s, i + 1, depth, concat(acc, c), len, blk, stk).
 
 ## To splitTop (s: Text, i: Int, depth: Int, acc: Text) -> Text:
-    Return splitTopN(concat(s, ""), i, depth, acc, charLen(concat(s, "")), false).
+    Return splitTopN(concat(s, ""), i, depth, acc, charLen(concat(s, "")), false, "").
 
-## To splitTopN (s: Text, i: Int, depth: Int, acc: Text, len: Int, blk: Bool) -> Text:
+## To splitTopN (s: Text, i: Int, depth: Int, acc: Text, len: Int, blk: Bool, stk: Text) -> Text:
     If i is greater than len:
         Return acc.
     Let c be item i of s.
     If c is equal to chr(34):
-        Return splitTopStrN(s, i + 1, depth, concat(acc, c), len, blk).
+        Return splitTopStrN(s, i + 1, depth, concat(acc, c), len, blk, stk).
     If c is equal to chr(123):
         If depth is equal to 0:
-            Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, braceIsBlock(acc)).
-        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, blk).
+            Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, braceIsBlock(acc), splitBracePush(concat(stk, ""), braceIsBlock(acc))).
+        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, blk, splitBracePush(concat(stk, ""), braceIsBlock(acc))).
     If c is equal to "(":
-        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, blk).
+        Return splitTopN(s, i + 1, depth + 1, concat(acc, c), len, blk, concat(concat(stk, ""), "P")).
     If c is equal to chr(125):
         If depth is equal to 1:
             If blk:
                 If splitBlockContinues(s, i + 1):
-                    Return splitTopN(s, i + 1, 0, concat(acc, c), len, false).
-                Return splitTopN(s, i + 1, 0, concat(concat(acc, c), chr(10)), len, false).
+                    Return splitTopN(s, i + 1, 0, concat(acc, c), len, false, popLast(concat(stk, ""))).
+                Return splitTopN(s, i + 1, 0, concat(concat(acc, c), chr(10)), len, false, popLast(concat(stk, ""))).
             If splitContinues(s, i + 1):
-                Return splitTopN(s, i + 1, 0, concat(acc, c), len, false).
-            Return splitTopN(s, i + 1, 0, concat(concat(acc, c), chr(10)), len, false).
-        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len, blk).
+                Return splitTopN(s, i + 1, 0, concat(acc, c), len, false, popLast(concat(stk, ""))).
+            Return splitTopN(s, i + 1, 0, concat(concat(acc, c), chr(10)), len, false, popLast(concat(stk, ""))).
+        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len, blk, popLast(concat(stk, ""))).
     If c is equal to ")":
-        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len, blk).
+        Return splitTopN(s, i + 1, depth - 1, concat(acc, c), len, blk, popLast(concat(stk, ""))).
     If c is equal to ";":
         If depth is equal to 0:
             If splitWordIs(s, splitSkipSpaces(s, i + 1), "else"):
-                Return splitTopN(s, i + 1, 0, concat(acc, c), len, false).
-            Return splitTopN(s, i + 1, 0, concat(acc, chr(10)), len, false).
-        Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk).
-    Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk).
+                Return splitTopN(s, i + 1, 0, concat(acc, c), len, false, concat(stk, "")).
+            Return splitTopN(s, i + 1, 0, concat(acc, chr(10)), len, false, concat(stk, "")).
+        Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk, concat(stk, "")).
+    If c is equal to chr(10):
+        If concat(stk, "") is not equal to "":
+            If splitInBlockBrace(concat(stk, "")):
+                Return splitTopN(s, i + 1, depth, concat(acc, ";"), len, blk, concat(stk, "")).
+            Return splitTopN(s, i + 1, depth, concat(acc, " "), len, blk, concat(stk, "")).
+    Return splitTopN(s, i + 1, depth, concat(acc, c), len, blk, concat(stk, "")).
 
 ## To tryCatchRun (afterTry: Text, cparam: Text, catchBlock: Text) -> Text:
     If hasThrow(afterTry):
@@ -13799,6 +13823,145 @@
     If concat(method, "") is equal to "homedir":
         Return concat(tagStr (), encodeStr(getEnv("HOME"))).
     Return "undefined".
+
+# --- WHATWG URL: `new URL(absoluteUrl)` ---
+# A pragmatic parser for the common absolute special-scheme URL. The result is a plain object carrying
+# href/protocol/username/password/host/hostname/port/pathname/search/hash/origin as data properties, so
+# `u.pathname` etc. are ordinary reads. Fragment then query are split off first; the lowercased scheme and
+# `//authority` follow; authority splits userinfo@host (last @) and host into hostname:port with the
+# default port dropped. Deferred: relative resolution (new URL(rel, base)), URLSearchParams, IPv6 hosts,
+# percent-encoding + path dot-segment normalization, opaque/non-special schemes, string coercion to href.
+## To urlIsSpecial (scheme: Text) -> Bool:
+    If concat(scheme, "") is equal to "http": Return true.
+    If concat(scheme, "") is equal to "https": Return true.
+    If concat(scheme, "") is equal to "ws": Return true.
+    If concat(scheme, "") is equal to "wss": Return true.
+    If concat(scheme, "") is equal to "ftp": Return true.
+    If concat(scheme, "") is equal to "file": Return true.
+    Return false.
+
+## To urlDefaultPort (scheme: Text) -> Text:
+    If concat(scheme, "") is equal to "http": Return "80".
+    If concat(scheme, "") is equal to "https": Return "443".
+    If concat(scheme, "") is equal to "ws": Return "80".
+    If concat(scheme, "") is equal to "wss": Return "443".
+    If concat(scheme, "") is equal to "ftp": Return "21".
+    Return "".
+
+## To urlLower (s: Text) -> Text:
+    Return strLowerLoop(concat(s, ""), 1, "", charLen(concat(s, ""))).
+
+## To urlVal (s: Text) -> Text:
+    Return concat(tagStr (), encodeStr(concat(s, ""))).
+
+## To urlPortNorm (port: Text, scheme: Text) -> Text:
+    If concat(port, "") is equal to urlDefaultPort(concat(scheme, "")): Return "".
+    Return concat(port, "").
+
+## To urlHostProp (hostname: Text, port: Text) -> Text:
+    If concat(port, "") is equal to "": Return concat(hostname, "").
+    Return concat(concat(hostname, ""), concat(":", concat(port, ""))).
+
+# The username[:password]@ prefix as it appears in href — empty when there is no userinfo.
+## To urlUserinfoHref (username: Text, password: Text) -> Text:
+    If concat(username, "") is equal to "":
+        If concat(password, "") is equal to "": Return "".
+    If concat(password, "") is equal to "": Return concat(concat(username, ""), "@").
+    Return concat(concat(concat(username, ""), concat(":", concat(password, ""))), "@").
+
+# The search/hash PROPERTY drops a bare separator (`?` / `#` with nothing after) to "", matching Node —
+# though href keeps the raw separator, so the two are computed from the raw value independently.
+## To urlDropEmpty (raw: Text, sep: Text) -> Text:
+    If concat(raw, "") is equal to concat(sep, ""): Return "".
+    Return concat(raw, "").
+
+## To urlOrigin (scheme: Text, hostProp: Text) -> Text:
+    If concat(scheme, "") is equal to "file": Return "null".
+    If urlIsSpecial(concat(scheme, "")): Return concat(concat(scheme, ""), concat("://", concat(hostProp, ""))).
+    Return "null".
+
+# Assemble the URL object from an already scheme+authority-split input. `authPlus` is everything after
+# `scheme://` with the query and fragment removed: "authority" or "authority/path".
+## To urlFromAuthority (scheme: Text, authPlus: Text, search: Text, hash: Text) -> Text:
+    Let authority be substringBefore(concat(authPlus, ""), "/").
+    Let pathname be urlPathAfterAuthority(concat(authPlus, ""), concat(scheme, "")).
+    Let userinfo be urlUserinfoOfAuth(concat(authority, "")).
+    Let hostRaw be urlHostOfAuth(concat(authority, "")).
+    Let username be substringBefore(concat(userinfo, ""), ":").
+    Let password be urlPassOf(concat(userinfo, "")).
+    Let hostname be urlLower(substringBefore(concat(hostRaw, ""), ":")).
+    Let port be urlPortNorm(urlPortOf(concat(hostRaw, "")), concat(scheme, "")).
+    Let hostProp be urlHostProp(concat(hostname, ""), concat(port, "")).
+    Let protocol be concat(concat(scheme, ""), ":").
+    Let href be concat(concat(protocol, ""), concat("//", concat(urlUserinfoHref(concat(username, ""), concat(password, "")), concat(hostProp, concat(pathname, concat(search, concat(hash, ""))))))).
+    Let o1 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "href", urlVal(concat(href, ""))).
+    Let o2 be objSet(concat(o1, ""), "protocol", urlVal(concat(protocol, ""))).
+    Let o3 be objSet(concat(o2, ""), "username", urlVal(concat(username, ""))).
+    Let o4 be objSet(concat(o3, ""), "password", urlVal(concat(password, ""))).
+    Let o5 be objSet(concat(o4, ""), "host", urlVal(concat(hostProp, ""))).
+    Let o6 be objSet(concat(o5, ""), "hostname", urlVal(concat(hostname, ""))).
+    Let o7 be objSet(concat(o6, ""), "port", urlVal(concat(port, ""))).
+    Let o8 be objSet(concat(o7, ""), "pathname", urlVal(concat(pathname, ""))).
+    Let o9 be objSet(concat(o8, ""), "search", urlVal(urlDropEmpty(concat(search, ""), "?"))).
+    Let o10 be objSet(concat(o9, ""), "hash", urlVal(urlDropEmpty(concat(hash, ""), "#"))).
+    Return objSet(concat(o10, ""), "origin", urlVal(urlOrigin(concat(scheme, ""), concat(hostProp, "")))).
+
+## To urlPathAfterAuthority (authPlus: Text, scheme: Text) -> Text:
+    If hasSep(concat(authPlus, ""), "/") is equal to false:
+        If urlIsSpecial(concat(scheme, "")): Return "/".
+        Return "".
+    Return concat("/", substringAfter(concat(authPlus, ""), "/")).
+
+## To urlUserinfoOfAuth (authority: Text) -> Text:
+    If hasSep(concat(authority, ""), "@"): Return beforeLastSep(concat(authority, ""), "@").
+    Return "".
+
+## To urlHostOfAuth (authority: Text) -> Text:
+    If hasSep(concat(authority, ""), "@"): Return afterLastSep(concat(authority, ""), "@").
+    Return concat(authority, "").
+
+## To urlPassOf (userinfo: Text) -> Text:
+    If hasSep(concat(userinfo, ""), ":"): Return substringAfter(concat(userinfo, ""), ":").
+    Return "".
+
+## To urlPortOf (host: Text) -> Text:
+    If hasSep(concat(host, ""), ":"): Return substringAfter(concat(host, ""), ":").
+    Return "".
+
+# Parse an absolute URL string into the URL object. Fragment, then query, are removed first; the scheme is
+# lowercased; a `//` introduces an authority (the common special-scheme case), otherwise the remainder is
+# an opaque path.
+## To newUrl (rawInput: Text) -> Text:
+    Let input be trim(concat(rawInput, "")).
+    Let hash be urlHashOf(concat(input, "")).
+    Let beforeHash be substringBefore(concat(input, ""), "#").
+    Let search be urlSearchOf(concat(beforeHash, "")).
+    Let beforeSearch be substringBefore(concat(beforeHash, ""), "?").
+    Let scheme be urlLower(substringBefore(concat(beforeSearch, ""), ":")).
+    Let afterScheme be substringAfter(concat(beforeSearch, ""), ":").
+    If startsWith(concat(afterScheme, ""), "//"):
+        Return urlFromAuthority(concat(scheme, ""), substringAfter(concat(afterScheme, ""), "//"), concat(search, ""), concat(hash, "")).
+    Let protocol be concat(concat(scheme, ""), ":").
+    Let hrefO be concat(concat(protocol, ""), concat(afterScheme, concat(search, concat(hash, "")))).
+    Let p1 be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "href", urlVal(concat(hrefO, ""))).
+    Let p2 be objSet(concat(p1, ""), "protocol", urlVal(concat(protocol, ""))).
+    Let p3 be objSet(concat(p2, ""), "username", urlVal("")).
+    Let p4 be objSet(concat(p3, ""), "password", urlVal("")).
+    Let p5 be objSet(concat(p4, ""), "host", urlVal("")).
+    Let p6 be objSet(concat(p5, ""), "hostname", urlVal("")).
+    Let p7 be objSet(concat(p6, ""), "port", urlVal("")).
+    Let p8 be objSet(concat(p7, ""), "pathname", urlVal(concat(afterScheme, ""))).
+    Let p9 be objSet(concat(p8, ""), "search", urlVal(urlDropEmpty(concat(search, ""), "?"))).
+    Let p10 be objSet(concat(p9, ""), "hash", urlVal(urlDropEmpty(concat(hash, ""), "#"))).
+    Return objSet(concat(p10, ""), "origin", urlVal("null")).
+
+## To urlHashOf (s: Text) -> Text:
+    If hasSep(concat(s, ""), "#") is equal to false: Return "".
+    Return concat("#", substringAfter(concat(s, ""), "#")).
+
+## To urlSearchOf (s: Text) -> Text:
+    If hasSep(concat(s, ""), "?") is equal to false: Return "".
+    Return concat("?", substringAfter(concat(s, ""), "?")).
 
 # Evaluate the call's argument expressions to a chr(10)-joined list of decoded strings, for a path method.
 ## To pathArgStrs (args: Seq of Text, i: Int, env: Text, acc: Text) -> Text:
