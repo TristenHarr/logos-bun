@@ -9932,6 +9932,8 @@
             If firstArg is equal to "":
                 Return en.
             Return assignTarget("this . message", jsEvalIn(concat(firstArg, ""), en), en).
+        If concat(pname, "") is equal to "EventEmitter":
+            Return assignTarget("this . __emitter", concat(tagStr (), "1"), env).
         Let ran be callMethod(envGet(concat(env, ""), concat(pname, "")), sargs, envGet(concat(env, ""), "this"), env).
         Return env.
     If startsWith(s, "__inherit_super__ "):

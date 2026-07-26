@@ -23,7 +23,7 @@ if (OURS) {
   const ev = () => ["data", "go", "close", "error2", "tick"][ri(5)];
   const spec = () => ri(3) === 0 ? "node:events" : "events";
   const program = () => {
-    const a = 1 + ri(9), b = 1 + ri(9), e = ev(), k = ri(9);
+    const a = 1 + ri(9), b = 1 + ri(9), e = ev(), k = ri(11);
     const head = `import { EventEmitter } from "${spec()}";\n`;
     if (k === 0) return head + `const em = new EventEmitter();\nem.on(${JSON.stringify(e)}, (x) => console.log("h", x));\nem.emit(${JSON.stringify(e)}, ${a});\nem.emit(${JSON.stringify(e)}, ${b});`;
     if (k === 1) return head + `const em = new EventEmitter();\nem.on(${JSON.stringify(e)}, (x, y) => console.log(x + y));\nem.on(${JSON.stringify(e)}, (x, y) => console.log(x * y));\nem.emit(${JSON.stringify(e)}, ${a}, ${b});`;
@@ -33,7 +33,9 @@ if (OURS) {
     if (k === 5) return head + `const em = new EventEmitter();\nconsole.log(em.emit(${JSON.stringify(e)}));\nem.on(${JSON.stringify(e)}, () => {});\nconsole.log(em.emit(${JSON.stringify(e)}));`;
     if (k === 6) return head + `function make() {\n  const em = new EventEmitter();\n  em.on(${JSON.stringify(e)}, (n) => console.log("in", n));\n  em.emit(${JSON.stringify(e)}, ${a});\n  return em.listenerCount(${JSON.stringify(e)});\n}\nconsole.log(make());`;
     if (k === 7) return head + `const em = new EventEmitter();\nem.addListener(${JSON.stringify(e)}, (x) => console.log("add", x));\nem.emit(${JSON.stringify(e)}, ${a});\nconst g = () => console.log("off-test");\nem.on(${JSON.stringify(e)}, g);\nem.off(${JSON.stringify(e)}, g);\nem.emit(${JSON.stringify(e)}, ${b});`;
-    return head + `const em = new EventEmitter();\nem.on(${JSON.stringify(e)}, (x) => console.log("a", x));\nem.once(${JSON.stringify(e)}, (x) => console.log("b", x));\nem.emit(${JSON.stringify(e)}, ${a});\nem.emit(${JSON.stringify(e)}, ${b});`;
+    if (k === 8) return head + `const em = new EventEmitter();\nem.on(${JSON.stringify(e)}, (x) => console.log("a", x));\nem.once(${JSON.stringify(e)}, (x) => console.log("b", x));\nem.emit(${JSON.stringify(e)}, ${a});\nem.emit(${JSON.stringify(e)}, ${b});`;
+    if (k === 9) return head + `class Bus extends EventEmitter {\n  constructor() { super(); this.n = 0; }\n  fire(x) { this.n = this.n + 1; this.emit(${JSON.stringify(e)}, x); }\n}\nconst bus = new Bus();\nbus.on(${JSON.stringify(e)}, (x) => console.log("heard", x, bus.n));\nbus.fire(${a});\nbus.fire(${b});\nconsole.log("c", bus.listenerCount(${JSON.stringify(e)}));`;
+    return head + `class Bare extends EventEmitter {}\nconst x = new Bare();\nx.on(${JSON.stringify(e)}, (v) => console.log("bare", v));\nconsole.log("ran", x.emit(${JSON.stringify(e)}, ${a}));`;
   };
   let checked = 0;
   for (let it = 0; it < n; it++) {
