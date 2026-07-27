@@ -11783,7 +11783,7 @@
     Return k.
 
 ## To rxEndsWithWord (acc: Text, w: Text) -> Bool:
-    Let e be rxLastSigIdx(acc, length of acc).
+    Let e be rxLastSigIdx(acc, charLen(concat(acc, ""))).
     If e is equal to 0:
         Return false.
     Let m be length of w.
@@ -11820,44 +11820,49 @@
         Return true.
     Return rxKeyBefore(acc).
 
-## To rxBodyEnd (s: Text, j: Int, inClass: Bool) -> Int:
-    If j is greater than length of s:
+# These source scanners walk `s` by CHARACTER (`item j of s`), so their end bound must be the CHARACTER
+# length `len` (threaded from the caller, computed once) — NOT `length of s`, which is the BYTE length and
+# on any multi-byte source (a `«»`-bearing assertion message, an accented string) exceeds the char count,
+# letting the walk index past the last character and panic. `len` is passed in rather than recomputed so
+# the scan stays O(n) per call, not O(n²).
+## To rxBodyEnd (s: Text, j: Int, inClass: Bool, len: Int) -> Int:
+    If j is greater than len:
         Return 0.
     Let c be item j of s.
     If c is equal to chr(92):
-        Return rxBodyEnd(s, j + 2, inClass).
+        Return rxBodyEnd(s, j + 2, inClass, len).
     If inClass:
         If c is equal to chr(93):
-            Return rxBodyEnd(s, j + 1, false).
-        Return rxBodyEnd(s, j + 1, inClass).
+            Return rxBodyEnd(s, j + 1, false, len).
+        Return rxBodyEnd(s, j + 1, inClass, len).
     If c is equal to chr(91):
-        Return rxBodyEnd(s, j + 1, true).
+        Return rxBodyEnd(s, j + 1, true, len).
     If c is equal to "/":
         Return j.
-    Return rxBodyEnd(s, j + 1, inClass).
+    Return rxBodyEnd(s, j + 1, inClass, len).
 
-## To rxFlagsEnd (s: Text, k: Int) -> Int:
-    If k is greater than length of s:
+## To rxFlagsEnd (s: Text, k: Int, len: Int) -> Int:
+    If k is greater than len:
         Return k.
     If rxIsAlpha(item k of s):
-        Return rxFlagsEnd(s, k + 1).
+        Return rxFlagsEnd(s, k + 1, len).
     Return k.
 
-## To rxLineEnd (s: Text, k: Int) -> Int:
-    If k is greater than length of s:
+## To rxLineEnd (s: Text, k: Int, len: Int) -> Int:
+    If k is greater than len:
         Return k.
     If item k of s is equal to chr(10):
         Return k.
-    Return rxLineEnd(s, k + 1).
+    Return rxLineEnd(s, k + 1, len).
 
-## To rxBlockEnd (s: Text, k: Int) -> Int:
-    If k is greater than length of s:
+## To rxBlockEnd (s: Text, k: Int, len: Int) -> Int:
+    If k is greater than len:
         Return k.
     If item k of s is equal to "*":
-        If k + 1 is less than or equal to length of s:
+        If k + 1 is less than or equal to len:
             If item (k + 1) of s is equal to "/":
                 Return k + 2.
-    Return rxBlockEnd(s, k + 1).
+    Return rxBlockEnd(s, k + 1, len).
 
 ## To rxEscape (pat: Text, i: Int, acc: Text) -> Text:
     If i is greater than length of pat:
@@ -11899,19 +11904,19 @@
     If c is equal to "/":
         Let nx be rxNextOr(s, i + 1).
         If nx is equal to "/":
-            Let le be rxLineEnd(s, i).
+            Let le be rxLineEnd(s, i, len).
             Let seg be strSliceLoop(s, i, le - 1, "").
             Return desugarRegexLitsN(s, le, lastSig, false, "", concat(acc, seg), len).
         If nx is equal to "*":
-            Let bend be rxBlockEnd(s, i + 2).
+            Let bend be rxBlockEnd(s, i + 2, len).
             Let bseg be strSliceLoop(s, i, bend - 1, "").
             Return desugarRegexLitsN(s, bend, lastSig, false, "", concat(acc, bseg), len).
         If rxIsStart(lastSig, acc):
-            Let closeIdx be rxBodyEnd(s, i + 1, false).
+            Let closeIdx be rxBodyEnd(s, i + 1, false, len).
             If closeIdx is equal to 0:
                 Return desugarRegexLitsN(s, i + 1, "/", false, "", concat(acc, c), len).
             Let pat be strSliceLoop(s, i + 1, closeIdx - 1, "").
-            Let fend be rxFlagsEnd(s, closeIdx + 1).
+            Let fend be rxFlagsEnd(s, closeIdx + 1, len).
             Let flags be strSliceLoop(s, closeIdx + 1, fend - 1, "").
             Let repl be concat("new RegExp(", concat(chr(34), concat(rxEscape(pat, 1, ""), concat(chr(34), concat(", ", concat(chr(34), concat(flags, concat(chr(34), ")")))))))).
             Return desugarRegexLitsN(s, fend, ")", false, "", concat(acc, repl), len).
@@ -11960,11 +11965,11 @@
         If c is equal to "/":
             Let nx be rxNextOr(s, i + 1).
             If nx is equal to "/":
-                Let le be rxLineEnd(s, i).
+                Let le be rxLineEnd(s, i, len).
                 Let seg be strSliceLoop(s, i, le - 1, "").
                 Return convertQuotesN(s, le, 0, concat(acc, seg), len).
             If nx is equal to "*":
-                Let bend be rxBlockEnd(s, i + 2).
+                Let bend be rxBlockEnd(s, i + 2, len).
                 Let bseg be strSliceLoop(s, i, bend - 1, "").
                 Return convertQuotesN(s, bend, 0, concat(acc, bseg), len).
         If c is equal to chr(39):
