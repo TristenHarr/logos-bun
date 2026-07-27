@@ -3782,9 +3782,28 @@
         Return resolveObjDot(trim(concat(concat(concat(newPrefix, " "), val), restToks))).
     Return expr.
 
+# A function's `.length` is its ARITY: the count of leading formal parameters before the first one with a
+# default (`=`) or a rest (`...`), which JS excludes. Read off the function token's parameter list.
+## To fnArityLoop (params: Seq of Text, i: Int, acc: Int) -> Int:
+    If i is greater than length of params:
+        Return acc.
+    Let p be trim(item i of params).
+    If p is equal to "":
+        Return acc.
+    If startsWith(concat(p, ""), "..."):
+        Return acc.
+    If hasSep(concat(p, ""), "="):
+        Return acc.
+    Return fnArityLoop(params, i + 1, acc + 1).
+
+## To fnArity (paramStr: Text) -> Int:
+    Return fnArityLoop(patFields(concat(paramStr, "")), 1, 0).
+
 ## To propLength (v: Text) -> Int:
     If isArrRef(v):
         Return length of arrElements(v).
+    If startsWith(concat(v, ""), chr(1)):
+        Return fnArity(fnParams(concat(v, ""))).
     Return charLen(materialize(litToStr(v))).
 
 # Read a property for object-destructuring: `length` off an array/string gives its length (arrays/strings
@@ -6419,6 +6438,8 @@
 # (a non-canonical or out-of-range index — `"1.5"`, `"-1"`, `"01"`, `"5"` on a 2-array — is not own). The
 # all-digits guard is load-bearing: parseInt here PANICS on a non-integer string like `"1.5"`.
 ## To hasOwnKey (obj: Text, key: Text) -> Bool:
+    If startsWith(concat(obj, ""), chr(1)):
+        Return concat(key, "") is equal to "length".
     If isArrRef(concat(obj, "")):
         If concat(key, "") is equal to "length":
             Return true.
