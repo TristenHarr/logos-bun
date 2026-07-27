@@ -12216,6 +12216,12 @@
                     Let s1 be domAppend(acc, concat("__set_", domNext(toks, i + 1))).
                     Let s3 be domAppend(domAppend(s1, ":"), "function").
                     Return domWalk(toks, i + 2, stack, "function", s3).
+        If t is equal to "*":
+            If isWordChar1(domNext(toks, i + 1)):
+                If domNext(toks, i + 2) is equal to "(":
+                    Let gm1 be domAppend(acc, domNext(toks, i + 1)).
+                    Let gm3 be domAppend(domAppend(domAppend(gm1, ":"), "function"), "*").
+                    Return domWalk(toks, i + 2, stack, "function", gm3).
         If isWordChar1(t):
             If domNext(toks, i + 1) is equal to "(":
                 Let m1 be domAppend(acc, t).
@@ -12427,7 +12433,8 @@
     Let decommented be stripComments(concat(rx, "")).
     Let sq be classBodySemis(concat(decommented, "")).
     Let normed be joinNonEmpty(split(normJs(sq, 1, false, ""), " "), 1, "").
-    Return joinNonEmpty(split(desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarAsync(desugarGenerators(normed)))))), " "), 1, "").
+    Let desugared be desugarObjMethods(desugarClass(desugarArrows(stripAsync(desugarAsync(desugarGenerators(normed)))))).
+    Return joinNonEmpty(split(desugarGenerators(concat(desugared, "")), " "), 1, "").
 
 # --- Regex engine (E4): a backtracking matcher in LOGOS ---
 # JS regex needs backreferences/lookahead that Rust's regex crate lacks, so the matcher is hand-rolled
