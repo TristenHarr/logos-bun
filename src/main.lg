@@ -1926,12 +1926,17 @@
     Return jsParseIntAuto(s, safeInt(materialize(jsEvalIn(trim(item 2 of args), env)))).
 
 ## To isGlobalFn (name: Text) -> Bool:
-    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array", "structuredClone", "encodeURIComponent", "decodeURIComponent"].
+    Let names be ["parseInt", "parseFloat", "String", "Number", "Boolean", "BigInt", "isNaN", "isFinite", "Array", "structuredClone", "encodeURIComponent", "decodeURIComponent", "eval"].
     Return names contains name.
 
 ## To globalCall (name: Text, inner: Text, env: Text) -> Text:
     If name is equal to "parseInt":
         Return jsParseIntArgs(inner, env).
+    If name is equal to "eval":
+        Let srcv be jsEvalIn(inner, env).
+        If startsWith(concat(srcv, ""), tagStr ()):
+            Return evalString(decodeStr(materialize(concat(srcv, ""))), env).
+        Return concat(srcv, "").
     If name is equal to "Array":
         Return arrCtor(inner, env).
     If name is equal to "structuredClone":
@@ -10611,6 +10616,17 @@
     Let v be runProgram(split(concat(flat, ""), chr(10)), 1, hoistFns(split(concat(flat, ""), chr(10)), 1, "")).
     Let drained be drainMicrotasks("", "").
     Return v.
+
+# `eval(src)`: run a source STRING through the same normalize->split->hoist->run pipeline as a program and
+# return its completion value (the value of the last statement, `undefined` for a statement form). The
+# caller's environment is threaded in so a direct eval reads outer bindings (`var x = 1; eval("x")` -> 1);
+# writes made inside the eval thread through runProgram but do not leak back out (a scope edge left for
+# later). eval of a non-string returns the argument unchanged, per spec.
+## To evalString (src: Text, env: Text) -> Text:
+    Let normed be normalizeJs(concat(src, "")).
+    Let flat be boxCaptured(splitTop(concat(normed, ""), 1, 0, "")).
+    Let stmts be split(concat(flat, ""), chr(10)).
+    Return runProgram(stmts, 1, hoistFns(stmts, 1, concat(env, ""))).
 
 ## To nchars (s: Text, i: Int, n: Int, len: Int) -> Text:
     If i + n is greater than len + 1:
