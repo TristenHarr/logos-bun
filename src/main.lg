@@ -11688,6 +11688,29 @@
     Let msAssign be concat(concat(concat(concat(concat(msHead, chr(123)), concat(" ", superBody)), " "), chr(125)), " ; ").
     Return classWalk(cname, parent, rest, cparams, cbody, concat(concat(methods, assign), msAssign), statics, fields).
 
+# A class in EXPRESSION position bound by `var/let/const NAME = class …` is desugared using the BINDING name
+# as the class name and dropping the `var NAME =` — a class declaration binds NAME to the same constructor,
+# so `var C = class { m(){…} }` becomes `class C { m(){…} }`. Without this, desugarClass (declaration-only)
+# gave the anonymous class an empty name and spliced constructor STATEMENTS into the assignment's value slot
+# (`var C = <stmts>`), which is malformed — even a basic `var C = class { m(){} }` then crashed. Returns
+# (bindName, textBeforeTheBinding) or ("", "") when bef is not exactly a simple var/let/const binding.
+## To classExprBinding (bef: Text) -> Seq of Text:
+    Let t be trim(concat(bef, "")).
+    Let toks be split(concat(t, ""), " ").
+    Let n be length of toks.
+    If n is less than 3:
+        Return ["", ""].
+    If item n of toks is not equal to "=":
+        Return ["", ""].
+    Let decl be item (n - 2) of toks.
+    If decl is equal to "var":
+        Return [item (n - 1) of toks, joinRange(toks, 1, n - 3, "")].
+    If decl is equal to "let":
+        Return [item (n - 1) of toks, joinRange(toks, 1, n - 3, "")].
+    If decl is equal to "const":
+        Return [item (n - 1) of toks, joinRange(toks, 1, n - 3, "")].
+    Return ["", ""].
+
 ## To desugarClass (expr: Text) -> Text:
     If substringBefore(expr, "class ") is equal to expr:
         Return expr.
@@ -11699,6 +11722,12 @@
     Let afterBrace be substringAfter(aft, chr(123)).
     Let cbody be braceBody(afterBrace, 1, 0, "").
     Let remainder be strSliceLoop(afterBrace, (charLen(concat(cbody, ""))) + 2, length of afterBrace, "").
+    Let bind be classExprBinding(concat(bef, "")).
+    If item 1 of bind is not equal to "":
+        Let bname be item 1 of bind.
+        Let bpre be item 2 of bind.
+        Let fnPartB be concat(concat(superBindOf(bname, parent), classWalk(bname, parent, trim(cbody), "", "", "", "", "")), " ; ").
+        Return desugarClass(concat(concat(concat(bpre, " "), fnPartB), remainder)).
     Let fnPart be concat(concat(superBindOf(cname, parent), classWalk(cname, parent, trim(cbody), "", "", "", "", "")), " ; ").
     Return desugarClass(concat(concat(bef, fnPart), remainder)).
 
