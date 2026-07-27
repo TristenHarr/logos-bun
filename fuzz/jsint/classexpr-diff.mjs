@@ -20,7 +20,9 @@ if (OURS) {
   const ri = (k) => Math.floor(rnd() * k);
   const kw = () => ["var", "let", "const"][ri(3)];
   const program = () => {
-    const a = 1 + ri(20), b = 1 + ri(20), k = ri(8);
+    const a = 1 + ri(20), b = 1 + ri(20), k = ri(10);
+    if (k === 8) return `class C { *g(){ yield ${a}; yield ${b}; } }\nvar it = new C().g();\nconsole.log(it.next().value, it.next().value, it.next().done);`;
+    if (k === 9) return `${kw()} C = class { n = ${a}; *g(){ yield this.n; yield this.n + ${b}; } };\nconsole.log([...new C().g()].join(","));`;
     if (k === 0) return `${kw()} C = class { m(){ return ${a}; } };\nconsole.log(new C().m());`;
     if (k === 1) return `${kw()} C = class { static s(){ return ${a} + ${b}; } };\nconsole.log(C.s());`;
     if (k === 2) return `${kw()} C = class { constructor(x){ this.x = x; } g(){ return this.x * 2; } };\nconsole.log(new C(${a}).g());`;

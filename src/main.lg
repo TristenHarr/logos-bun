@@ -11578,6 +11578,8 @@
 ## To isClassField (name: Text, tok2: Text) -> Bool:
     If name is equal to "constructor":
         Return false.
+    If name is equal to "*":
+        Return false.
     If name is equal to "static":
         Return false.
     If name is equal to "get":
@@ -11680,6 +11682,12 @@
             Let stHead be concat(concat(concat("this . __set_", nthTok(concat(b, ""), 2)), concat(" = function ( ", params)), " ) ").
             Let stAssign be concat(concat(concat(concat(stHead, chr(123)), concat(" ", trim(mbody))), " "), concat(chr(125), " ; ")).
             Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, stAssign), statics, fields).
+    If name is equal to "*":
+        Let gmname be nthTok(concat(b, ""), 2).
+        Let gsuperBody be replaceAll(trim(mbody), "super . ", concat(concat("this . __msuper_", parent), "_")).
+        Let gHead2 be concat(concat(concat(concat("this . ", gmname), " = function * ( "), params), " ) ").
+        Let gAssign2 be concat(concat(concat(concat(concat(gHead2, chr(123)), concat(" ", gsuperBody)), " "), chr(125)), " ; ").
+        Return classWalk(cname, parent, rest, cparams, cbody, concat(methods, gAssign2), statics, fields).
     Let superBody be replaceAll(trim(mbody), "super . ", concat(concat("this . __msuper_", parent), "_")).
     Let assignHead be concat(concat(concat(concat("this . ", name), " = function ( "), params), " ) ").
     Let assign be concat(concat(concat(concat(concat(assignHead, chr(123)), concat(" ", superBody)), " "), chr(125)), " ; ").
