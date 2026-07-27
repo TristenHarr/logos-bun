@@ -2284,6 +2284,10 @@
         Let result be uncurryInvokeFn(objGet(concat(fnVal, ""), "__ucf"), inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If objGet(concat(fnVal, ""), "__bsm") is not equal to "undefined":
+        Let result be jsEvalIn(trim(concat(concat(concat(objGet(concat(fnVal, ""), "__bsm"), " ( "), inner), " )")), env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If isGlobalFn(lastTok):
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), globalCall(lastTok, inner, env)), rest), env).
@@ -4610,6 +4614,12 @@
         Return concat(tagStr (), "function").
     If startsWith(objGet(concat(tok, ""), "__callfn"), chr(1)):
         Return concat(tagStr (), "function").
+    If objGet(concat(tok, ""), "__bsm") is not equal to "undefined":
+        Return concat(tagStr (), "function").
+    If objGet(concat(tok, ""), "__ucm") is not equal to "undefined":
+        Return concat(tagStr (), "function").
+    If startsWith(objGet(concat(tok, ""), "__ucf"), chr(1)):
+        Return concat(tagStr (), "function").
     If isUndefRef(concat(tok, "")):
         Return concat(tagStr (), "undefined").
     Let bt be builtinTypeofTag(concat(tok, "")).
@@ -4661,6 +4671,11 @@
     Let after be afterLastSep(concat(expr, ""), "typeof ").
     Let atoks be split(after, " ").
     Let tok be item 1 of atoks.
+    If length of atoks is greater than 2:
+        If item 2 of atoks is equal to ".":
+            If isBuiltinStaticVal(trim(joinRange(atoks, 1, 3, ""))):
+                Let rest3 be joinRange(atoks, 4, length of atoks, "").
+                Return resolveTypeof(trim(concat(concat(before, concat(tagStr (), "function")), rest3))).
     If isUnaryPrefix(tok):
         Let opend be typeofOperandLen(atoks, 1).
         Let operand be joinRange(atoks, 1, opend, "").
@@ -5314,6 +5329,12 @@
 ## To callFnIdx3 (fnVal: Text, el: Text, idx: Text, arrv: Text, env: Text) -> Text:
     If isBoundFn(concat(fnVal, "")):
         Return callBoundIdx(concat(fnVal, ""), el, idx, concat(arrv, ""), env).
+    If objGet(concat(fnVal, ""), "__bsm") is not equal to "undefined":
+        Return jsEvalIn(trim(concat(concat(objGet(concat(fnVal, ""), "__bsm"), " ( "), concat(concat(el, ""), " )"))), env).
+    If objGet(concat(fnVal, ""), "__ucm") is not equal to "undefined":
+        Return uncurryInvoke(objGet(concat(fnVal, ""), "__ucm"), concat(el, ""), env).
+    If startsWith(objGet(concat(fnVal, ""), "__ucf"), chr(1)):
+        Return uncurryInvokeFn(objGet(concat(fnVal, ""), "__ucf"), concat(el, ""), env).
     Let paramStr be fnParams(concat(fnVal, "")).
     Let body be fnBody(concat(fnVal, "")).
     Let params be patFields(paramStr).
@@ -8178,7 +8199,19 @@
             Return i.
     Return topBinIdx(tks, i + 1, depth, op).
 
+# A builtin static method (Object.keys, Array.isArray, Object.getOwnPropertyDescriptor, …) referenced as a
+# VALUE — not immediately called — is a first-class function: `var g = Object.getOwnPropertyDescriptor;
+# g(o, k)`. These have inline call intercepts in resolveMethods but no value form, so a bare reference used
+# to resolve to NaN and calling the alias crashed. test262's propertyHelper.js aliases four of them at load
+# (Array.isArray / Object.defineProperty / Object.getOwnPropertyDescriptor / Object.getOwnPropertyNames), so
+# this is the keystone behind its whole verify* family.
+## To isBuiltinStaticVal (e: Text) -> Bool:
+    Let names be ["Object . keys", "Object . values", "Object . entries", "Object . assign", "Object . create", "Object . freeze", "Object . isFrozen", "Object . fromEntries", "Object . groupBy", "Object . hasOwn", "Object . is", "Object . defineProperty", "Object . getOwnPropertyDescriptor", "Object . getOwnPropertyNames", "Array . isArray", "Array . from", "Array . of", "JSON . parse", "JSON . stringify", "Math . abs", "Math . ceil", "Math . floor", "Math . round", "Math . trunc", "Math . sign", "Math . sqrt", "Math . pow", "Math . max", "Math . min", "Math . hypot", "Math . imul", "Number . isFinite", "Number . isInteger", "Number . isNaN", "Number . isSafeInteger", "Number . parseFloat", "Number . parseInt", "Reflect . get", "Reflect . set", "Reflect . has", "Reflect . ownKeys", "Reflect . deleteProperty", "String . fromCharCode", "String . fromCodePoint"].
+    Return names contains e.
+
 ## To jsEvalIn (expr: Text, env: Text) -> Text:
+    If isBuiltinStaticVal(trim(concat(expr, ""))):
+        Return objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__bsm", trim(concat(expr, ""))).
     Let te be trim(resolveStaticProps(split(concat(resolveInstanceof(resolveProcessEnv(expr), env), ""), " "), 1, env, "")).
     Let asgn be stripParenWrap(concat(te, "")).
     If hasSep(concat(asgn, ""), " , "):
