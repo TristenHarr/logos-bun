@@ -18,9 +18,11 @@ if (OURS) {
   const seed = Number(process.argv[2] || 1), n = Number(process.argv[3] || 90), rnd = mul(seed);
   const ri = (k) => Math.floor(rnd() * k);
   const program = () => {
-    const a = 1 + ri(20), b = 1 + ri(20), k = ri(7);
+    const a = 1 + ri(20), b = 1 + ri(20), k = ri(9);
     // NOTE: non-enumerable tracking (a prop defined without `enumerable:true` hidden from Object.keys) is a
     // deferred gap — objects don't track per-property writable/enumerable/configurable yet.
+    if (k === 7) return `var o = {}; o["p${a}"] = ${b};\nconsole.log(o.propertyIsEnumerable("p${a}"), o.propertyIsEnumerable("q${a}"));`;
+    if (k === 8) return `var o = { a: ${a}, b: ${b} };\nconsole.log(o.propertyIsEnumerable("a"), o.hasOwnProperty("b"), o.propertyIsEnumerable("toString"));`;
     if (k === 0) return `var o = {};\nObject.defineProperty(o, "x", { value: ${a} });\nconsole.log(o.x);`;
     if (k === 1) return `var o = {};\nObject.defineProperty(o, "g", { get: function(){ return ${a}; } });\nconsole.log(o.g);`;
     if (k === 2) return `var o = { n: ${a} };\nObject.defineProperty(o, "v", { get: function(){ return this.n + 1; }, set: function(x){ this.n = x; } });\no.v = ${b};\nconsole.log(o.v, o.n);`;
