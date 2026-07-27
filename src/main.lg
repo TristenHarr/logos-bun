@@ -1250,6 +1250,24 @@
         Return concat(bargs, "").
     Return concat(concat(concat(bargs, ""), " , "), concat(callArgs, "")).
 
+# The uncurry-`this` idiom `Function.prototype.call.bind(X.prototype.method)` yields a function whose FIRST
+# argument becomes the receiver: `G(a, b, …)` ≡ `a.method(b, …)`. When the method is native (join/push/
+# hasOwnProperty/…) there is no closure to invoke, so we rebuild the method-call expression with the first
+# argument spliced in as the receiver and let ordinary method dispatch handle it. propertyHelper.js (which
+# nearly every property-descriptor test includes) is built entirely on this idiom.
+## To uncurryInvoke (method: Text, argsText: Text, env: Text) -> Text:
+    Let aparts be splitArgsN(concat(argsText, "")).
+    Let firstA be trim(item 1 of aparts).
+    Let restArgs be joinCommaFrom(aparts, 2, 2, "").
+    Return jsEvalIn(trim(concat(concat(concat(concat(concat("( ", firstA), " ) . "), concat(method, "")), " ( "), concat(restArgs, " )"))), env).
+
+# The uncurry idiom bound over a user CLOSURE: `G(a, b, …)` ≡ `fn.call(a, b, …)` = fn with `this = a`.
+## To uncurryInvokeFn (fnv: Text, argsText: Text, env: Text) -> Text:
+    Let aparts be splitArgsN(concat(argsText, "")).
+    Let thisVal be jsEvalIn(trim(item 1 of aparts), env).
+    Let restArgs be joinCommaFrom(aparts, 2, 2, "").
+    Return callMethod(concat(fnv, ""), concat(restArgs, ""), concat(thisVal, ""), env).
+
 ## To callFn (fnVal: Text, argsText: Text, env: Text) -> Text:
     If isBoundFn(concat(fnVal, "")):
         Return callMethod(objGet(concat(fnVal, ""), "__bfn"), combineBoundArgs(objGet(concat(fnVal, ""), "__bargs"), concat(argsText, "")), objGet(concat(fnVal, ""), "__bthis"), env).
@@ -2256,6 +2274,14 @@
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If startsWith(objGet(concat(fnVal, ""), "__callfn"), chr(1)):
         Let result be callFn(objGet(concat(fnVal, ""), "__callfn"), inner, env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If objGet(concat(fnVal, ""), "__ucm") is not equal to "undefined":
+        Let result be uncurryInvoke(objGet(concat(fnVal, ""), "__ucm"), inner, env).
+        Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
+        Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
+    If startsWith(objGet(concat(fnVal, ""), "__ucf"), chr(1)):
+        Let result be uncurryInvokeFn(objGet(concat(fnVal, ""), "__ucf"), inner, env).
         Let newPrefix be joinRange(ptoks, 1, (length of ptoks) - 1, "").
         Return resolveCalls(concat(concat(concat(newPrefix, " "), result), rest), env).
     If isGlobalFn(lastTok):
@@ -7248,6 +7274,16 @@
         Let argStr be balancedArg(aft, 1, 0, "").
         Let rst be strSliceLoop(aft, (charLen(concat(argStr, ""))) + 2, length of aft, "").
         Let prefix be recvPrefix(concat(bef, "")).
+        If trim(recvExpr(concat(bef, ""))) is equal to "Function . prototype . call":
+            If hasSep(concat(argStr, ""), " . prototype . "):
+                Let atoks be split(trim(concat(argStr, "")), " ").
+                Let mname be item (length of atoks) of atoks.
+                Let uobj be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__ucm", concat(mname, "")).
+                Return resolveMethods(trim(concat(concat(concat(prefix, " "), uobj), rst)), env).
+            Let ucf be jsEvalIn(trim(concat(argStr, "")), env).
+            If startsWith(concat(ucf, ""), chr(1)):
+                Let uobjf be objSet(newObjRef(concat(tagObj (), tagObjEnd ())), "__ucf", concat(ucf, "")).
+                Return resolveMethods(trim(concat(concat(concat(prefix, " "), uobjf), rst)), env).
         Let fnv be jsEvalIn(recvExpr(concat(bef, "")), env).
         If startsWith(concat(fnv, ""), chr(1)) is equal to false:
             Return concat(expr, "").
